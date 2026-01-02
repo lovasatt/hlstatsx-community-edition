@@ -40,9 +40,10 @@ For support and installation notes visit http://www.hlxcommunity.com
         die('Do not access this file directly.');
     }
 
+// PHP 8 Fix: Initialize variables
 if ( empty($game) )
 {
-	$resultGames = $db->query("
+    $resultGames = $db->query("
         SELECT
             code,
             name
@@ -54,943 +55,1005 @@ if ( empty($game) )
             name ASC 
         LIMIT 0,1
 
-	");
-	list($game) = $db->fetch_row($resultGames);
+    ");
+    // PHP 8 Fix: Replace list()
+    $row = $db->fetch_row($resultGames);
+    $game = ($row) ? $row[0] : '';
 }
 
+#[AllowDynamicProperties]
 class Auth
 {
-	var $ok = false;
-	var $error = false;
+    public $ok = false;
+    public $error = false;
 
-	var $username, $password, $savepass;
-	var $sessionStart, $session;
+    public $username;
+    public $password;
+    public $savepass;
+    public $sessionStart;
+    public $session;
 
-	var $userdata = array();
+    public $userdata = array();
 
-	function __construct()
-	{
-		//@session_start();
+    function __construct()
+    {
+    //@session_start();
+        if (session_status() == PHP_SESSION_NONE) {
+            session_start();
+        }
 
-		if (valid_request($_POST['authusername'], false))
-		{
-			$this->username = valid_request($_POST['authusername'], false);
-			$this->password = valid_request($_POST['authpassword'], false);
-			$this->savepass = valid_request($_POST['authsavepass'], false);
-			$this->sessionStart = 0;
+        // PHP 8 Fix: Null coalescing check
+    if (isset($_POST['authusername']) && valid_request($_POST['authusername'], false))
+    {
+        $this->username = valid_request($_POST['authusername'], false);
+        $this->password = valid_request($_POST['authpassword'], false);
+        $this->savepass = valid_request($_POST['authsavepass'] ?? 0, false);
+        $this->sessionStart = 0;
 
-			# clear POST vars so as not to confuse the receiving page
-			unset($_POST);
-			$_POST = array();
+        $this->session = false;
 
-			$this->session = false;
+        if($this->checkPass()==true)
+        {
+    // if we have success, save it in this users SESSION
+    $_SESSION['username']=$this->username;
+    $_SESSION['password']=$this->password;
+    $_SESSION['authsessionStart']=time();
+    $_SESSION['acclevel'] = isset($this->userdata['acclevel']) ? $this->userdata['acclevel'] : 0;
+    $_SESSION['loggedin']=1;
+        }
+    }
+    elseif (isset($_SESSION['loggedin']))
+    {
+        $this->username = $_SESSION['username'];
+        $this->password = $_SESSION['password'];
+        $this->savepass = 0;
+        $this->sessionStart = $_SESSION['authsessionStart'];
+        $this->ok = true;
+        $this->error = false;
+        $this->session = true;
+        
+        if(!$this->checkPass())
+        {
+    unset($_SESSION['loggedin']);
+        }
+    }
+    else
+    {
+        $this->ok = false;
+        $this->error = false;
 
-			if($this->checkPass()==true)
-			{
-				// if we have success, save it in this users SESSION
-				$_SESSION['username']=$this->username;
-				$_SESSION['password']=$this->password;
-				$_SESSION['authsessionStart']=time();
-				$_SESSION['acclevel'] = $this->userdata['acclevel'];
-			}
-		}
-		elseif (isset($_SESSION['loggedin']))
-		{
-			$this->username = $_SESSION['username'];
-			$this->password = $_SESSION['password'];
-			$this->savepass = 0;
-			$this->sessionStart = $_SESSION['authsessionStart'];
-			$this->ok = true;
-			$this->error = false;
-			$this->session = true;
-			
-			if(!$this->checkPass())
-			{
-				unset($_SESSION['loggedin']);
-			}
-		}
-		else
-		{
-			$this->ok = false;
-			$this->error = false;
+        $this->session = false;
 
-			$this->session = false;
+        $this->printAuth();
+    }
+    }
 
-			$this->printAuth();
-		}
-	}
+    function checkPass()
+    {
+    global $db;
+        
+        $username_esc = $db->escape($this->username);
 
-	function checkPass()
-	{
-		global $db;
+    $db->query("
+    SELECT
+        *
+    FROM
+        hlstats_Users
+    WHERE
+        username='$username_esc'
+    LIMIT 1
+        ");
 
-		$db->query("
-				SELECT
-					*
-				FROM
-					hlstats_Users
-				WHERE
-					username='$this->username'
-				LIMIT 1
-			");
+    if ($db->num_rows() == 1)
+    {
+        // The username is OK
 
-		if ($db->num_rows() == 1)
-		{
-			// The username is OK
+        $this->userdata = $db->fetch_array();
+        $db->free_result();
 
-			$this->userdata = $db->fetch_array();
-			$db->free_result();
+        // --- MODERN PASSWORD HANDLING START ---
+        $input_pwd = (string)$this->password;
+        $stored_hash = (string)$this->userdata["password"];
+        $login_success = false;
+        $rehash_needed = false;
 
-			if (md5($this->password) == $this->userdata["password"])
-			{
-				// The username and the password are OK
+        // 1. Try Modern Hash (Bcrypt)
+        if (password_verify($input_pwd, $stored_hash)) {
+            $login_success = true;
+            if (password_needs_rehash($stored_hash, PASSWORD_DEFAULT)) {
+                $rehash_needed = true;
+            }
+        }
+        // 2. Try Legacy MD5 Hash (Silent Migration)
+        elseif (md5($input_pwd) === $stored_hash) {
+            $login_success = true;
+            $rehash_needed = true;
+        }
 
-				$this->ok = true;
-				$this->error = false;
-				$_SESSION['loggedin']=1;
-				if ($this->sessionStart > (time() - 3600))
-				{
-					// Valid session, update session time & display the page
-					$this->doCookies();
-					return true;
-				}
-				elseif ($this->sessionStart)
-				{
-					// A session exists but has expired
-					if ($this->savepass)
-					{
-						// They selected 'Save my password' so we just
-						// generate a new session and show the page.
-						$this->doCookies();
-						return true;
-					}
-					else
-					{
-						$this->ok = false;
-						$this->error = 'Your session has expired. Please try again.';
-						$this->password = '';
+        if ($login_success)
+        {
+            // Handle auto-upgrade of password hash and self-heal DB structure
+            if ($rehash_needed) {
+                // Check if column needs expansion
+                $check_sql = $db->query("SHOW COLUMNS FROM `hlstats_Users` LIKE 'password'");
+                $col_info = $db->fetch_array($check_sql);
+                if ($col_info && strpos($col_info['Type'], '32') !== false) {
+                    $db->query("ALTER TABLE `hlstats_Users` MODIFY `username` varchar(32) NOT NULL default '', MODIFY `password` varchar(255) NOT NULL default ''");
+                }
 
-						$this->printAuth();
-						return false;
-					}
-				}
-				elseif (!$this->session)
-				{
-					// No session and no cookies, but the user/pass was
-					// POSTed, so we generate cookies.
-					$this->doCookies();
-					return true;
-				}
-				else
-				{
-					// No session, user/pass from a cookie, so we force auth
-					$this->printAuth();
-					return false;
-				}
-			}
-			else
-			{
-				// The username is OK but the password is wrong
+                $new_hash = $db->escape(password_hash($input_pwd, PASSWORD_DEFAULT));
+                $db->query("UPDATE hlstats_Users SET password='$new_hash' WHERE username='$username_esc'");
+            }
+        // --- MODERN PASSWORD HANDLING END ---
 
-				$this->ok = false;
-				if ($this->session)
-				{
-					// Cookie without 'Save my password' - not an error
-					$this->error = false;
-				}
-				else
-				{
-					$this->error = 'The password you supplied is incorrect.';
-				}
-				$this->password = '';
-				$this->printAuth();
-			}
-		}
-		else
-		{
-			// The username is wrong
-			$this->ok = false;
-			$this->error = 'The username you supplied is not valid.';
-			$this->printAuth();
-		}
-	}
+    // The username and the password are OK
 
-	function doCookies()
-	{
-		return;
-		setcookie('authusername', $this->username, time() + 31536000, '', '', 0);
+    $this->ok = true;
+    $this->error = false;
+    $_SESSION['loggedin']=1;
+    if ($this->sessionStart > (time() - 3600))
+    {
+        // Valid session, update session time & display the page
+        $this->doCookies();
+        return true;
+    }
+    elseif ($this->sessionStart)
+    {
+        // A session exists but has expired
+        if ($this->savepass)
+        {
+        // They selected 'Save my password' so we just
+        // generate a new session and show the page.
+        $this->doCookies();
+        return true;
+        }
+        else
+        {
+        $this->ok = false;
+        $this->error = 'Your session has expired. Please try again.';
+        $this->password = '';
 
-		if ($this->savepass)
-		{
-			setcookie('authpassword', $this->password, time() + 31536000, '', '', 0);
-		}
-		else
-		{
-			setcookie('authpassword', $this->password, 0, '', '', 0);
-		}
-		setcookie('authsavepass', $this->savepass, time() + 31536000, '', '', 0);
-		setcookie('authsessionStart', time(), 0, '', '', 0);
-	}
+        $this->printAuth();
+        return false;
+        }
+    }
+    elseif (!$this->session)
+    {
+        // No session and no cookies, but the user/pass was
+        // POSTed, so we generate cookies.
+        $this->doCookies();
+        return true;
+    }
+    else
+    {
+        // No session, user/pass from a cookie, so we force auth
+        $this->printAuth();
+        return false;
+    }
+        }
+        else
+        {
+    // The username is OK but the password is wrong
 
-	function printAuth()
-	{
-		global $g_options;
+    $this->ok = false;
+    if ($this->session)
+    {
+        // Cookie without 'Save my password' - not an error
+        $this->error = false;
+    }
+    else
+    {
+        $this->error = 'The password you supplied is incorrect.';
+    }
+    $this->password = '';
+    $this->printAuth();
+        }
+    }
+    else
+    {
+        // The username is wrong
+        $this->ok = false;
+        $this->error = 'The username you supplied is not valid.';
+        $this->printAuth();
+    }
+    }
 
-		include (PAGE_PATH . '/adminauth.php');
-	}
+    function doCookies()
+    {
+    return;
+    setcookie('authusername', $this->username, time() + 31536000, '', '', 0);
+
+    if ($this->savepass)
+    {
+        setcookie('authpassword', $this->password, time() + 31536000, '', '', 0);
+    }
+    else
+    {
+        setcookie('authpassword', $this->password, 0, '', '', 0);
+    }
+    setcookie('authsavepass', $this->savepass, time() + 31536000, '', '', 0);
+    setcookie('authsessionStart', time(), 0, '', '', 0);
+    }
+
+    function printAuth()
+    {
+    global $g_options;
+
+    include (PAGE_PATH . '/adminauth.php');
+    }
 }
 
+#[AllowDynamicProperties]
 class AdminTask
 {
-	var $title = '';
-	var $acclevel = 0;
-	var $type = '';
-	var $description = '';
+    public $title = '';
+    public $acclevel = 0;
+    public $type = '';
+    public $description = '';
+    public $group = '';
 
-	function __construct($title, $acclevel, $type = 'general', $description = '', $group = '')
-	{
-		$this->title = $title;
-		$this->acclevel = $acclevel;
-		$this->type = $type;
-		$this->description = $description;
-		$this->group = $group;
-	}
+    function __construct($title, $acclevel, $type = 'general', $description = '', $group = '')
+    {
+    $this->title = $title;
+    $this->acclevel = $acclevel;
+    $this->type = $type;
+    $this->description = $description;
+    $this->group = $group;
+    }
 }
 
+#[AllowDynamicProperties]
 class EditList
 {
-	var $columns;
-	var $keycol;
-	var $table;
-	var $deleteCallback;
-	var $icon;
-	var $showid;
-	var $drawDetailsLink;
-	var $DetailsLink;
+    public $columns;
+    public $keycol;
+    public $table;
+    public $deleteCallback;
+    public $icon;
+    public $showid;
+    public $drawDetailsLink;
+    public $DetailsLink;
 
-	var $errors;
-	var $newerror;
+    public $errors;
+    public $newerror;
 
-	var $helpTexts;
-	var $helpKey;
-	var $helpDIV;
+    public $helpTexts;
+    public $helpKey;
+    public $helpDIV;
 
-	function __construct($keycol, $table, $icon, $showid = true, $drawDetailsLink = false, $DetailsLink = '', $deleteCallback = null)
-	{
-		$this->keycol = $keycol;
-		$this->table = $table;
-		$this->icon = $icon;
-		$this->showid = $showid;
-		$this->drawDetailsLink = $drawDetailsLink;
-		$this->DetailsLink = $DetailsLink;
-		$this->helpKey = '';
-		$this->deleteCallback = $deleteCallback;
-	}
+    function __construct($keycol, $table, $icon, $showid = true, $drawDetailsLink = false, $DetailsLink = '', $deleteCallback = null)
+    {
+    $this->keycol = $keycol;
+    $this->table = $table;
+    $this->icon = $icon;
+    $this->showid = $showid;
+    $this->drawDetailsLink = $drawDetailsLink;
+    $this->DetailsLink = $DetailsLink;
+    $this->helpKey = '';
+    $this->deleteCallback = $deleteCallback;
+    }
 
-	function setHelp($div, $key, $texts)
-	{
-		$this->helpDIV = $div;
-		$this->helpKey = $key;
-		$this->helpTexts = $texts;
+    function setHelp($div, $key, $texts)
+    {
+    $this->helpDIV = $div;
+    $this->helpKey = $key;
+    $this->helpTexts = $texts;
 
-		$returnstr = '';
+    $returnstr = '';
 
-		if ($this->helpKey != '')
-		{
-			$returnstr .= "<script type='text/javascript'>\n";
-			$returnstr .= "var texts = new Array();\n";
-			foreach (array_keys($this->helpTexts) as $key)
-			{
-				$value = $this->helpTexts[$key];
-				// $value = nl2br(htmlspecialchars($this->helpTexts[$key]));
-				$value = str_replace('"', "'", $value);
-				//$value = preg_replace("/\"/", "'", $value);
-				$value = preg_replace("/[\r\n]/", " ", $value);
-				$returnstr .= "texts[\"" . $key . "\"] = \"" . $value . "\";\n";
-			}
+    if ($this->helpKey != '')
+    {
+        $returnstr .= "<script type='text/javascript'>\n";
+        $returnstr .= "var texts = new Array();\n";
+        foreach (array_keys($this->helpTexts) as $key)
+        {
+    $value = $this->helpTexts[$key];
+                // PHP 8 Fix: Cast to string
+    $value = str_replace('"', "'", (string)$value);
+    $value = preg_replace("/[\r\n]/", " ", $value);
+    $returnstr .= "texts[\"" . $key . "\"] = \"" . $value . "\";\n";
+        }
 
-			$returnstr .= "\n\nfunction showHelp (keyname) {\n";
-			$returnstr .= "document.getElementById('" . $this->helpDIV . "').innerHTML=texts[keyname];\n";
-			$returnstr .= "document.getElementById('" . $this->helpDIV . "').style.visibility='visible';\n";
-			$returnstr .= "}\n";
-			$returnstr .= "\n\nfunction hideHelp () {\n";
-			$returnstr .= "document.getElementById('" . $this->helpDIV . "').style.visibility='hidden';\n";
-			$returnstr .= "}\n";
-			$returnstr .= "</script>\n";
+        $returnstr .= "\n\nfunction showHelp (keyname) {\n";
+        $returnstr .= "document.getElementById('" . $this->helpDIV . "').innerHTML=texts[keyname];\n";
+        $returnstr .= "document.getElementById('" . $this->helpDIV . "').style.visibility='visible';\n";
+        $returnstr .= "}\n";
+        $returnstr .= "\n\nfunction hideHelp () {\n";
+        $returnstr .= "document.getElementById('" . $this->helpDIV . "').style.visibility='hidden';\n";
+        $returnstr .= "}\n";
+        $returnstr .= "</script>\n";
 
-			$returnstr .= '<div class="helpwindow" ID="' . $this->helpDIV . '">No help text available</div>';
+        $returnstr .= '<div class="helpwindow" ID="' . $this->helpDIV . '">No help text available</div>';
 
-		}
-		return $returnstr;
-	}
+    }
+    return $returnstr;
+    }
 
-	function update()
-	{
-		global $db;
+    function update()
+    {
+    global $db;
 
-		$okcols = 0;
-		foreach ($this->columns as $col) {
-			$value = (!empty($_POST["new_$col->name"])) ? mystripslashes($_POST["new_$col->name"]) : '';
-			//  legacy code that should have never been here. these should never be html-escaped in the db.
-			//  if there's a problem with removing this, it needs to be fixed on the web/display end
-			//  -psychonic
-			//
-			/*
-			if ( $col->name != 'rcon_password' && $col->type != 'password' && $col->name != 'pattern')
-			{
-				$value = htmlspecialchars($value);
-			}
-			*/
+    $okcols = 0;
+        // Initialize variables
+        $qcols = '';
+        $qvals = '';
+        
+        // Columns that must be integers
+        $int_columns = array(
+            'reward_player', 'reward_team', 'awardCount', 'minKills', 
+            'maxKills', 'weight', 'acclevel', 'kills', 'headshots', 'count'
+        );
+        
+    foreach ($this->columns as $col) {
+        $post_key = "new_$col->name";
+        // PHP 8 Fix: Correctly handle '0' string. !empty() returns false for '0'.
+        $raw_value = $_POST[$post_key] ?? null;
+        $value = ($raw_value !== null && $raw_value !== '') ? mystripslashes($raw_value) : '';
 
-			if ($value != '')
-			{
-				if ($col->type == 'ipaddress' && !preg_match('/^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$/', $value))
-				{
-					$this->errors[] = "Column '$col->title' requires a valid IP address for new row";
-					$this->newerror = true;
-					$okcols++;
-				}
-				else
-				{
-					if ($qcols)
-					{
-						$qcols .= ', ';
-					}
-					$qcols .= $col->name;
+        // MySQL Strict Mode Fix
+        if ($value === '' && in_array($col->name, $int_columns)) {
+            $value = '0';
+        }
 
-					if ($qvals)
-					{
-						$qvals .= ', ';
-					}
+        if ($value != '')
+        {
+    if ($col->type == 'ipaddress' && !preg_match('/^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$/', $value))
+    {
+        $this->errors[] = "Column '$col->title' requires a valid IP address for new row";
+        $this->newerror = true;
+        $okcols++;
+    }
+    else
+    {
+        if ($qcols)
+        {
+        $qcols .= ', ';
+        }
+        $qcols .= $col->name;
 
-					if ($col->type == 'password' && $col->name != 'rcon_password')
-					{
-						$value = md5($value);
-					}
-					$qvals .= "'" . $db->escape($value) . "'";
+        if ($qvals)
+        {
+        $qvals .= ', ';
+        }
 
-					if ($col->type != 'select' && $col->type != 'hidden' && $value != $col->datasource)
-					{
-						$okcols++;
-					}
-				}
-			}
-			elseif ($col->required)
-			{
-				$this->errors[] = "Required column '$col->title' must have a value for new row";
-				$this->newerror = true;
-			}
-		}
+        if ($col->type == 'password' && $col->name != 'rcon_password')
+        {
+                // MODERN SECURITY: Use Bcrypt instead of MD5
+                $value = password_hash((string)$value, PASSWORD_DEFAULT);
+        }
+        $qvals .= "'" . $db->escape($value) . "'";
 
-		if ($okcols > 0 && !$this->errors)
-		{
-			$db->query("
-					INSERT INTO
-						$this->table
-						(
-							$qcols
-						)
-					VALUES
-					(
-						$qvals
-					)");
-		}
-		elseif ($okcols == 0)
-		{
-			$this->errors = array();
-			$this->newerror = false;
-		}
+        if ($col->type != 'select' && $col->type != 'hidden' && $value != $col->datasource)
+        {
+        $okcols++;
+        }
+    }
+        }
+        elseif ($col->required)
+        {
+    $this->errors[] = "Required column '$col->title' must have a value for new row";
+    $this->newerror = true;
+        }
+    }
 
-		if (!is_array($_POST['rows']))
-		{
-			return true;
-		}
-		
-		foreach ($_POST['rows'] as $row)
-		{
-			if (!empty($_POST[$row . '_delete'])) {
-				if (!empty($this->deleteCallback) && is_callable($this->deleteCallback)) {
-					call_user_func($this->deleteCallback, $row);
-				}
+    if ($okcols > 0 && !$this->errors)
+    {
+        $db->query("
+        INSERT INTO
+        $this->table
+        (
+            $qcols
+        )
+        VALUES
+        (
+        $qvals
+        )");
+    }
+    elseif ($okcols == 0)
+    {
+        $this->errors = array();
+        $this->newerror = false;
+    }
 
-				$db->query("
-					DELETE FROM
-						$this->table
-					WHERE
-						$this->keycol='" . $db->escape($row) . "'
-				");
-			}
-			else
-			{
-				$rowerror = false;
+    if (!isset($_POST['rows']) || !is_array($_POST['rows']))
+    {
+        return true;
+    }
+    
+    foreach ($_POST['rows'] as $row)
+    {
+        if (!empty($_POST[$row . '_delete'])) {
+    if (!empty($this->deleteCallback) && is_callable($this->deleteCallback)) {
+        call_user_func($this->deleteCallback, $row);
+    }
 
-				$query = "UPDATE $this->table SET ";
-				$i = 0;
-				foreach ($this->columns as $col)
-				{
-					if ($col->type == 'readonly')
-					{
-						continue;
-					}
+    $db->query("
+        DELETE FROM
+        $this->table
+        WHERE
+        $this->keycol='" . $db->escape($row) . "'
+    ");
+        }
+        else
+        {
+    $rowerror = false;
 
-					$value = (!empty($_POST[$row . "_" . $col->name])) ? mystripslashes($_POST[$row . "_" . $col->name]) : null;
-					
-					//  legacy code that should have never been here. these should never be html-escaped in the db.
-					//  if there's a problem with removing this, it needs to be fixed on the web/display end
-					//  -psychonic
-					//
-					/*
-					if ( $col->name != 'rcon_password' && $col->type != 'password' && $col->name != 'pattern')
-					{
-						$value = htmlspecialchars($value);
-					}
-					*/
+    $query = "UPDATE $this->table SET ";
+    $i = 0;
+    foreach ($this->columns as $col)
+    {
+        if ($col->type == 'readonly')
+        {
+        continue;
+        }
+                    
+            $post_key = $row . "_" . $col->name;
+            $raw_value = $_POST[$post_key] ?? null;
+            
+            if ($raw_value !== null && $raw_value !== '') {
+                $value = mystripslashes($raw_value);
+            } else {
+                $value = null;
+            }
 
-					if ($col->type == 'checkbox' && $value == ('' || null))
-					{
-						$value = '0';
-					}
+        if ($col->type == 'checkbox' && $value === null)
+        {
+            $value = '0';
+        }
 
-					if ($col->type == 'password' && $value == '(encrypted)')
-					{
-						continue;
-					}
+        if ($col->type == 'password' && $value == '(encrypted)')
+        {
+            continue;
+        }
 
-					if ($value == '' && $col->required)
-					{
-						$this->errors[] = "Required column '$col->title' must have a value for row '$row'";
-						$rowerror = true;
-					}
-					elseif ($col->type == "ipaddress" && !preg_match("/^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$/", $value))
-					{
-						$this->errors[] = "Column '$col->title' requires a valid IP address for row '$row'";
-						$rowerror = true;
-					}
+            // MySQL Strict Mode Fix
+            if (($value === null || $value === '') && in_array($col->name, $int_columns)) {
+                $value = '0';
+            }
 
-					if ($i > 0)
-					{
-						$query .= ', ';
-					}
+        if (($value === null || $value === '') && $col->required)
+        {
+        $this->errors[] = "Required column '$col->title' must have a value for row '$row'";
+        $rowerror = true;
+        }
+        elseif ($col->type == "ipaddress" && !preg_match("/^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$/", (string)$value))
+        {
+        $this->errors[] = "Column '$col->title' requires a valid IP address for row '$row'";
+        $rowerror = true;
+        }
 
-					if ($col->type == 'password' && $col->name != 'rcon_password')
-					{
-						$query .= $col->name . "='" . md5($value) . "'";
-					}
-					else
-					{
-						$query .= $col->name . "='" . $db->escape($value) . "'";
-					}
-					$i++;
-				}
-				$query .= " WHERE $this->keycol='" . $db->escape($row) . "'";
+        if ($i > 0)
+        {
+        $query .= ', ';
+        }
 
-				if (!$rowerror)
-				{
-					$db->query($query);
-				}
-			}
-		}
+        if ($col->type == 'password' && $col->name != 'rcon_password')
+        {
+                // MODERN SECURITY: Use Bcrypt instead of MD5
+                $hashed_val = password_hash((string)$value, PASSWORD_DEFAULT);
+            $query .= $col->name . "='" . $db->escape($hashed_val) . "'";
+        }
+        else
+        {
+            $query .= $col->name . "='" . $db->escape($value) . "'";
+        }
+        $i++;
+    }
+    $query .= " WHERE $this->keycol='" . $db->escape($row) . "'";
 
-		if ($this->error()) {
-			return false;
-		}
+    if (!$rowerror)
+    {
+        $db->query($query);
+    }
+        }
+    }
+
+    if ($this->error()) {
+        return false;
+    }
 
         return true;
-	}
+    }
 
-	function draw($result, $draw_new = true)
-	{
-		global $g_options, $db;
+    function draw($result, $draw_new = true)
+    {
+    global $g_options, $db;
 
 
 ?>
 <table width="100%" border="0" cellspacing="0" cellpadding="0">
 
 <tr valign="top" class="table_border">
-	<td><table width="100%" border="0" cellspacing="1" cellpadding="4">
+    <td><table width="100%" border="0" cellspacing="1" cellpadding="4">
 
-		<tr valign="bottom" class="head">
+    <tr valign="bottom" class="head">
 <?php
-		echo '<td></td>';
+    echo '<td></td>';
 
-		if ($this->showid)
-		{
+    if ($this->showid)
+    {
 ?>
-			<td align="right" class="fSmall"><?php
-			echo 'ID';
+        <td align="right" class="fSmall"><?php
+        echo 'ID';
 ?></td>
 <?php
-		}
+    }
 
-		foreach ($this->columns as $col)
-		{
-			if ($col->type == 'hidden')
-			{
-				continue;
-			}
-			echo '<td class="fSmall">' . $col->title . "</td>\n";
-		}
+    foreach ($this->columns as $col)
+    {
+        if ($col->type == 'hidden')
+        {
+    continue;
+        }
+        echo '<td class="fSmall">' . $col->title . "</td>\n";
+    }
 
-		if ($this->drawDetailsLink)
-		{
+    if ($this->drawDetailsLink)
+    {
 ?>
-			<td align="right" class="fSmall"><?php
-			echo '';
+        <td align="right" class="fSmall"><?php
+        echo '';
 ?></td>
 <?php
-		}
+    }
 
 
 ?>
-			<td align="center" class="fSmall"><?php
-		echo 'Delete';
+        <td align="center" class="fSmall"><?php
+    echo 'Delete';
 ?></td>
-		</tr>
+    </tr>
 
 <?php
-		while ($rowdata = $db->fetch_array($result))
-		{
-			echo "\n<tr>\n";
-			echo '<td align="center" class="bg1">';
-			if  (file_exists(IMAGE_PATH . "/$this->icon.gif"))
-			{
-				echo '<img src="' . IMAGE_PATH . "/$this->icon.gif\" width=\"16\" height=\"16\" border=\"0\" alt=\"\" />";
-			} 
-			else 
-			{
-				echo '<img src="' . IMAGE_PATH . "/server.gif\" width=\"16\" height=\"16\" border=\"0\" alt=\"\" />";
-			}
-			echo "</td>\n";
-			
-			if ($this->showid)
-			{
-				echo '<td align="right" class="bg2 fSmall">' . $rowdata[$this->keycol] . "</td>\n";
-			}
+    while ($rowdata = $db->fetch_array($result))
+    {
+        echo "\n<tr>\n";
+        echo '<td align="center" class="bg1">';
+        if  (file_exists(IMAGE_PATH . "/$this->icon.gif"))
+        {
+    echo '<img src="' . IMAGE_PATH . "/$this->icon.gif\" width=\"16\" height=\"16\" border=\"0\" alt=\"\" />";
+        } 
+        else 
+        {
+    echo '<img src="' . IMAGE_PATH . "/server.gif\" width=\"16\" height=\"16\" border=\"0\" alt=\"\" />";
+        }
+        echo "</td>\n";
+        
+        if ($this->showid)
+        {
+    echo '<td align="right" class="bg2 fSmall">' . $rowdata[$this->keycol] . "</td>\n";
+        }
 
-			$this->drawfields($rowdata, false, false);
+        $this->drawfields($rowdata, false, false);
 
-			if ($this->drawDetailsLink)
-			{
-				global $gamecode;
+        if ($this->drawDetailsLink)
+        {
+    global $gamecode;
 ?>
-			<td align="center" class="bg2 fSmall"><?php
-				echo "<a href='" . $g_options["scripturl"] . "?mode=admin&amp;game=$gamecode&amp;task=" . $this->DetailsLink . "&amp;key=" . $rowdata[$this->keycol] . "'><b>CONFIGURE</b></a>";
+        <td align="center" class="bg2 fSmall"><?php
+    echo "<a href='" . $g_options["scripturl"] . "?mode=admin&amp;game=$gamecode&amp;task=" . $this->DetailsLink . "&amp;key=" . $rowdata[$this->keycol] . "'><b>CONFIGURE</b></a>";
 ?></td>
 <?php
-			}
+        }
 
 ?>
 <td align="center" class="bg2"><input type="checkbox" name="<?php echo $rowdata[$this->keycol]; ?>_delete" value="1" /></td>
 <?php echo "</tr>\n\n";
-		}
+    }
 ?>
 
 <tr>
 <?php
-		if ( $draw_new )
-		{
-			echo "<td class=\"bg1 fSmall\" align=\"center\">" . "new</td>\n";
+    if ( $draw_new )
+    {
+        echo "<td class=\"bg1 fSmall\" align=\"center\">" . "new</td>\n";
 
-			if ($this->showid)
-				echo "<td class=\"bg2 fSmall\" align=\"right\">" . "&nbsp;</td>\n";
-	
-			if ($this->newerror)
-			{
-				$this->drawfields($_POST, true, true);
-			}
-			else
-			{
-				$this->drawfields(array(), true);
-			}
+        if ($this->showid)
+    echo "<td class=\"bg2 fSmall\" align=\"right\">" . "&nbsp;</td>\n";
+    
+        if ($this->newerror)
+        {
+    $this->drawfields($_POST, true, true);
+        }
+        else
+        {
+    $this->drawfields(array(), true);
+        }
 
-			echo "<td class=\"bg1\"></td>\n";
-		}
+        echo "<td class=\"bg1\"></td>\n";
+    }
 ?>
 </tr>
 
-		</table></td>
+    </table></td>
 </tr>
 
 </table><br /><br />
 <?php
-	}
+    }
 
-	function drawfields($rowdata = array(), $new = false, $stripslashes = false)
-	{
-		global $g_options, $db;
+    function drawfields($rowdata = array(), $new = false, $stripslashes = false)
+    {
+    global $g_options, $db;
 
-		$i = 0;
-		foreach ($this->columns as $col)
-		{
-			if ($new)
-			{
-				$keyval = 'new';
-				$rowdata[$col->name] = $rowdata["new_$col->name"];
-				if ($stripslashes)
-					$rowdata[$col->name] = mystripslashes($rowdata[$col->name]);
-			}
-			else
-			{
-				$keyval = $rowdata[$this->keycol];
-				if ($stripslashes)
-					$keyval = mystripslashes($keyval);
+    $i = 0;
+    foreach ($this->columns as $col)
+    {
+        if ($new)
+        {
+    $keyval = 'new';
+    $rowdata[$col->name] = isset($rowdata["new_$col->name"]) ? $rowdata["new_$col->name"] : '';
+    if ($stripslashes)
+        $rowdata[$col->name] = mystripslashes($rowdata[$col->name]);
+        }
+        else
+        {
+    $keyval = isset($rowdata[$this->keycol]) ? $rowdata[$this->keycol] : '';
+    if ($stripslashes)
+        $keyval = mystripslashes($keyval);
 
-			}
+        }
 
-			if ($col->type != 'hidden')
-			{
-				echo '<td class="bg1">';
-			}
+        if ($col->type != 'hidden')
+        {
+    echo '<td class="bg1">';
+        }
 
-			if ($i == 0 && !$new)
-			{
-				echo '<input type="hidden" name="rows[]" value="' . htmlspecialchars($keyval) . '" />';
-			}
+        if ($i == 0 && !$new)
+        {
+    echo '<input type="hidden" name="rows[]" value="' . htmlspecialchars((string)$keyval) . '" />';
+        }
 
-			if ($col->maxlength < 1)
-			{
-				$col->maxlength = '';
-			}
+        if ($col->maxlength < 1)
+        {
+    $col->maxlength = '';
+        }
 
-			switch ($col->type)
-			{
-				case 'select':
-					unset($coldata);
+        switch ($col->type)
+        {
+    case 'select':
+        unset($coldata);
+                    $coldata = array();
 
-					// for manual datasource in format "key/value;key/value" or "key;key"
-					foreach (explode(';', $col->datasource) as $v)
-					{
-						$sections = preg_match_all('/\//', $v, $dsaljfdsaf);
-						if ($sections == 2)
-						{
-							// for SQL datasource in format "table.column/keycolumn/where"
-							list($col_table, $col_col) = explode('.', $v);
-							list($col_col, $col_key, $col_where) = explode('/', $col_col);
-							if ($col_where)
-							{
-								$col_where = "WHERE $col_where";
-							}
-							$col_result = $db->query("SELECT $col_key, $col_col FROM $col_table $col_where ORDER BY $col_col");
-							$coldata = array();
-							while (list($a, $b) = $db->fetch_row($col_result))
-							{
-								$coldata[$a] = $b;
-							}
-						}
-						else if ($sections > 0)
-						{
-							list($a, $b) = explode('/', $v);
-							$coldata[$a] = $b;
-						}
-						else
-						{
-							$coldata[$v] = $v;
-						}
-					}
+        foreach (explode(';', $col->datasource) as $v)
+        {
+        $sections = preg_match_all('/\//', $v, $dsaljfdsaf);
+        if ($sections == 2)
+        {
+            list($col_table, $col_col) = explode('.', $v);
+            list($col_col, $col_key, $col_where) = explode('/', $col_col);
+            if ($col_where)
+            {
+	$col_where = "WHERE $col_where";
+            }
+            $col_result = $db->query("SELECT $col_key, $col_col FROM $col_table $col_where ORDER BY $col_col");
+            while (list($a, $b) = $db->fetch_row($col_result))
+            {
+	$coldata[$a] = $b;
+            }
+        }
+        else if ($sections > 0)
+        {
+            list($a, $b) = explode('/', $v);
+            $coldata[$a] = $b;
+        }
+        else
+        {
+            $coldata[$v] = $v;
+        }
+        }
 
-					if ($col->width)
-					{
-						$width = ' style="width:' . $col->width * 5 . 'px"';
-					}
-					else
-					{
-						$width = '';
-					}
+        if ($col->width)
+        {
+        $width = ' style="width:' . $col->width * 5 . 'px"';
+        }
+        else
+        {
+        $width = '';
+        }
 
-					echo "<select name=\"" . $keyval . "_$col->name\"$width>\n";
+        echo "<select name=\"" . $keyval . "_$col->name\"$width>\n";
 
-					if (!$col->required)
-					{
-						echo "<option value=\"\"></option>\n";
-					}
+        if (!$col->required)
+        {
+        echo "<option value=\"\"></option>\n";
+        }
 
-					$gotcval = false;
+        $gotcval = false;
 
-					foreach ($coldata as $k => $v)
-					{
-						if ($rowdata[$col->name] == $k)
-						{
-							$selected = ' selected="selected"';
-							$gotcval = true;
-						}
-						else
-						{
-							$selected = '';
-						}
+        foreach ($coldata as $k => $v)
+        {
+            $val_str = (string)($rowdata[$col->name] ?? '');
+            $k_str = (string)$k;
 
-						echo "<option value=\"$k\"$selected>$v</option>\n";
-					}
+        if (isset($rowdata[$col->name]) && $val_str === $k_str)
+        {
+            $selected = ' selected="selected"';
+            $gotcval = true;
+        }
+        else
+        {
+            $selected = '';
+        }
 
-					if (!$gotcval)
-					{
-						echo '<option value="' . $rowdata[$col->name] . '" selected="selected">' . $rowdata[$col->name] . "</option>\n";
-					}
+        echo "<option value=\"$k\"$selected>$v</option>\n";
+        }
 
-					echo '</select>';
-					break;
+        if (!$gotcval && isset($rowdata[$col->name]))
+        {
+        echo '<option value="' . $rowdata[$col->name] . '" selected="selected">' . $rowdata[$col->name] . "</option>\n";
+        }
 
-				case 'checkbox':
-					$selectedval = '1';
-					$value = $rowdata[$col->name];
+        echo '</select>';
+        break;
 
-					if ($value == $selectedval)
-					{
-						$selected = ' checked="checked"';
-					}
-					else
-					{
-						$selected = '';
-					}
+    case 'checkbox':
+        $selectedval = '1';
+        $value = isset($rowdata[$col->name]) ? $rowdata[$col->name] : '';
 
-					echo '<center><input type="checkbox" name="' . $keyval . "_$col->name\" value=\"$selectedval\"$selected /></center>";
-					break;
-					
-				case 'hidden':
-					echo '<input type="hidden" name="' . $keyval . "_$col->name\" value=\"" . htmlspecialchars($col->datasource) . '" />';
-					break;
-					
-				case 'readonly':
-					if (!$new)
-					{
-						echo html_entity_decode($rowdata[$col->name]);
-						break;
-					}
-					/* else fall through to default */
+        if ($value == $selectedval)
+        {
+        $selected = ' checked="checked"';
+        }
+        else
+        {
+        $selected = '';
+        }
 
-				default:
-					$onclick = '';
-					if ($col->type == 'password') {
-						$onclick = " onclick=\"if (this.value == '(encrypted)') this.value='';\"";
-					}
+        echo '<center><input type="checkbox" name="' . $keyval . "_$col->name\" value=\"$selectedval\"$selected /></center>";
+        break;
+        
+    case 'hidden':
+        echo '<input type="hidden" name="' . $keyval . "_$col->name\" value=\"" . htmlspecialchars((string)$col->datasource) . '" />';
+        break;
+        
+    case 'readonly':
+        if (!$new)
+        {
+        echo html_entity_decode((string)$rowdata[$col->name]);
+        break;
+        }
 
-					if ($col->datasource != '' && !isset($rowdata[$col->name]))
-					{
-						$value = $col->datasource;
-					}
-					else
-					{
-						$value = $rowdata[$col->name];
-					}
+    default:
+        $onclick = '';
+        if ($col->type == 'password') {
+        $onclick = " onclick=\"if (this.value == '(encrypted)') this.value='';\"";
+        }
 
-					$onClick = '';
-					if (!empty($this->helpKey) && !empty($rowdata[$this->helpKey])) {
-						$onClick = "onmouseover=\"javascript:showHelp('" . strtolower($rowdata[$this->helpKey]) . "')\" onmouseout=\"javascript:hideHelp()\"";
-					}
+        if ($col->datasource != '' && !isset($rowdata[$col->name]))
+        {
+        $value = $col->datasource;
+        }
+        else
+        {
+        $value = isset($rowdata[$col->name]) ? $rowdata[$col->name] : '';
+        }
 
-					$input_value = (!empty($value)) ? htmlentities(html_entity_decode($value), ENT_COMPAT, 'UTF-8') : "";
+        $onClick = '';
+        if (!empty($this->helpKey) && !empty($rowdata[$this->helpKey])) {
+        $onClick = "onmouseover=\"javascript:showHelp('" . strtolower($rowdata[$this->helpKey]) . "')\" onmouseout=\"javascript:hideHelp()\"";
+        }
 
-					echo "<input $onClick type=\"text\" name=\"" . $keyval . "_$col->name\" size=$col->width " . "value=\"" . $input_value . "\" class=\"textbox\"" . " maxlength=\"$col->maxlength\"$onclick />";
-// doing htmlentities on something that we just decoded is because we need to encode them when we fill out a form, but we don't want to double encode them (some items like rcon are not encoded at all - but server names are)
-			}
+        $input_value = (!empty($value) || $value === '0') ? htmlentities(html_entity_decode((string)$value), ENT_COMPAT, 'UTF-8') : "";
 
-			if ($col->type != 'hidden')
-			{
-				echo "</td>\n";
-			}
+        echo "<input $onClick type=\"text\" name=\"" . $keyval . "_$col->name\" size=$col->width " . "value=\"" . $input_value . "\" class=\"textbox\"" . " maxlength=\"$col->maxlength\"$onclick />";
+        }
 
-			$i++;
-		}
-	}
+        if ($col->type != 'hidden')
+        {
+    echo "</td>\n";
+        }
 
-	function error()
-	{
-		if (is_array($this->errors))
-		{
-			return implode("<br /><br />\n\n", $this->errors);
-		}
-		else
-		{
-			return false;
-		}
-	}
+        $i++;
+    }
+    }
+
+    function error()
+    {
+    if (is_array($this->errors))
+    {
+        return implode("<br /><br />\n\n", $this->errors);
+    }
+    else
+    {
+        return false;
+    }
+    }
 }
 
+#[AllowDynamicProperties]
 class EditListColumn
 {
-	var $name;
-	var $title;
-	var $width;
-	var $required;
-	var $type;
-	var $datasource;
-	var $maxlength;
+    public $name;
+    public $title;
+    public $width;
+    public $required;
+    public $type;
+    public $datasource;
+    public $maxlength;
 
-	function __construct($name, $title, $width = 20, $required = false, $type = 'text', $datasource = '', $maxlength = 0)
-	{
-		$this->name = $name;
-		$this->title = $title;
-		$this->width = $width;
-		$this->required = $required;
-		$this->type = $type;
-		$this->datasource = $datasource;
-		$this->maxlength = intval($maxlength);
-	}
+    function __construct($name, $title, $width = 20, $required = false, $type = 'text', $datasource = '', $maxlength = 0)
+    {
+    $this->name = $name;
+    $this->title = $title;
+    $this->width = $width;
+    $this->required = $required;
+    $this->type = $type;
+    $this->datasource = $datasource;
+    $this->maxlength = intval($maxlength);
+    }
 }
 
+#[AllowDynamicProperties]
 class PropertyPage
 {
-	var $table;
-	var $keycol;
-	var $keyval;
-	var $propertygroups = array();
+    public $table;
+    public $keycol;
+    public $keyval;
+    public $propertygroups = array();
 
-	function __construct($table, $keycol, $keyval, $groups)
-	{
-		$this->table = $table;
-		$this->keycol = $keycol;
-		$this->keyval = $keyval;
-		$this->propertygroups = $groups;
-	}
+    function __construct($table, $keycol, $keyval, $groups)
+    {
+    $this->table = $table;
+    $this->keycol = $keycol;
+    $this->keyval = $keyval;
+    $this->propertygroups = $groups;
+    }
 
-	function draw($data)
-	{
-		foreach ($this->propertygroups as $group)
-		{
-			$group->draw($data);
-		}
-	}
+    function draw($data)
+    {
+    foreach ($this->propertygroups as $group)
+    {
+        $group->draw($data);
+    }
+    }
 
-	function update()
-	{
-		global $db;
+    function update()
+    {
+    global $db;
 
-		$setstrings = array();
-		foreach ($this->propertygroups as $group)
-		{
-			foreach ($group->properties as $prop)
-			{
-				if ($prop->name == 'name')
-				{
-					$value = $_POST[$prop->name];
-					$search_pattern = array('/script/i', '/;/', '/%/');
-					$replace_pattern = array('', '', '');
-					$value = preg_replace($search_pattern, $replace_pattern, $value);
-					$setstrings[] = $prop->name . "='" . $value . "'";
-				}
-				else
-				{
-					$setstrings[] = $prop->name . "='" . valid_request($_POST[$prop->name], 0) . "'";
-				}
-			}
-		}
+    $setstrings = array();
+    foreach ($this->propertygroups as $group)
+    {
+        foreach ($group->properties as $prop)
+        {
+    if ($prop->name == 'name')
+    {
+        $value = isset($_POST[$prop->name]) ? $_POST[$prop->name] : '';
+        $search_pattern = array('/script/i', '/;/', '/%/');
+        $replace_pattern = array('', '', '');
+        $value = preg_replace($search_pattern, $replace_pattern, $value);
+        $setstrings[] = $prop->name . "='" . $db->escape($value) . "'";
+    }
+    else
+    {
+                    $val = isset($_POST[$prop->name]) ? $_POST[$prop->name] : '';
+        $setstrings[] = $prop->name . "='" . valid_request($val, 0) . "'";
+    }
+        }
+    }
 
-		$db->query("
-				UPDATE
-					" . $this->table . "
-				SET
-					" . implode(",\n", $setstrings) . "
-				WHERE
-					" . $this->keycol . "='" . $db->escape($this->keyval) . "'
-			");
-	}
+    $db->query("
+    UPDATE
+        " . $this->table . "
+    SET
+        " . implode(",\n", $setstrings) . "
+    WHERE
+        " . $this->keycol . "='" . $db->escape($this->keyval) . "'
+        ");
+    }
 }
 
+#[AllowDynamicProperties]
 class PropertyPage_Group
 {
-	var $title = '';
-	var $properties = array();
+    public $title = '';
+    public $properties = array();
 
-	function __construct($title, $properties)
-	{
-		$this->title = $title;
-		$this->properties = $properties;
-	}
+    function __construct($title, $properties)
+    {
+    $this->title = $title;
+    $this->properties = $properties;
+    }
 
-	function draw($data)
-	{
-		global $g_options;
+    function draw($data)
+    {
+    global $g_options;
 ?>
 <b><?php echo $this->title; ?></b><br />
 <table width="100%" border="0" cellspacing="0" cellpadding="0">
 
 <tr valign="top">
-	<td><table width="100%" border="0" cellspacing="1" cellpadding="4">
+    <td><table width="100%" border="0" cellspacing="1" cellpadding="4">
 <?php
-		foreach ($this->properties as $prop)
-		{
-			$prop->draw($data[$prop->name]);
-		}
+    foreach ($this->properties as $prop)
+    {
+            $val = isset($data[$prop->name]) ? $data[$prop->name] : '';
+        $prop->draw($val);
+    }
 ?>
-		</table></td>
+    </table></td>
 </tr>
 
 </table><br /><br />
 <?php
-	}
+    }
 }
 
+#[AllowDynamicProperties]
 class PropertyPage_Property
 {
-	var $name;
-	var $title;
-	var $type;
+    public $name;
+    public $title;
+    public $type;
+    public $datasource;
 
-	function __construct($name, $title, $type, $datasource = '')
-	{
-		$this->name = $name;
-		$this->title = $title;
-		$this->type = $type;
-		$this->datasource = $datasource;
-	}
+    function __construct($name, $title, $type, $datasource = '')
+    {
+    $this->name = $name;
+    $this->title = $title;
+    $this->type = $type;
+    $this->datasource = $datasource;
+    }
 
-	function draw($value)
-	{
-		global $g_options;
+    function draw($value)
+    {
+    global $g_options;
 ?>
 <tr style="vertical-align:middle;">
-	<td class="bg1" style="width:45%;"><?php
-		echo $this->title . ':';
+    <td class="bg1" style="width:45%;"><?php
+    echo $this->title . ':';
 ?></td>
-	<td class="bg1" style="width:55%;"><?php
-		switch ($this->type)
-		{
-			case 'textarea':
-				echo "<textarea name=\"$this->name\" cols=35 rows=4 wrap=\"virtual\">" . htmlspecialchars($value) . '</textarea>';
-				break;
+    <td class="bg1" style="width:55%;"><?php
+    switch ($this->type)
+    {
+        case 'textarea':
+    echo "<textarea name=\"$this->name\" cols=35 rows=4 wrap=\"virtual\">" . htmlspecialchars((string)$value) . '</textarea>';
+    break;
 
-			case 'select':
-				// for manual datasource in format "key/value;key/value" or "key;key"
-				foreach (explode(';', $this->datasource) as $v)
-				{
-					if (preg_match('/\//', $v))
-					{
-						list($a, $b) = explode('/', $v);
-						$coldata[$a] = $b;
-					}
-					else
-					{
-						$coldata[$v] = $v;
-					}
-				}
+        case 'select':
+                $coldata = array();
+    foreach (explode(';', $this->datasource) as $v)
+    {
+        if (preg_match('/\//', $v))
+        {
+        list($a, $b) = explode('/', $v);
+        $coldata[$a] = $b;
+        }
+        else
+        {
+        $coldata[$v] = $v;
+        }
+    }
 
-				echo getSelect($this->name, $coldata, $value);
-				break;
+    echo getSelect($this->name, $coldata, $value);
+    break;
 
-			default:
-				echo "<input type=\"text\" name=\"$this->name\" size=35 value=\"" . htmlspecialchars($value) . "\" class=\"textbox\" />";
-				break;
-		}
+        default:
+    echo "<input type=\"text\" name=\"$this->name\" size=35 value=\"" . htmlspecialchars((string)$value) . "\" class=\"textbox\" />";
+    break;
+    }
 ?>
 </td>
 </tr>
 <?php
-	}
+    }
 }
 
 function message($icon, $msg)
 {
-	global $g_options;
+    global $g_options;
 ?>
-		<table width="60%" border="0" cellspacing="0" cellpadding="0">
+    <table width="60%" border="0" cellspacing="0" cellpadding="0">
 
-		<tr valign="top">
-			<td width="40"><img src="<?php echo IMAGE_PATH . "/$icon"; ?>.gif" width="16" height="16" border="0" hspace="5" alt="" /></td>
-			<td width="100%"><?php
-	echo "<b>$msg</b>";
+    <tr valign="top">
+        <td width="40"><img src="<?php echo IMAGE_PATH . "/$icon"; ?>.gif" width="16" height="16" border="0" hspace="5" alt="" /></td>
+        <td width="100%"><?php
+    echo "<b>$msg</b>";
 ?></td>
-		</tr>
+    </tr>
 
-		</table><br /><br />
+    </table><br /><br />
 <?php
 }
 
@@ -998,35 +1061,38 @@ function message($icon, $msg)
 $auth = new Auth;
 if($auth->ok===false)
 {
-	return;
+    return;
 }
 
 pageHeader(array('Admin'), array('Admin' => ''));
 
-$selTask = valid_request($_GET['task'], false);
-$selGame = valid_request($_GET['game'], false);
+$selTask = isset($_GET['task']) ? valid_request($_GET['task'], false) : false;
+$selGame = isset($_GET['game']) ? valid_request($_GET['game'], false) : false;
 ?>
 
 <table width="100%" align="center" border="0" cellspacing="0" cellpadding="0">
 
 <tr valign="top">
-	<td><?php
+    <td><?php
+    
+    $version_out = isset($g_options['version']) ? $g_options['version'] : 'Unknown';
+    $dbversion_out = isset($g_options['dbversion']) ? $g_options['dbversion'] : 0;
 
 $updateDbHtml = "<div>
-					Current Version: <span style=\"color: #C40000;font-weight:bold\">{$g_options['version']}</span><br />
-					Current DB version: <span style=\"color: #C40000;font-weight:bold\">{$g_options['dbversion']}</span><br />";
+        Current Version: <span style=\"color: #C40000;font-weight:bold\">{$version_out}</span><br />
+        Current DB version: <span style=\"color: #C40000;font-weight:bold\">{$dbversion_out}</span><br />";
 if (file_exists('./updater') && $mode != 'updater') {
-	if (file_exists("./updater/" . ($g_options['dbversion'] + 1) . ".php")) {
-		$updateDbHtml .= "
-					<div class=\"block\">
-					<div class=\"warning\">
-						<span class=\"fHeading\"><img src=\"" . IMAGE_PATH . "/warning.gif\" alt=\"Warning\"> Warning:</span> Your database needs an upgrade. To perform a Database Update, please go to the Updater page.
-							<div style=\"text-align: center;\"><strong><a class=\"fMediumLarge\" href=\"{$g_options['scripturl']}?mode=updater&task=tools_updater\"><span>HLX:CE Database Updater</span></a></strong></div>
-						</span>
-					</div>";
-	} else {
-		$updateDbHtml .= "Great. Your database is the latest version.";
-	}
+    if (file_exists("./updater/" . ($dbversion_out + 1) . ".php")) {
+    $updateDbHtml .= "
+        <div class=\"block\">
+        <div class=\"warning\">
+        <span class=\"fHeading\"><img src=\"" . IMAGE_PATH . "/warning.gif\" alt=\"Warning\"> Warning:</span> Your database needs an upgrade. To perform a Database Update, please go to the Updater page.
+            <div style=\"text-align: center;\"><strong><a class=\"fMediumLarge\" href=\"{$g_options['scripturl']}?mode=updater&task=tools_updater\"><span>HLX:CE Database Updater</span></a></strong></div>
+        </span>
+        </div>";
+    } else {
+    $updateDbHtml .= "Great. Your database is the latest version.";
+    }
 }
 $updateDbHtml .= "</div>";
 
@@ -1060,7 +1126,6 @@ $admintasks['tools_editdetails'] = new AdminTask('Edit Player or Clan Details', 
 $admintasks['tools_adminevents'] = new AdminTask('Admin-Event History', 80, 'tool', 'View event history of logged Rcon commands and Admin Mod messages.');
 $admintasks['tools_ipstats'] = new AdminTask('Host Statistics', 80, 'tool', 'See which ISPs your players are using.');
 $admintasks['tools_optimize'] = new AdminTask('Optimize Database', 100, 'tool', 'This operation tells the MySQL server to clean up the database tables, optimizing them for better performance. It is recommended that you run this at least once a month.');
-//$admintasks['tools_synchronize'] = new AdminTask('Synchronize Statistics', 80, 'tool', 'Sychronize all players with the offical global ELstatsNEO banlist with catched VAC cheaters.');
 $admintasks['tools_resetdbcollations'] = new AdminTask('Reset All DB Collations to UTF8', 100, 'tool', 'Reset DB Collations to UTF-8 if you receive collation errors after an upgrade from another HLstats(X)-based system.');
 
 // Sub-Tools
@@ -1078,29 +1143,29 @@ $admintasks['tools_settings_copy'] = new AdminTask('Duplicate Game settings', 80
 // Show Tool
 if (!empty($admintasks[$selTask]) && ($admintasks[$selTask]->type == 'tool' || $admintasks[$selTask]->type == 'subtool'))
 {
-	$task = $admintasks[$selTask];
+    $task = $admintasks[$selTask];
 
-	$code = $selTask;
+    $code = $selTask;
 ?>
 &nbsp;<img src="<?php echo IMAGE_PATH; ?>/downarrow.gif" width="9" height="6" alt="" /><b>&nbsp;<a href="<?php echo $g_options['scripturl']; ?>?mode=admin">Tools</a></b><br />
 <img src="<?php echo IMAGE_PATH; ?>/spacer.gif" width="1" height="8" border="0" alt="" /><br />
 
 <?php
-	include (PAGE_PATH . "/admintasks/$code.php");
+    include (PAGE_PATH . "/admintasks/$code.php");
 }
 else
 {
-	// General Settings
+    // General Settings
 
 ?>
 &nbsp;<img src="<?php echo IMAGE_PATH; ?>/downarrow.gif" width="9" height="6" alt="" /><b>&nbsp;General Settings</b><br /><br />
 <?php
-	foreach ($admintasks as $code => $task)
-	{
-		if ($auth->userdata['acclevel'] >= $task->acclevel && $task->type == 'general')
-		{
-			if ($selTask == $code)
-			{
+    foreach ($admintasks as $code => $task)
+    {
+    if ((isset($auth->userdata['acclevel']) ? $auth->userdata['acclevel'] : 0) >= $task->acclevel && $task->type == 'general')
+    {
+        if ($selTask == $code)
+        {
 ?>
 &nbsp;&nbsp;&nbsp;&nbsp;<img src="<?php echo IMAGE_PATH; ?>/downarrow.gif" width="9" height="6" alt="" /><b>&nbsp;<a href="<?php echo $g_options['scripturl']; ?>?mode=admin" name="<?php echo $code; ?>"><?php echo $task->title; ?></a></b><br /><br />
 
@@ -1109,56 +1174,56 @@ else
 <table width="100%" border="0" cellspacing="0" cellpadding="0">
 
 <tr>
-	<td width="2%">&nbsp;</td>
-	<td width="98%"><?php
-				include (PAGE_PATH . "/admintasks/$code.php");
+    <td width="2%">&nbsp;</td>
+    <td width="98%"><?php
+    include (PAGE_PATH . "/admintasks/$code.php");
 ?></td>
 </tr>
 
 </table><br /><br />
 </form>
 <?php
-			}
-			else
-			{
+        }
+        else
+        {
 ?>
 &nbsp;&nbsp;&nbsp;&nbsp;<img src="<?php echo IMAGE_PATH; ?>/rightarrow.gif" width="6" height="9" alt="" /><b>&nbsp;<a href="<?php echo $g_options['scripturl']; ?>?mode=admin&amp;task=<?php echo $code; ?>#<?php echo $code;
 ?>"><?php echo $task->title; ?></a></b><br /><br /> <?php
-			}
-		}
-	}
+        }
+    }
+    }
 ?>
-	
+    
 &nbsp;<img src="<?php echo IMAGE_PATH; ?>/downarrow.gif" width="9" height="6" alt="" /><b>&nbsp;Game Settings</b><br /><br />
 <?php
-	$gamesresult = $db->query("
-			SELECT
-				name,
-				code
-			FROM
-				hlstats_Games
-			WHERE
-				hidden = '0'
-			ORDER BY
-				name ASC
-			;
-		");
+    $gamesresult = $db->query("
+        SELECT
+    name,
+    code
+        FROM
+    hlstats_Games
+        WHERE
+    hidden = '0'
+        ORDER BY
+    name ASC
+        ;
+    ");
 
-	while ($gamedata = $db->fetch_array($gamesresult))
-	{
-		$gamename = $gamedata['name'];
-		$gamecode = $gamedata['code'];
+    while ($gamedata = $db->fetch_array($gamesresult))
+    {
+    $gamename = $gamedata['name'];
+    $gamecode = $gamedata['code'];
 
-		if ($gamecode == $selGame)
-		{
+    if ($gamecode == $selGame)
+    {
 ?>
 &nbsp;&nbsp;&nbsp;&nbsp;<img src="<?php echo IMAGE_PATH; ?>/downarrow.gif" width="9" height="6" alt="" /><b>&nbsp;<a href="<?php echo $g_options['scripturl']; ?>?mode=admin" name="game_<?php echo $gamecode; ?>"><?php echo $gamename; ?></a></b> (<?php echo $gamecode; ?>)<br /><br /> <?php
-			foreach ($admintasks as $code => $task)
-			{
-				if ($auth->userdata['acclevel'] >= $task->acclevel && $task->type == 'game')
-				{
-					if ($selTask == $code)
-					{
+        foreach ($admintasks as $code => $task)
+        {
+    if ((isset($auth->userdata['acclevel']) ? $auth->userdata['acclevel'] : 0) >= $task->acclevel && $task->type == 'game')
+    {
+        if ($selTask == $code)
+        {
 ?>
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<img src="<?php echo IMAGE_PATH; ?>/downarrow.gif" width="9" height="6" alt="" /><b>&nbsp;<a href="<?php echo $g_options['scripturl']; ?>?mode=admin&amp;game=<?php echo $gamecode; ?>" name="<?php echo $code; ?>"><?php echo $task->title; ?></a></b><br /><br />
 
@@ -1167,55 +1232,56 @@ else
 <table width="100%" border="0" cellspacing="0" cellpadding="0">
 
 <tr>
-	<td width="10%">&nbsp;</td>
-	<td width="90%"><?php
-						include (PAGE_PATH . "/admintasks/$code.php");
+    <td width="10%">&nbsp;</td>
+    <td width="90%"><?php
+        include (PAGE_PATH . "/admintasks/$code.php");
 ?></td>
 </tr>
 
 </table><br /><br />
 </form>
 <?php
-					}
-					elseif ($code != 'serversettings')
-					{
-	?>
+        }
+        elseif ($code != 'serversettings')
+        {
+    ?>
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<img src="<?php echo IMAGE_PATH; ?>/rightarrow.gif" width="6" height="9" alt="" /><b>&nbsp;<a href="<?php echo $g_options['scripturl']; ?>?mode=admin&amp;game=<?php echo $gamecode; ?>&task=<?php echo $code; ?>#<?php echo $code; ?>"><?php echo $task->title; ?></a></b><br /><br /> <?php
-					}
-				}
-			}
-		}
-		else
-		{
+        }
+    }
+        }
+    }
+    else
+    {
 ?>
 &nbsp;&nbsp;&nbsp;&nbsp;<img src="<?php echo IMAGE_PATH; ?>/rightarrow.gif" width="6" height="9" alt="" /><b>&nbsp;<a href="<?php echo $g_options['scripturl']; ?>?mode=admin&amp;game=<?php echo $gamecode; ?>#game_<?php echo $gamecode; ?>"><?php echo $gamename; ?></a></b> (<?php echo $gamecode; ?>)<br /><br /> <?php
-		}
-	}
+    }
+    }
 }
 echo "</td>\n";
 
-if (!$selTask || !$admintasks[$selTask])
+if (!$selTask || !isset($admintasks[$selTask]))
 {
-	echo '<td width="50%">';
+    echo '<td width="50%">';
 ?>
 &nbsp;<img src="<?php echo IMAGE_PATH; ?>/downarrow.gif" width="9" height="6" alt="" /><b>&nbsp;Tools</b>
 
 <ul>
 <?php
-	foreach ($admintasks as $code => $task)
-	{
-		if ($auth->userdata['acclevel'] >= $task->acclevel && $task->type == 'tool')
-		{
+    foreach ($admintasks as $code => $task)
+    {
+        $acclevel = isset($auth->userdata['acclevel']) ? $auth->userdata['acclevel'] : 0;
+    if ($acclevel >= $task->acclevel && $task->type == 'tool')
+    {
 ?>	<li><b><a href="<?php echo $g_options['scripturl']; ?>?mode=admin&amp;task=<?php echo $code; ?>"><?php echo $task->title; ?></a></b><br />
-		<?php echo $task->description; ?><br /><br />
-	</li>
+    <?php echo $task->description; ?><br /><br />
+    </li>
 <?php
-		}
-	}
+    }
+    }
 ?>
 </ul>
 <?php
-	echo '</td>';
+    echo '</td>';
 }
 ?>
 </tr>

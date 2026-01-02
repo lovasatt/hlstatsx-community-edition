@@ -39,13 +39,16 @@ For support and installation notes visit http://www.hlxcommunity.com
     if (!defined('IN_HLSTATS')) {
         die('Do not access this file directly.');
     }
-	 
-	if ($auth->userdata["acclevel"] < 80) {
+
+    global $db, $auth, $task;
+
+    // PHP 8 Fix: Null coalescing check
+    if (($auth->userdata["acclevel"] ?? 0) < 80) {
         die ("Access denied!");
-	}
+    }
 ?>
 
-&nbsp;&nbsp;&nbsp;&nbsp;<img src="<?php echo IMAGE_PATH; ?>/downarrow.gif" width=9 height=6 class="imageformat"><b>&nbsp;<?php echo $task->title; ?></b><p>
+&nbsp;&nbsp;&nbsp;&nbsp;<img src="<?php echo IMAGE_PATH; ?>/downarrow.gif" width="9" height="6" class="imageformat" alt=""><b>&nbsp;<?php echo htmlspecialchars($task->title); ?></b><p>
 
 <?php
 
@@ -65,10 +68,13 @@ For support and installation notes visit http://www.hlxcommunity.com
      global $db;
      $result      = $db->query($query);
      $cheater     = array();
-     $query       = "UPDATE hlstats_Players SET last_event = IF(hideranking <> 2, UNIX_TIMESTAMP(), last_event), hideranking = 2 WHERE playerId IN ";
+     $base_query  = "UPDATE hlstats_Players SET last_event = IF(hideranking <> 2, UNIX_TIMESTAMP(), last_event), hideranking = 2 WHERE playerId IN ";
      $insert_part = "";
      $first       = 0;
-     while (list($player_id) = $db->fetch_row($result))  {
+     
+     // PHP 8 Fix: Replace list()
+     while ($row = $db->fetch_row($result))  {
+        $player_id = $row[0];
         if ($first == 0)
           $insert_part = "(".$player_id;
         else
@@ -78,7 +84,7 @@ For support and installation notes visit http://www.hlxcommunity.com
      if ($first > 0) {
        echo "<li>Updating <b>$first</b> cheaters...";
        $insert_part .= ")";
-       $update_query = $query.$insert_part;
+       $update_query = $base_query.$insert_part;
        $db->query($update_query);
        echo "<b>OK</b></li>";
      }  
@@ -88,80 +94,110 @@ For support and installation notes visit http://www.hlxcommunity.com
     if (isset($_POST['confirm']))
     {
       echo "<ul>\n";
-      $s_id = $_POST['masterserver'];
-      $host = $servers[$s_id]["host"];
-      $port = $servers[$s_id]["port"];
+      $s_id = isset($_POST['masterserver']) ? (int)$_POST['masterserver'] : 0;
       
-      echo "<li>Requesting cheaterlist from <b>$host:$port</b>...";
-      $host = gethostbyname($host);
-      $socket = socket_create(AF_INET, SOCK_DGRAM, SOL_UDP);
-      $packet = $servers[$s_id]["packet"];
-      $bytes_sent = socket_sendto($socket, $packet, strlen($packet), 0, $host, $port);
-      echo "<b>".$bytes_sent."</b> bytes <b>OK</b></li>";
-
-      echo "<li>Retrieving data from masterserver...";
-      $recv_bytes = 0;
-      $buffer     = "";
-      $timeout    = 30;
-      $answer     = "";
-      $packets    = 0;
-      $read       = array($socket);
-      $write = NULL;
-      $except = NULL;
-      while (socket_select($read, $write, $except, &$timeout) > 0) {
-        $recv_bytes += socket_recvfrom($socket, &$buffer, 2000, 0, &$host, &$port);
-        if (($buffer[0] == chr(255)) && ($buffer[1] == chr(255)) && ($buffer[2] == "Z") && ($buffer[3] == chr(255)) && 
-            ($buffer[4] == "1") && ($buffer[5] == ".") && ($buffer[6] == "0") && ($buffer[7] == "0") && ($buffer[8] == chr(255))) { 
-          $answer     .= substr($buffer, 9, strlen($buffer));
-        }  
-        $buffer     = "";
-        $timeout    = "1";
-        $packets++;
-      }   
-      $steam_ids = explode(chr(255), $answer);
-      array_pop($steam_ids);
-      echo "recieving <b>$recv_bytes</b> bytes in <b>$packets</b> packets...<b>".count($steam_ids)."</b> cheaters...<b>OK</b></li>";
-      $query       = "SELECT playerId FROM hlstats_PlayerUniqueIds WHERE uniqueId in ";
-      $insert_part = "";
-      $first       = 0; 
-      foreach ($steam_ids as $entry) {
-//        temporary: used to transfer current cheaters to elstatsneo masterserver ~~ 30000 cheaters transferred :)
-//        $db->query("INSERT INTO vac_ids VALUES ('$entry')");
-        if ($first == 0)
-          $insert_part = "('".$entry."'";
-        else
-          $insert_part .= ",'".$entry."'";
-        $first++;
-        if ($first % 50 == 0)  {
-          $insert_part .= ")";
-          $select_query = $query.$insert_part;
-          hide_cheaters($select_query);
-          $insert_part = "";
-          $first       = 0;
-        }    
+      if (!isset($servers[$s_id])) {
+          echo "<li>Invalid masterserver selected.</li></ul>";
+      } else {
+          $host = $servers[$s_id]["host"];
+          $port = $servers[$s_id]["port"];
+          
+          echo "<li>Requesting cheaterlist from <b>".htmlspecialchars($host).":$port</b>...";
+          $host_ip = gethostbyname($host);
+          $socket = socket_create(AF_INET, SOCK_DGRAM, SOL_UDP);
+          
+          if ($socket === false) {
+               echo "<b>Socket create failed</b></li></ul>";
+          } else {
+              $packet = $servers[$s_id]["packet"];
+              $bytes_sent = socket_sendto($socket, $packet, strlen($packet), 0, $host_ip, $port);
+              echo "<b>".$bytes_sent."</b> bytes <b>OK</b></li>";
+        
+              echo "<li>Retrieving data from masterserver...";
+              $recv_bytes = 0;
+              $buffer     = "";
+              $timeout    = 30;
+              $answer     = "";
+              $packets    = 0;
+              $write = NULL;
+              $except = NULL;
+              
+              // PHP 8 Fix: Removed call-time pass-by-reference (&) which is fatal in PHP 5.4+
+              // socket_select modifies $read by reference, so we must reset it in loop or pass variable
+              // socket_recvfrom modifies $buffer, $host, $port by reference
+              
+              while (true) {
+                $read = array($socket);
+                // Force int casting for timeout
+                $num_changed = socket_select($read, $write, $except, (int)$timeout);
+                
+                if ($num_changed > 0) {
+                    $recv_bytes += socket_recvfrom($socket, $buffer, 2000, 0, $host_ip, $port);
+                    if (strlen($buffer) > 8 && ($buffer[0] == chr(255)) && ($buffer[1] == chr(255)) && ($buffer[2] == "Z") && ($buffer[3] == chr(255)) && 
+                        ($buffer[4] == "1") && ($buffer[5] == ".") && ($buffer[6] == "0") && ($buffer[7] == "0") && ($buffer[8] == chr(255))) { 
+                      $answer .= substr($buffer, 9);
+                    }  
+                    $buffer     = "";
+                    $timeout    = 1;
+                    $packets++;
+                } else {
+                    break;
+                }
+              }   
+              
+              $steam_ids = explode(chr(255), $answer);
+              // Remove last empty element if exists
+              if (end($steam_ids) === "") {
+                  array_pop($steam_ids);
+              }
+              
+              echo "recieving <b>$recv_bytes</b> bytes in <b>$packets</b> packets...<b>".count($steam_ids)."</b> cheaters...<b>OK</b></li>";
+              
+              $query       = "SELECT playerId FROM hlstats_PlayerUniqueIds WHERE uniqueId in ";
+              $insert_part = "";
+              $first       = 0; 
+              
+              foreach ($steam_ids as $entry) {
+                // PHP 8 Fix: Escape string
+                $entry_esc = $db->escape($entry);
+                
+                if ($first == 0)
+                  $insert_part = "('".$entry_esc."'";
+                else
+                  $insert_part .= ",'".$entry_esc."'";
+                $first++;
+                
+                if ($first % 50 == 0)  {
+                  $insert_part .= ")";
+                  $select_query = $query.$insert_part;
+                  hide_cheaters($select_query);
+                  $insert_part = "";
+                  $first       = 0;
+                }    
+              }
+              if ($first > 0) {
+                $insert_part .= ")";
+                $select_query = $query.$insert_part;
+                hide_cheaters($select_query);
+              }
+              
+              echo "<li>Closing connection to masterserver...";
+              
+              socket_close($socket);
+              echo "<b>OK</b></li>";
+              echo "</ul>\n";
+          }
       }
-      if ($first > 0) {
-        $insert_part .= ")";
-        $select_query = $query.$insert_part;
-        hide_cheaters($select_query);
-      }
-      
-      echo "<li>Closing connection to masterserver...";
-      
-      
-      socket_close($socket);
-      echo "<b>OK</b></li>";
-      echo "</ul>\n";
     } else {
         
 ?>        
 
 <form method="POST">
-<table width="60%" align="center" border=0 cellspacing=0 cellpadding=0 class="border">
+<table width="60%" align="center" border="0" cellspacing="0" cellpadding="0" class="border">
 
 <tr>
     <td>
-        <table width="100%" border=0 cellspacing=1 cellpadding=10>
+        <table width="100%" border="0" cellspacing="1" cellpadding="10">
         
         <tr class="bg1">
             <td class="fNormal">
@@ -173,7 +209,7 @@ Choose preferred masterserver:
 <?php
   $i = 0;
   foreach ($servers as $server) {
-   echo "<OPTION VALUE=\"$i\">".$server["name"];
+   echo "<OPTION VALUE=\"$i\">".htmlspecialchars($server["name"]);
    $i++;
   } 
 ?>   
@@ -195,5 +231,4 @@ Choose preferred masterserver:
 
 <?php
     }
-?>    
-    
+?>

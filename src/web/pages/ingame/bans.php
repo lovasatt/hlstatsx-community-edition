@@ -36,107 +36,123 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 For support and installation notes visit http://www.hlxcommunity.com
 */
 
-	if (!defined('IN_HLSTATS')) {
-		die('Do not access this file directly.');
-	}
+    if (!defined('IN_HLSTATS')) {
+	die('Do not access this file directly.');
+    }
 
-	// Player Rankings
-	$db->query("SELECT name FROM hlstats_Games WHERE code='$game'");
-	if ($db->num_rows() < 1) error("No such game '$game'.");
-	
-	list($gamename) = $db->fetch_row();
-	$db->free_result();
-	
-	$minkills = 0;
+    global $db, $game, $g_options;
 
-	$table = new Table(
-		array(
-			new TableColumn(
-				"lastName",
-				"Name",
-				"width=40&flag=1&link=" . urlencode("mode=statsme&amp;player=%k")
-			),
-			new TableColumn(
-				"ban_date",
-				"BanDate",
-				"width=25&align=right"
-			),
-			new TableColumn(
-				"skill",
-				"Points",
-				"width=5&align=right"
-			),
-			new TableColumn(
-				"kills",
-				"Kills",
-				"width=5&align=right"
-			),
-			new TableColumn(
-				"deaths",
-				"Deaths",
-				"width=5&align=right"
-			),
-			new TableColumn(
-				"headshots",
-				"Headshots",
-				"width=5&align=right"
-			),
-			new TableColumn(
-				"hpk",
-				"HS:K",
-				"width=5&align=right"
-			),
-			new TableColumn(
-				"kpd",
-				"KPD",
-				"width=5&align=right"
-			),
-		),
-		"playerId",
-		"last_event",
-		"skill",
-		true,
-		25
-	);
+    // Security: Escape game variable
+    $game_esc = $db->escape($game);
+
+    // Player Rankings
+    $db->query("SELECT name FROM hlstats_Games WHERE code='$game_esc'");
+    if ($db->num_rows() < 1) error("No such game '$game'.");
     
-	$result = $db->query("
-		SELECT
-			FROM_UNIXTIME(last_event,'%Y.%m.%d %T') as ban_date,
-			playerId,
-			lastName,
-			country,
-			flag,
-			skill,
-			kills,
-			deaths,
-			IFNULL(kills/deaths, '-') AS kpd,
-			headshots,
-			IFNULL(headshots/kills, '-') AS hpk
-		FROM
-			hlstats_Players
-		WHERE
-			game='$game'
-			AND hideranking=2
-			AND kills >= $minkills
-		ORDER BY
-			$table->sort $table->sortorder,
-			$table->sort2 $table->sortorder,
-			lastName ASC
-		LIMIT $table->startitem,$table->numperpage
-	");
-	
-	$resultCount = $db->query("
-		SELECT
-			COUNT(*)
-		FROM
-			hlstats_Players
-		WHERE
-			game='$game'
-			AND hideranking=2
-			AND kills >= $minkills
-	");
-	
-	list($numitems) = $db->fetch_row($resultCount);
-	
-	$table->draw($result, 25, 100);
+    // PHP 8 Fix: Replace list()
+    $row = $db->fetch_row();
+    $gamename = ($row) ? $row[0] : '';
+    $db->free_result();
+    
+    // Added PageHeader
+    pageHeader(
+	array ($gamename, 'Banned Players'),
+	array ($gamename=>"%s?game=$game", 'Banned Players'=>'')
+    );
+
+    $minkills = 0;
+
+    $table = new Table(
+	array(
+	    new TableColumn(
+		"lastName",
+		"Name",
+		"width=40&flag=1&link=" . urlencode("mode=playerinfo&amp;player=%k")
+	    ),
+	    new TableColumn(
+		"ban_date",
+		"BanDate",
+		"width=25&align=right"
+	    ),
+	    new TableColumn(
+		"skill",
+		"Points",
+		"width=5&align=right"
+	    ),
+	    new TableColumn(
+		"kills",
+		"Kills",
+		"width=5&align=right"
+	    ),
+	    new TableColumn(
+		"deaths",
+		"Deaths",
+		"width=5&align=right"
+	    ),
+	    new TableColumn(
+		"headshots",
+		"Headshots",
+		"width=5&align=right"
+	    ),
+	    new TableColumn(
+		"hpk",
+		"HS:K",
+		"width=5&align=right"
+	    ),
+	    new TableColumn(
+		"kpd",
+		"KPD",
+		"width=5&align=right"
+	    ),
+	),
+	"playerId",
+	"last_event",
+	"skill",
+	true,
+	25
+    );
+    
+    $result = $db->query("
+	SELECT
+	    FROM_UNIXTIME(last_event,'%Y.%m.%d %T') as ban_date,
+	    playerId,
+	    lastName,
+	    country,
+	    flag,
+	    skill,
+	    kills,
+	    deaths,
+	    IFNULL(kills/deaths, '-') AS kpd,
+	    headshots,
+	    IFNULL(headshots/kills, '-') AS hpk
+	FROM
+	    hlstats_Players
+	WHERE
+	    game='$game_esc'
+	    AND hideranking=2
+	    AND kills >= $minkills
+	ORDER BY
+	    $table->sort $table->sortorder,
+	    $table->sort2 $table->sortorder,
+	    lastName ASC
+	LIMIT $table->startitem,$table->numperpage
+    ");
+    
+    $resultCount = $db->query("
+	SELECT
+	    COUNT(*)
+	FROM
+	    hlstats_Players
+	WHERE
+	    game='$game_esc'
+	    AND hideranking=2
+	    AND kills >= $minkills
+    ");
+    
+    // PHP 8 Fix: Replace list()
+    $row = $db->fetch_row($resultCount);
+    $numitems = ($row) ? (int)$row[0] : 0;
+    
+    // Fix: Draw using actual number of items, not page limit
+    $table->draw($result, $numitems, 100);
 ?>

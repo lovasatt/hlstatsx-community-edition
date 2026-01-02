@@ -54,258 +54,321 @@ UNIQUE KEY `source` (`source`(64))
 */
 
 if (!defined('IN_HLSTATS')) {
-	die('Do not access this file directly.');
+    die('Do not access this file directly.');
 }
 
+#[AllowDynamicProperties]
 class DB_mysql
 {
-	var $db_addr;
-	var $db_user;
-	var $db_pass;
-	var $db_name;
+    public $db_addr;
+    public $db_user;
+    public $db_pass;
+    public $db_name;
 
-	var $link;
-	var $last_result;
-	var $last_query;
-	var $last_insert_id;
-	var $profile = 0;
-	var $querycount = 0;
-	var $last_calc_rows = 0;
+    public $link = null;
+    public $last_result = null;
+    public $last_query = '';
+    public $last_insert_id = 0;
+    public $profile = 0;
+    public $querycount = 0;
+    public $last_calc_rows = 0;
 
-	function __construct($db_addr, $db_user, $db_pass, $db_name, $use_pconnect = false)
+    function __construct($db_addr, $db_user, $db_pass, $db_name, $use_pconnect = false)
+    {
+	$this->db_addr = $db_addr;
+	$this->db_user = $db_user;
+	$this->db_pass = $db_pass;
+
+	$this->querycount = 0;
+
+        // PHP 8+ compatible exception handling
+        mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
+
+        try {
+	    if ( $use_pconnect )
+	    {
+                $host = "p:" . $db_addr;
+	    }
+	    else
+	    {
+                $host = $db_addr;
+	    }
+            
+            $this->link = mysqli_connect($host, $db_user, $db_pass);
+            
+        } catch (Exception $e) {
+            $this->link = false;
+        }
+
+	if ( $this->link )
 	{
-		$this->db_addr = $db_addr;
-		$this->db_user = $db_user;
-		$this->db_pass = $db_pass;
+            try {
+		if (defined('DB_CHARSET')) {
+                    mysqli_set_charset($this->link, DB_CHARSET);
+                } else {
+                    mysqli_set_charset($this->link, 'utf8mb4');
+                }
 
-		$this->querycount = 0;
+                if (defined('DB_COLLATE')) {
+                    $query_str = "SET collation_connection = " . mysqli_real_escape_string($this->link, DB_COLLATE);
+                    mysqli_query($this->link, $query_str);
+                }
 
-		if ( $use_pconnect )
+		if ( $db_name != '' )
 		{
-			if (function_exists('mysqli_pconnect')) {
-				# Deprecated function
-				$this->link = @mysqli_pconnect($db_addr, $db_user, $db_pass);
-			} else {
-				# See: https://www.php.net/manual/en/mysqli.construct.php
-				$this->link = @mysqli_connect("p:$db_addr", $db_user, $db_pass);
-			}
+		    $this->db_name = $db_name;
+		    mysqli_select_db($this->link, $db_name);
 		}
-		else
-		{
-			$this->link = @mysqli_connect($db_addr, $db_user, $db_pass);
-		}
+            } catch (Exception $e) {
+                if ($this->link) mysqli_close($this->link);
+                $this->error("Database initialization failed: " . $e->getMessage());
+            }
 
-		if ( $this->link )
-		{
-			mysqli_set_charset($this->link, DB_CHARSET);
-			$query_str = "SET collation_connection = " . DB_COLLATE;
-			mysqli_query($this->link, $query_str);
+	    return $this->link;
+	}
+	else
+	{
+	    $this->error('Could not connect to database server. Check that the values of DB_ADDR, DB_USER and DB_PASS in config.php are set correctly.');
+	}
+    }
 
-			if ( $db_name != '' )
-			{
-				$this->db_name = $db_name;
-				if ( !@mysqli_select_db($this->link, $db_name) )
-				{
-					@mysqli_close($this->link);
-					$this->error("Could not select database '$db_name'. Check that the value of DB_NAME in config.php is set correctly.");
-				}
-			}
+    function data_seek($row_number, $query_id = 0)
+    {
+	if ( !$query_id )
+	{
+	    $query_id = $this->last_result;
+	}
+	if ( $query_id instanceof mysqli_result )
+	{
+            if ($row_number < 0 || $row_number >= mysqli_num_rows($query_id)) {
+                return false;
+            }
+	    return mysqli_data_seek($query_id, (int)$row_number);
+	}
+	return false;
+    }
 
-			return $this->link;
-		}
-		else
-		{
-			$this->error('Could not connect to database server. Check that the values of DB_ADDR, DB_USER and DB_PASS in config.php are set correctly.');
-		}
+    function fetch_array($query_id = 0)
+    {
+	if ( !$query_id )
+	{
+	    $query_id = $this->last_result;
 	}
 
-	function data_seek($row_number, $query_id = 0)
+	if ( $query_id instanceof mysqli_result )
 	{
-		if ( !$query_id )
+	    return mysqli_fetch_array($query_id);
+	}
+	return false;
+    }
+
+    function fetch_row($query_id = 0)
+    {
+	if ( !$query_id )
+	{
+	    $query_id = $this->last_result;
+	}
+
+	if ( $query_id instanceof mysqli_result )
+	{
+	    return mysqli_fetch_row($query_id);
+	}
+	return false;
+    }
+
+    function fetch_row_set($query_id = 0)
+    {
+	if ( !$query_id )
+	{
+	    $query_id = $this->last_result;
+	}
+
+	if ( $query_id instanceof mysqli_result )
+	{
+	    $rowset = array();
+	    while ( $row = $this->fetch_array($query_id) )
+		$rowset[] = $row;
+
+	    return $rowset;
+	}
+	return false;
+    }
+
+    function free_result($query_id = 0)
+    {
+	if ( !$query_id )
+	{
+	    $query_id = $this->last_result;
+	}
+
+	if ( $query_id instanceof mysqli_result )
+	{
+	    mysqli_free_result($query_id);
+            return true;
+	}
+	return false;
+    }
+
+    function insert_id()
+    {
+	return $this->last_insert_id;
+    }
+
+    function num_rows($query_id = 0)
+    {
+	if ( !$query_id )
+	{
+	    $query_id = $this->last_result;
+	}
+
+	if ( $query_id instanceof mysqli_result )
+	{
+	    return mysqli_num_rows($query_id);
+	}
+	return false;
+    }
+
+    function calc_rows()
+    {
+	return $this->last_calc_rows;
+    }
+
+    function query($query, $showerror=true, $calcrows=false)
+    {
+        if (!$this->link) {
+            if ($showerror) $this->error("No database connection.");
+            return false;
+        }
+
+	$this->last_query = $query;
+	$starttime = microtime(true);
+	if($calcrows == true)
+	{
+	    /* Add sql_calc_found_rows to this query */
+	    $query = preg_replace('/^\s*select/i', 'SELECT SQL_CALC_FOUND_ROWS', $query, 1);
+	}
+        
+        try {
+	    $this->last_result = mysqli_query($this->link, $query);
+        } catch (Exception $e) {
+            $this->last_result = false;
+        }
+        
+	$endtime = microtime(true);
+
+	$this->last_insert_id = mysqli_insert_id($this->link);
+
+	if($calcrows == true)
+	{
+            try {
+		$calc_result = mysqli_query($this->link, "select found_rows() as rowcount");
+		if($calc_result && $row = mysqli_fetch_assoc($calc_result))
 		{
-			$result = $this->last_result;
+		    $this->last_calc_rows = (int)$row['rowcount'];
 		}
-		if ( $query_id )
-		{
-			return @mysqli_data_seek($query_id, $row_number);
-		}
+            } catch (Exception $e) {
+                $this->last_calc_rows = 0;
+            }
+	}
+
+	$this->querycount++;
+
+	if ( defined('DB_DEBUG') && DB_DEBUG == true )
+	{
+	    echo "<div style='background:#eee;padding:5px;border:1px solid #ccc;'><pre>" . htmlspecialchars($query) . "</pre></div>";
+	}
+
+	if ( $this->last_result )
+	{
+	    if($this->profile)
+	    {
+		$backtrace = debug_backtrace();
+                $file_info = isset($backtrace[0]) ? basename($backtrace[0]['file']) . ':' . $backtrace[0]['line'] : 'unknown';
+                $escaped_source = mysqli_real_escape_string($this->link, $file_info);
+                $duration = $endtime - $starttime;
+                
+		$profilequery = "insert into hlstats_sql_web_profile (source, run_count, run_time) values ".
+		    "('$escaped_source',1,'$duration')"
+		    ."ON DUPLICATE KEY UPDATE run_count = run_count+1, run_time=run_time+$duration";
+		try {
+                    mysqli_query($this->link, $profilequery);
+                } catch (Exception $e) {}
+	    }
+	    return $this->last_result;
+	}
+	else
+	{
+	    if ($showerror)
+	    {
+                // Retrieve actual error from MySQLi exception handling logic
+                $error_msg = mysqli_error($this->link);
+		$this->error('Bad query. ' . $error_msg);
+	    }
+	    else
+	    {
 		return false;
+	    }
 	}
+    }
 
-	function fetch_array($query_id = 0)
+    function result($row_idx, $field, $query_id = 0)
+    {
+	if ( !$query_id )
 	{
-		if ( !$query_id )
-		{
-			$query_id = $this->last_result;
-		}
-
-		if ( $query_id )
-		{
-			return @mysqli_fetch_array($query_id);
-		}
-		return false;
+	    $query_id = $this->last_result;
 	}
 
-	function fetch_row($query_id = 0)
+	if ( $query_id instanceof mysqli_result )
 	{
-		if ( !$query_id )
-		{
-			$query_id = $this->last_result;
-		}
-
-		if ( $query_id )
-		{
-			return @mysqli_fetch_row($query_id);
-		}
-		return false;
+            // Fix: mysqli_result function does not exist in PHP 8/Standard MySQLi
+            // Implemented seeking and fetching logic
+            if ($row_idx < 0 || $row_idx >= mysqli_num_rows($query_id)) {
+                return false;
+            }
+            if (mysqli_data_seek($query_id, (int)$row_idx)) {
+                $row_data = mysqli_fetch_array($query_id);
+                return isset($row_data[$field]) ? $row_data[$field] : false;
+            }
 	}
+	return false;
+    }
 
-	function fetch_row_set($query_id = 0)
+    function escape($string)
+    {
+	if ( $this->link )
 	{
-		if ( !$query_id )
-		{
-			$query_id = $this->last_result;
-		}
-
-		if ( $query_id )
-		{
-			$rowset = array();
-			while ( $row = $this->fetch_array($query_id) )
-				$rowset[] = $row;
-
-			return $rowset;
-		}
-		return false;
+            // PHP 8 Fix: Cast to string, null is deprecated
+	    return mysqli_real_escape_string($this->link, (string)$string);
 	}
+    
+	return '';	
+    }
 
-	function free_result($query_id = 0)
-	{
-		if ( !$query_id )
-		{
-			$query_id = $this->last_result;
-		}
+    function error($message, $exit=true)
+    {
+        // Safe output
+        $out = "<b>Database Error</b><br />\n<br />\n" .
+	    "<i>Server Address:</i> " . htmlspecialchars($this->db_addr) . "<br />\n" .
+	    "<i>Server Username:</i> " . htmlspecialchars($this->db_user) . "<br /><br />\n" .
+	    "<i>Error Diagnostic:</i><br />\n" . htmlspecialchars($message) . "<br /><br />\n";
+            
+        if (defined('DB_DEBUG') && DB_DEBUG == true) {
+             $out .= "<i>Server Error:</i> (" . mysqli_errno($this->link) . ") " . htmlspecialchars(mysqli_error($this->link)) . "<br /><br />\n" .
+	    "<i>Last SQL Query:</i><br />\n<pre style=\"font-size:10px;\">" . htmlspecialchars($this->last_query) . "</pre>";
+        }
 
-		if ( $query_id )
-		{
-			return @mysqli_free_result($query_id);
-		}
-		return false;
-	}
-
-	function insert_id()
-	{
-		return $this->last_insert_id;
-	}
-
-	function num_rows($query_id = 0)
-	{
-		if ( !$query_id )
-		{
-			$query_id = $this->last_result;
-		}
-
-		if ( $query_id )
-		{
-			return @mysqli_num_rows($query_id);
-		}
-		return false;
-	}
-
-	function calc_rows()
-	{
-		return $this->last_calc_rows;
-	}
-
-	function query($query, $showerror=true, $calcrows=false)
-	{
-		$this->last_query = $query;
-		$starttime = microtime(true);
-		if($calcrows == true)
-		{
-			/* Add sql_calc_found_rows to this query */
-			$query = preg_replace('/select/i', 'select sql_calc_found_rows', $query, 1);
-		}
-		$this->last_result = @mysqli_query($this->link, $query);
-		$endtime = microtime(true);
-
-		$this->last_insert_id = @mysqli_insert_id($this->link);
-
-		if($calcrows == true)
-		{
-			$calc_result = @mysqli_query($this->link, "select found_rows() as rowcount");
-			if($row = mysqli_fetch_assoc($calc_result))
-			{
-				$this->last_calc_rows = $row['rowcount'];
-			}
-		}
-
-		$this->querycount++;
-
-		if ( defined('DB_DEBUG') && DB_DEBUG == true )
-		{
-			echo "<p><pre>$query</pre><hr /></p>";
-		}
-
-		if ( $this->last_result )
-		{
-			if($this->profile)
-			{
-				$backtrace = debug_backtrace();
-				$profilequery = "insert into hlstats_sql_web_profile (source, run_count, run_time) values ".
-					"('".basename($backtrace[0]['file']).':'.$backtrace[0]['line']."',1,'".($endtime-$starttime)."')"
-					."ON DUPLICATE KEY UPDATE run_count = run_count+1, run_time=run_time+".($endtime-$starttime);
-				@mysqli_query($this->link, $profilequery);
-			}
-			return $this->last_result;
-		}
-		else
-		{
-			if ($showerror)
-			{
-				$this->error('Bad query.');
-			}
-			else
-			{
-				return false;
-			}
-		}
-	}
-
-	function result($row, $field, $query_id = 0)
-	{
-		if ( !$query_id )
-		{
-			$query_id = $this->last_result;
-		}
-
-		if ( $query_id )
-		{
-			return @mysqli_result($query_id, $row, $field);
-		}
-		return false;
-	}
-
-	function escape($string)
-	{
-		if ( $this->link )
-		{
-			return @mysqli_real_escape_string($this->link, $string);
-		}
-	
-		return $string;	
-	}
-
-	function error($message, $exit=true)
-	{
-		error(
-			"<b>Database Error</b><br />\n<br />\n" .
-			"<i>Server Address:</i> $this->db_addr<br />\n" .
-			"<i>Server Username:</i> $this->db_user<br /><br />\n" .
-			"<i>Error Diagnostic:</i><br />\n$message<br /><br />\n" .
-			"<i>Server Error:</i> (" . @mysqli_errno($this->link) . ") " . @mysqli_error($this->link) . "<br /><br />\n" .
-			"<i>Last SQL Query:</i><br />\n<pre style=\"font-size:2px;\">$this->last_query</pre>",
-			$exit
-		);
-	}
+        if (function_exists('error')) {
+            // Call global error handler if exists (based on your code structure)
+            // But we need to ensure it doesn't loop or fail
+            echo $out;
+            if ($exit) die();
+        } else {
+	    if ($exit) {
+                die($out);
+            } else {
+                echo $out;
+            }
+        }
+    }
 }
 ?>

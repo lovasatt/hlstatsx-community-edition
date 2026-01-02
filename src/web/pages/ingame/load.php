@@ -40,53 +40,65 @@ For support and installation notes visit http://www.hlxcommunity.com
         die('Do not access this file directly.');
     }
 
-	$server_id = 1;
-	if (isset($_GET['server_id']) && is_numeric($_GET['server_id'])) {
-		$server_id = valid_request($_GET['server_id'], true);
-	}
+    global $db, $game, $g_options;
+
+    // PHP 8 Fix: Null coalescing and casting
+    $server_id = isset($_GET['server_id']) ? (int)$_GET['server_id'] : 1;
+    if ($server_id <= 0) $server_id = 1;
+
+    // Security: Escape game variable
+    $game_esc = $db->escape($game);
 
     $query= "
-			SELECT
-				count(*)
-			FROM
-				hlstats_Players
-			WHERE 
-				game='$game'
-	";
+	    SELECT
+		count(*)
+	    FROM
+		hlstats_Players
+	    WHERE 
+		game='$game_esc'
+    ";
 
-	$result = $db->query($query);
-	list($total_players) = $db->fetch_row($result);
+    $result = $db->query($query);
+    
+    // PHP 8 Fix: Replace list() which fails on null/false
+    $row = $db->fetch_row($result);
+    $total_players = ($row) ? (int)$row[0] : 0;
 
     $query= "
-			SELECT
-				SUM(kills),
-				SUM(headshots),
-				count(serverId)		
-			FROM
-				hlstats_Servers
-			WHERE 
-				game='$game'
-	";
+	    SELECT
+		SUM(kills),
+		SUM(headshots),
+		count(serverId)		
+	    FROM
+		hlstats_Servers
+	    WHERE 
+		game='$game_esc'
+    ";
 
-	$result = $db->query($query);
-	list($total_kills, $total_headshots, $total_servers) = $db->fetch_row($result);
+    $result = $db->query($query);
+    
+    // PHP 8 Fix: Replace list()
+    $row = $db->fetch_row($result);
+    $total_kills = ($row) ? (int)$row[0] : 0;
+    $total_headshots = ($row) ? (int)$row[1] : 0;
+    $total_servers = ($row) ? (int)$row[2] : 0;
 ?>
-		
+	
     <table class="data-table">
-		<tr class="data-table-head">
-			<td class="fSmall"><?php
-				if ($total_kills>0)
-					$hpk = sprintf('%.2f', ($total_headshots/$total_kills)*100);
-				else
-					$hpk = sprintf('%.2f', 0);
-				echo 'Tracking <strong>'.number_format($total_players).'</strong> players with <strong>'.number_format($total_kills).'</strong> kills and <strong>'.number_format($total_headshots)."</strong> headshots (<strong>$hpk%</strong>) on <strong>$total_servers</strong> servers"; ?>
-			</td>
-		</tr>	
-	</table>
-	<table class="data-table" >
+	<tr class="data-table-head">
+	    <td class="fSmall"><?php
+		if ($total_kills > 0)
+		    $hpk = sprintf('%.2f', ($total_headshots / $total_kills) * 100);
+		else
+		    $hpk = sprintf('%.2f', 0);
+		echo 'Tracking <strong>'.number_format($total_players).'</strong> players with <strong>'.number_format($total_kills).'</strong> kills and <strong>'.number_format($total_headshots)."</strong> headshots (<strong>$hpk%</strong>) on <strong>$total_servers</strong> servers"; ?>
+	    </td>
+	</tr>	
+    </table>
+    <table class="data-table" >
         <tr class="data-table-head">
-			<td style="text-align:center;padding:0px;">
-				<img src="show_graph.php?type=0&amp;width=870&amp;height=200&amp;server_id=<?php echo $server_id ?>&amp;bgcolor=<?php echo $g_options['graphbg_load']; ?>&amp;color=<?php echo $g_options['graphtxt_load']; ?>" style="border:0px;">
-			</td>
-		</tr>
-	</table>
+	    <td style="text-align:center;padding:0px;">
+		<img src="show_graph.php?type=0&amp;width=870&amp;height=200&amp;server_id=<?php echo $server_id ?>&amp;bgcolor=<?php echo htmlspecialchars($g_options['graphbg_load']); ?>&amp;color=<?php echo htmlspecialchars($g_options['graphtxt_load']); ?>" style="border:0px;">
+	    </td>
+	</tr>
+    </table>

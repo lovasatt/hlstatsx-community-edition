@@ -39,124 +39,154 @@ For support and installation notes visit http://www.hlxcommunity.com
     if (!defined('IN_HLSTATS')) {
         die('Do not access this file directly.');
     }
+    
+    global $db, $game, $g_options;
 
-	// Daily Award Statistics
-	$award = valid_request($_GET['award'], true) or error('No award ID specified.');
+    // Daily Award Statistics
+    
+    // PHP 8 Fix: Null coalescing and type casting
+    $award_in = isset($_GET['award']) ? $_GET['award'] : 0;
+    $award = valid_request((int)$award_in, true);
+    
+    if (!$award) {
+        error('No award ID specified.');
+    }
+    
+    // Security: Escape game variable
+    $game_esc = $db->escape($game);
 
-	$db->query("
-		SELECT
-			awardType,
-			code,
-			name,
-			verb
-		FROM
-			hlstats_Awards
-		WHERE
-			hlstats_Awards.awardid=$award
-	");
-	
-	$awarddata = $db->fetch_array();
-	$db->free_result();
-	$awardname = $awarddata['name'];
-	$awardverb = $awarddata['verb'];
-	$awardtype = $awarddata['awardType'];
-	$awardcode = $awarddata['code'];
-	
-	$db->query("SELECT name FROM hlstats_Games WHERE code='$game'");
-	if ($db->num_rows() < 1) {
-		error("No such game '$game'.");
-	}
-	
-	list($gamename) = $db->fetch_row();
-	$db->free_result();
-	
-	pageHeader(
-		array($gamename, 'Award Details', $awardname),
-		array(
-			$gamename=>$g_options['scripturl'] . "?game=$game",
-			'Awards Statistics' => $g_options['scripturl'] . "?mode=awards&game=$game",
-			'Awards Details' => ''
-		),
-		$awardname
-	);
+    $db->query("
+	SELECT
+	    awardType,
+	    code,
+	    name,
+	    verb
+	FROM
+	    hlstats_Awards
+	WHERE
+	    hlstats_Awards.awardid=$award
+    ");
+    
+    // PHP 8 Fix: Safe fetching
+    $awarddata = $db->fetch_array();
+    if (!$awarddata) {
+        error('Invalid award specified.');
+    }
+    
+    $db->free_result();
+    
+    // PHP 8 Fix: Ensure variables are defined
+    $awardname = isset($awarddata['name']) ? $awarddata['name'] : '';
+    $awardverb = isset($awarddata['verb']) ? $awarddata['verb'] : '';
+    $awardtype = isset($awarddata['awardType']) ? $awarddata['awardType'] : '';
+    $awardcode = isset($awarddata['code']) ? $awarddata['code'] : '';
+    
+    $db->query("SELECT name FROM hlstats_Games WHERE code='$game_esc'");
+    if ($db->num_rows() < 1) {
+	error("No such game '$game'.");
+    }
+    
+    // PHP 8 Fix: Replace list()
+    $row = $db->fetch_row();
+    $gamename = ($row) ? $row[0] : '';
+    $db->free_result();
+    
+    pageHeader(
+	array($gamename, 'Award Details', $awardname),
+	array(
+	    $gamename=>$g_options['scripturl'] . "?game=$game",
+	    'Awards Statistics' => $g_options['scripturl'] . "?mode=awards&game=$game",
+	    'Awards Details' => ''
+	),
+	$awardname
+    );
 
-	$table = new Table(
-		array(
-			new TableColumn(
-				'awardTime',
-				'Day',
-				'width=20&align=left'
-			),
-			new TableColumn(
-				'lastName',
-				'Player',
-				'width=40&align=left&flag=1&link=' . urlencode('mode=playerinfo&amp;player=%k') 
-			),
-			new TableColumn(
-				'count',
-				'Count for the Day',
-				'width=35&align=right&append=' . urlencode(" $awardverb")
-			)
-		),
-		'playerId',
+    $table = new Table(
+	array(
+	    new TableColumn(
 		'awardTime',
+		'Day',
+		'width=20&align=left'
+	    ),
+	    new TableColumn(
 		'lastName',
-		true,
-		30
-	);
+		'Player',
+		'width=40&align=left&flag=1&link=' . urlencode('mode=playerinfo&amp;player=%k') 
+	    ),
+	    new TableColumn(
+		'count',
+		'Count for the Day',
+		'width=35&align=right&append=' . urlencode(" $awardverb")
+	    )
+	),
+	'playerId',
+	'awardTime',
+	'lastName',
+	true,
+	30
+    );
 
 
-	$result = $db->query("
-		SELECT
-			hlstats_Players_Awards.playerId,
-			awardTime,
-			lastName,
-			flag,
-			count
-		FROM
-			hlstats_Players_Awards
-		LEFT JOIN
-			hlstats_Players
-		ON
-			hlstats_Players_Awards.playerId = hlstats_Players.playerId
-		WHERE
-			awardid=$award
-		ORDER BY
-			$table->sort $table->sortorder,
-			$table->sort2 $table->sortorder
-		LIMIT $table->startitem,$table->numperpage
-	");
+    $result = $db->query("
+	SELECT
+	    hlstats_Players_Awards.playerId,
+	    awardTime,
+	    lastName,
+	    flag,
+	    count
+	FROM
+	    hlstats_Players_Awards
+	LEFT JOIN
+	    hlstats_Players
+	ON
+	    hlstats_Players_Awards.playerId = hlstats_Players.playerId
+	WHERE
+	    awardid=$award
+	ORDER BY
+	    $table->sort $table->sortorder,
+	    $table->sort2 $table->sortorder
+	LIMIT $table->startitem,$table->numperpage
+    ");
 
 
-	$resultCount = $db->query("
-		SELECT
-			awardTime
-		FROM
-			hlstats_Players_Awards
-		WHERE
-			awardid=$award	
-	");
+    $resultCount = $db->query("
+	SELECT
+	    awardTime
+	FROM
+	    hlstats_Players_Awards
+	WHERE
+	    awardid=$award	
+    ");
 
-	$numitems = mysqli_num_rows($resultCount);
+    // PHP 8 Fix: Use object method
+    $numitems = $db->num_rows($resultCount);
 
 ?>
 
 <div class="block">
-	<?php printSectionTitle('Daily Award Details'); ?>
-	<div class="subblock">
-		<div style="float:right;">
-			Back to <a href="<?php echo $g_options['scripturl'] . "?mode=awards&amp;game=$game"; ?>">Daily Awards</a>
-		</div>
-		<div style="clear:both;"></div>
+    <?php printSectionTitle('Daily Award Details'); ?>
+    <div class="subblock">
+	<div style="float:right;">
+	    Back to <a href="<?php echo $g_options['scripturl'] . "?mode=awards&amp;game=$game"; ?>">Daily Awards</a>
 	</div>
-	<br /><br />
-	<?php
-	$img = IMAGE_PATH."/games/$game/dawards/".strtolower($awardtype).'_'.strtolower($awardcode).'.png';
-	if (!is_file($img))
-	{
-		$img = IMAGE_PATH.'/award.png';
-	}
-	echo "<img src=\"$img\" alt=\"$awardcode\" /> <strong>$awardname</strong>";
-	$table->draw($result, $numitems, 95, 'center');
+	<div style="clear:both;"></div>
+    </div>
+    <br /><br />
+    <?php
+    // PHP 8 Fix: Cast to string for strtolower
+    $img_name = strtolower((string)$awardtype) . '_' . strtolower((string)$awardcode) . '.png';
+    $img = IMAGE_PATH . "/games/$game/dawards/" . $img_name;
+    
+    if (!is_file($img))
+    {
+	$img = IMAGE_PATH.'/award.png';
+    }
+    
+    // PHP 8 Fix: XSS Protection
+    $safe_code = htmlspecialchars((string)$awardcode);
+    $safe_name = htmlspecialchars((string)$awardname);
+    
+    echo "<img src=\"$img\" alt=\"$safe_code\" /> <strong>$safe_name</strong>";
+    $table->draw($result, $numitems, 95, 'center');
 ?>
 </div>

@@ -40,26 +40,32 @@ For support and installation notes visit http://www.hlxcommunity.com
         die('Do not access this file directly.');
     }
 
-	if ($auth->userdata["acclevel"] < 80) {
+    global $db, $auth, $gamecode;
+
+    // PHP 8 Fix: Null coalescing check
+    if (($auth->userdata["acclevel"] ?? 0) < 80) {
         die ("Access denied!");
-	}
+    }
 
-	$edlist = new EditList("ribbonId", "hlstats_Ribbons", "game", false);
-	$edlist->columns[] = new EditListColumn("game", "Game", 0, true, "hidden", $gamecode);
+    // Security: Escape gamecode
+    $gamecode_esc = $db->escape($gamecode);
+
+    $edlist = new EditList("ribbonId", "hlstats_Ribbons", "game", false);
+    $edlist->columns[] = new EditListColumn("game", "Game", 0, true, "hidden", $gamecode);
 //	$edlist->columns[] = new EditListColumn("ribbonId", "Ribbon", 0, true, "select", "hlstats_Ribbons.ribbonName/ribbonId/game='$gamecode'");
-	$edlist->columns[] = new EditListColumn("ribbonName", "Ribbon Name", 30, false, "text", "name", 64);
-	$edlist->columns[] = new EditListColumn("image", "Image file", 30, false, "text", "name.png", 64);
-	$edlist->columns[] = new EditListColumn("awardCode", "Trigger Award", 0, false, "select", "hlstats_Awards.name/code/game='$gamecode'");
-	$edlist->columns[] = new EditListColumn("awardCount", "No. awards needed", 10, true, "text", "0", 64);
-	$edlist->columns[] = new EditListColumn("special", "Special logic", 10, false, "text", "0", 64);
+    $edlist->columns[] = new EditListColumn("ribbonName", "Ribbon Name", 30, false, "text", "name", 64);
+    $edlist->columns[] = new EditListColumn("image", "Image file", 30, false, "text", "name.png", 64);
+    $edlist->columns[] = new EditListColumn("awardCode", "Trigger Award", 0, false, "select", "hlstats_Awards.name/code/game='$gamecode_esc'");
+    $edlist->columns[] = new EditListColumn("awardCount", "No. awards needed", 10, true, "text", "0", 64);
+    $edlist->columns[] = new EditListColumn("special", "Special logic", 10, false, "text", "0", 64);
 
-	if ($_POST) {
-		if ($edlist->update())
-			message("success", "Operation successful.");
-		else
-			message("warning", $edlist->error());
-	}
-	
+    if (!empty($_POST)) {
+	if ($edlist->update())
+	    message("success", "Operation successful.");
+	else
+	    message("warning", $edlist->error());
+    }
+    
 ?>
 
 Special Logic:<br>
@@ -70,30 +76,29 @@ Special Logic:<br>
 </ul>
 
 <?php
-	
-	$result = $db->query("
-		SELECT
-			ribbonId,
-			game,
-			awardCode,
-			awardCount,
-			image,
-			ribbonName,
-			special
-		FROM
-			hlstats_Ribbons
-		WHERE
-			game='$gamecode'
-		ORDER BY
-			awardCount,awardCode
-	");
-	
-	$edlist->draw($result);
+    
+    $result = $db->query("
+	SELECT
+	    ribbonId,
+	    game,
+	    awardCode,
+	    awardCount,
+	    image,
+	    ribbonName,
+	    special
+	FROM
+	    hlstats_Ribbons
+	WHERE
+	    game='$gamecode_esc'
+	ORDER BY
+	    awardCount,awardCode
+    ");
+    
+    $edlist->draw($result);
 ?>
 
-<table width="75%" border=0 cellspacing=0 cellpadding=0>
+<table width="75%" border="0" cellspacing="0" cellpadding="0">
 <tr>
-	<td align="center"><input type="submit" value="  Apply  " class="submit"></td>
+    <td align="center"><input type="submit" value="  Apply  " class="submit"></td>
 </tr>
 </table>
-

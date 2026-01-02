@@ -40,50 +40,54 @@ For support and installation notes visit http://www.hlxcommunity.com
         die('Do not access this file directly.');
     }
 
-	if ($auth->userdata["acclevel"] < 80) {
+    global $db, $auth, $gamecode, $g_options;
+
+    // PHP 8 Fix: Null coalescing check
+    if (($auth->userdata["acclevel"] ?? 0) < 80) {
         die ("Access denied!");
-	}
+    }
 
-	$edlist = new EditList("weaponId", "hlstats_Weapons", "gun", false);
-	$edlist->columns[] = new EditListColumn("game", "Game", 0, true, "hidden", $gamecode);
-	$edlist->columns[] = new EditListColumn("code", "Weapon Code", 15, true, "text", "", 32);
-	$edlist->columns[] = new EditListColumn("name", "Weapon Name", 25, true, "text", "", 64);
-	$edlist->columns[] = new EditListColumn("modifier", "Points Modifier", 10, true, "text", "1.00");
+    $edlist = new EditList("weaponId", "hlstats_Weapons", "gun", false);
+    $edlist->columns[] = new EditListColumn("game", "Game", 0, true, "hidden", $gamecode);
+    $edlist->columns[] = new EditListColumn("code", "Weapon Code", 15, true, "text", "", 32);
+    $edlist->columns[] = new EditListColumn("name", "Weapon Name", 25, true, "text", "", 64);
+    $edlist->columns[] = new EditListColumn("modifier", "Points Modifier", 10, true, "text", "1.00");
 
-	if ($_POST) {
-		if ($edlist->update())
-			message("success", "Operation successful.");
-		else
-			message("warning", $edlist->error());
-	}
+    if (!empty($_POST)) {
+	if ($edlist->update())
+	    message("success", "Operation successful.");
+	else
+	    message("warning", $edlist->error());
+    }
 ?>
 
-You can give each weapon a <i>points modifier</i>, a multiplier which determines how many points will be gained or lost for killing with or being killed by that weapon. (Refer to <a href="<?php echo $g_options["scripturl"]; ?>?mode=help#points">Help</a> for a full description of how points ratings are 
+You can give each weapon a <i>points modifier</i>, a multiplier which determines how many points will be gained or lost for killing with or being killed by that weapon. (Refer to <a href="<?php echo htmlspecialchars($g_options["scripturl"]); ?>?mode=help#points">Help</a> for a full description of how points ratings are 
 calculated.) The baseline points modifier for weapons is 1.00. A points modifier of 0.00 will cause kills with that weapon to have no effect on players' points.<p>
 
 <?php
-	
-	
-	$result = $db->query("
-		SELECT
-			weaponId,
-			code,
-			name,
-			modifier
-		FROM
-			hlstats_Weapons
-		WHERE
-			game='$gamecode'
-		ORDER BY
-			code ASC
-	");
-	
-	$edlist->draw($result);
+    
+    // Security: Escape gamecode
+    $gamecode_esc = $db->escape($gamecode);
+    
+    $result = $db->query("
+	SELECT
+	    weaponId,
+	    code,
+	    name,
+	    modifier
+	FROM
+	    hlstats_Weapons
+	WHERE
+	    game='$gamecode_esc'
+	ORDER BY
+	    code ASC
+    ");
+    
+    $edlist->draw($result);
 ?>
 
-<table width="75%" border=0 cellspacing=0 cellpadding=0>
+<table width="75%" border="0" cellspacing="0" cellpadding="0">
 <tr>
-	<td align="center"><input type="submit" value="  Apply  " class="submit"></td>
+    <td align="center"><input type="submit" value="  Apply  " class="submit"></td>
 </tr>
 </table>
-

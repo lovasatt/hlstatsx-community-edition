@@ -1420,7 +1420,7 @@ sub getProperties
 	my $dods_flag = 0;
 	
 	while ($propstring =~ s/^\s*\((\S+)(?:(?: "(.+?)")|(?: ([^\)]+)))?\)//) {
-		my $key = $1;
+		my $key = lc($1);
 		if (defined($2)) {
 			if ($key eq "player") {
 				if ($dods_flag == 1) {
@@ -2560,6 +2560,14 @@ while ($loop = &getLine()) {
 			
 			my $killerinfo = &getPlayerInfo($ev_player, 1);
 			my $victiminfo = &getPlayerInfo($ev_obj_a, 1);
+			    # --- CS2 FIRE TRANSLATOR START ---
+			    # CS2 Fire Translator: remap native 'inferno' code to 'firebomb' for CT team to sync with plugin
+			    if ($g_servers{$s_addr}->{play_game} == CS2()) {
+				if ($ev_obj_b eq "inferno" && $killerinfo->{"team"} eq "CT") {
+				    $ev_obj_b = "firebomb";
+				}
+			    }
+			    # --- CS2 FIRE TRANSLATOR END ---
 			$ev_type = 8;
 			
 			$headshot = 0;
@@ -2796,53 +2804,73 @@ while ($loop = &getLine()) {
 					);
 				}
 			}
-		} elsif ($s_output =~ /^(?:\[STATSME\] )?"(.+?(?:<.+?>)*)" triggered "(weaponstats\d{0,1})"(.*)$/ ) {
-			# Prototype: [STATSME] "player" triggered "weaponstats?"[properties]
-			# Matches:
-			# 501. Statsme weaponstats
-			# 502. Statsme weaponstats2
-	
-			$ev_player = $1;
-			$ev_verb   = $2; # weaponstats; weaponstats2
-			$ev_properties = $3;
-			%ev_properties = &getProperties($ev_properties);
-	
-			if (like($ev_verb, "weaponstats")) {
+		} elsif ($s_output =~ /^(?:\[STATSME\] )?"(.+?(?:<.+?>)*)" triggered "(weaponstats\d{0,1}|weapon_stats)"(.*)$/ ) {
+			    # Prototype: [STATSME] "player" triggered "weaponstats?"[properties]
+			    # Matches:
+			    # 501. Statsme weaponstats
+			    # 502. Statsme weaponstats2
+			    # 503. CS2 SuperLogs weapon_stats
+    
+			    $ev_player = $1;
+			    $ev_verb   = $2; # weaponstats; weaponstats2; weapon_stats
+			    $ev_properties = $3;
+			    %ev_properties = &getProperties($ev_properties);
+    
+			    if (like($ev_verb, "weaponstats") || like($ev_verb, "weapon_stats")) {
 				$ev_type = 501;
 				my $playerinfo = &getPlayerInfo($ev_player, 0);
-				
+		
 				if ($playerinfo) {
-					my $playerId = $playerinfo->{"userid"};
-					my $playerUniqueId = $playerinfo->{"uniqueid"};
-					my $ingame = 0;
-					
-					$ingame = 1 if (lookupPlayer($s_addr, $playerId, $playerUniqueId));
-					
-					if (!$ingame) {
-						&getPlayerInfo($ev_player, 1);
-					}
-					
-					$ev_status = &doEvent_Statsme(
-						$playerId,
-						$playerUniqueId,
-						$ev_properties{"weapon"},
-						$ev_properties{"shots"},
-						$ev_properties{"hits"},
-						$ev_properties{"headshots"},
-						$ev_properties{"damage"},
-						$ev_properties{"kills"},
-						$ev_properties{"deaths"}
-					);
+				    my $playerId = $playerinfo->{"userid"};
+				    my $playerUniqueId = $playerinfo->{"uniqueid"};
+				    my $ingame = 0;
+		    
+				    $ingame = 1 if (lookupPlayer($s_addr, $playerId, $playerUniqueId));
+		    
+				    if (!$ingame) {
+					&getPlayerInfo($ev_player, 1);
+				    }
+		    
+				    # CS2 FIX: Lowercase (Weapon -> weapon, Shots -> shots)
+				    foreach my $k (keys %ev_properties) { $ev_properties{lc($k)} = $ev_properties{$k}; }
 
-					if (!$ingame) {
-						&doEvent_Disconnect(
-							$playerId,
-							$playerUniqueId,
-							""
-						);
-					}
+				    $ev_status = &doEvent_Statsme(
+					$playerId,
+					$playerUniqueId,
+					$ev_properties{"weapon"},
+					$ev_properties{"shots"} || 0,
+					$ev_properties{"hits"} || 0,
+					$ev_properties{"headshots"} || 0,
+					$ev_properties{"damage"} || 0,
+					$ev_properties{"kills"} || 0,
+					$ev_properties{"deaths"} || 0
+				    );
+
+				    # CS2 FIX: Hitgroups (Statsme2)
+				    if (defined($ev_properties{"head"}) || defined($ev_properties{"chest"})) {
+					 &doEvent_Statsme2(
+					    $playerId,
+					    $playerUniqueId,
+					    $ev_properties{"weapon"},
+					    $ev_properties{"head"} || 0,
+					    $ev_properties{"chest"} || 0,
+					    $ev_properties{"stomach"} || 0,
+					    $ev_properties{"leftarm"} || 0,
+					    $ev_properties{"rightarm"} || 0,
+					    $ev_properties{"leftleg"} || 0,
+					    $ev_properties{"rightleg"} || 0
+					);
+				    }
+
+				    if (!$ingame) {
+					&doEvent_Disconnect(
+					    $playerId,
+					    $playerUniqueId,
+					    ""
+					);
+				    }
 				}
-			} elsif (like($ev_verb, "weaponstats2")) {
+			    } elsif (like($ev_verb, "weaponstats2")) {
 				$ev_type = 502;
 				my $playerinfo = &getPlayerInfo($ev_player, 0);
 				
@@ -2976,6 +3004,23 @@ while ($loop = &getLine()) {
 					);
 				}
 			}
+		} elsif ($s_output =~ /^"(.+?(?:<.+?>)*?)" (say|say_team|say_squad) "(.*)"(.*)$/) {
+		        # Repair chat log bug
+			$ev_player = $1;
+			$ev_verb   = $2;
+			$ev_obj_a  = $3;
+		
+			my $playerinfo = &getPlayerInfo($ev_player, 1);
+			$ev_type = 14;
+		
+			if ($playerinfo) {
+			    $ev_status = &doEvent_Chat(
+				$ev_verb,
+				$playerinfo->{"userid"},
+				$playerinfo->{"uniqueid"},
+				$ev_obj_a
+			);
+		    }
 		} elsif ($s_output =~ /^"(.+?(?:<.+?>)*?)" ([a-zA-Z,_\s]+) "(.+?)"(.*)$/) {
 			# Prototype: "player" verb "obj_a"[properties]
 			# Matches:

@@ -37,7 +37,7 @@ For support and installation notes visit http://www.hlxcommunity.com
 */
 
 if (!defined('IN_HLSTATS')) {
-	die('Do not access this file directly.');
+    die('Do not access this file directly.');
 }
 
 /**
@@ -47,19 +47,22 @@ if (!defined('IN_HLSTATS')) {
  */
 function getOptions()
 {
-	global $db;
-	$result = $db->query("SELECT `keyname`,`value` FROM hlstats_Options WHERE opttype >= 1");
-	while ($rowdata = $db->fetch_row($result))
-	{
-		$options[$rowdata[0]] = $rowdata[1];
-	}
-	if ( !count($options) )
-	{
-		error('Warning: Could not find any options in table <b>hlstats_Options</b>, database <b>' .
-			DB_NAME . '</b>. Check HLstats configuration.');
-	}
-	$options['MinActivity'] = $options['MinActivity'] * 86400;
-	return $options;
+    global $db;
+    $options = array(); // PHP 8 Fix: Initialize array
+    $result = $db->query("SELECT `keyname`,`value` FROM hlstats_Options WHERE opttype >= 1");
+    while ($rowdata = $db->fetch_row($result))
+    {
+	$options[$rowdata[0]] = $rowdata[1];
+    }
+    if ( !count($options) )
+    {
+	error('Warning: Could not find any options in table <b>hlstats_Options</b>, database <b>' .
+	    DB_NAME . '</b>. Check HLstats configuration.');
+    }
+    // PHP 8 Fix: Ensure numeric operation
+    $minAct = isset($options['MinActivity']) ? (int)$options['MinActivity'] : 28;
+    $options['MinActivity'] = $minAct * 86400;
+    return $options;
 }
 
 // Test if flags exists
@@ -72,11 +75,12 @@ function getOptions()
  */
 function getFlag($flag, $type='url')
 {
-	$image = getImage('/flags/'.strtolower($flag));
-	if ($image)
-		return $image[$type];
-	else
-		return IMAGE_PATH.'/flags/0.gif';
+    // PHP 8 Fix: Cast to string for strtolower
+    $image = getImage('/flags/'.strtolower((string)$flag));
+    if ($image)
+	return $image[$type];
+    else
+	return IMAGE_PATH.'/flags/0.gif';
 }
 
 /**
@@ -88,25 +92,26 @@ function getFlag($flag, $type='url')
  */
 function valid_request($str, $numeric = false)
 {
-	$search_pattern = array("/[^A-Za-z0-9\[\]*.,=()!\"$%&^`ґ':;ЯІі#+~_\-|<>\/\\\\@{}дцьДЦЬ ]/");
-	$replace_pattern = array('');
-	$str = preg_replace($search_pattern, $replace_pattern, $str);
+    $search_pattern = array("/[^A-Za-z0-9\[\]*.,=()!\"$%&^`ґ':;ЯІі#+~_\-|<>\/\\\\@{}дцьДЦЬ ]/");
+    $replace_pattern = array('');
+    // PHP 8 Fix: Ensure string type for preg_replace
+    $str = preg_replace($search_pattern, $replace_pattern, (string)$str);
 
-	if (!$numeric) {
-		// Deprecated, throws an warning in php 7.4 and above
-		/*if ( get_magic_quotes_gpc() )
-			return $str = htmlspecialchars(stripslashes($str), ENT_QUOTES);
-		else
-			return $str = htmlspecialchars($str, ENT_QUOTES);*/
+    if (!$numeric) {
+	// Deprecated, throws an warning in php 7.4 and above
+	/*if ( get_magic_quotes_gpc() )
+	    return $str = htmlspecialchars(stripslashes($str), ENT_QUOTES);
+	else
+	    return $str = htmlspecialchars($str, ENT_QUOTES);*/
 
-		return htmlspecialchars($str, ENT_QUOTES);
-	}
+	return htmlspecialchars($str, ENT_QUOTES);
+    }
 
-	if (is_numeric($str)) {
-		return intval($str);
-	}
+    if (is_numeric($str)) {
+	return intval($str);
+    }
 
-	return -1;
+    return -1;
 }
 
 /**
@@ -118,23 +123,23 @@ function valid_request($str, $numeric = false)
 function timestamp_to_str($seconds)
 {
     // We allow passing an empty parameter, for output in html
-	if (empty($seconds)) {
-		return '---';
-	}
+    if (empty($seconds)) {
+	return '---';
+    }
 
     // If something other than int or float is passed here, then return 'Undefined'
-	if (!is_numeric($seconds)) {
-		return "Undefined";
-	}
+    if (!is_numeric($seconds)) {
+	return "Undefined";
+    }
 
     // DateTime class doesn't work with float type,
     // doesn't matter we don't need microsecond precision :D
-	$seconds = round($seconds);
+    $seconds = round((float)$seconds);
 
-	$dtF = new \DateTime('@0');
-	$dtT = new \DateTime("@$seconds");
+    $dtF = new \DateTime('@0');
+    $dtT = new \DateTime("@$seconds");
 
-	return $dtF->diff($dtT)->format('%ad&nbsp;%H:%I:%Sh');
+    return $dtF->diff($dtT)->format('%ad&nbsp;%H:%I:%Sh');
 }
 
 /**
@@ -148,7 +153,7 @@ function timestamp_to_str($seconds)
  */
 function error($message, $exit = true)
 {
-	global $g_options;
+    global $g_options;
 ?>
 <table border="1" cellspacing="0" cellpadding="5">
 <tr>
@@ -159,7 +164,7 @@ function error($message, $exit = true)
 </tr>
 </table>
 <?php if ($exit)
-		exit;
+	exit;
 }
 
 
@@ -182,21 +187,21 @@ function error($message, $exit = true)
  */
 function makeQueryString($key, $value, $notkeys = array())
 {
-	if (!is_array($notkeys)) {
-		$notkeys = array();
+    if (!is_array($notkeys)) {
+	$notkeys = array();
+    }
+
+    $querystring = '';
+    foreach ($_GET as $k => $v) {
+	$v = valid_request($v, false);
+	if ($k && $k != $key && !in_array($k, $notkeys)) {
+	    $querystring .= urlencode((string)$k) . '=' . rawurlencode((string)$v) . '&amp;';
 	}
+    }
 
-	$querystring = '';
-	foreach ($_GET as $k => $v) {
-		$v = valid_request($v, false);
-		if ($k && $k != $key && !in_array($k, $notkeys)) {
-			$querystring .= urlencode($k) . '=' . rawurlencode($v) . '&amp;';
-		}
-	}
+    $querystring .= urlencode((string)$key) . '=' . urlencode((string)$value);
 
-	$querystring .= urlencode($key) . '=' . urlencode($value);
-
-	return $querystring;
+    return $querystring;
 }
 
 //
@@ -214,11 +219,11 @@ function makeQueryString($key, $value, $notkeys = array())
  */
 function pageHeader($title = '', $location = '')
 {
-	global $db, $g_options;
-	if ( defined('PAGE') && PAGE == 'HLSTATS' )
-		include (PAGE_PATH . '/header.php');
-	elseif ( defined('PAGE') && PAGE == 'INGAME' )
-		include (PAGE_PATH . '/ingame/header.php');
+    global $db, $g_options;
+    if ( defined('PAGE') && PAGE == 'HLSTATS' )
+	include (PAGE_PATH . '/header.php');
+    elseif ( defined('PAGE') && PAGE == 'INGAME' )
+	include (PAGE_PATH . '/ingame/header.php');
 }
 
 
@@ -235,11 +240,11 @@ function pageHeader($title = '', $location = '')
  */
 function pageFooter()
 {
-	global $g_options;
-	if ( defined('PAGE') && PAGE == 'HLSTATS' )
-		include (PAGE_PATH . '/footer.php');
-	elseif ( defined('PAGE') && PAGE == 'INGAME' )
-		include (PAGE_PATH . '/ingame/footer.php');
+    global $g_options;
+    if ( defined('PAGE') && PAGE == 'HLSTATS' )
+	include (PAGE_PATH . '/footer.php');
+    elseif ( defined('PAGE') && PAGE == 'INGAME' )
+	include (PAGE_PATH . '/ingame/footer.php');
 }
 
 /**
@@ -255,57 +260,57 @@ function pageFooter()
  * @return string Returns the code for a sort arrow <IMG> tag.
  */
 function getSortArrow($sort, $sortorder, $name, $longname, $var_sort = 'sort', $var_sortorder =
-	'sortorder', $sorthash = '', $ajax = false)
+    'sortorder', $sorthash = '', $ajax = false)
 {
-	global $g_options;
+    global $g_options;
 
-	if ($sortorder == 'asc')
-	{
-		$sortimg = 'sort-ascending.gif';
-		$othersortorder = 'desc';
-	}
-	else
-	{
-		$sortimg = 'sort-descending.gif';
-		$othersortorder = 'asc';
-	}
-	
-	$arrowstring = '<a href="' . $g_options['scripturl'] . '?' . makeQueryString($var_sort, $name,
-		array($var_sortorder));
+    if ($sortorder == 'asc')
+    {
+	$sortimg = 'sort-ascending.gif';
+	$othersortorder = 'desc';
+    }
+    else
+    {
+	$sortimg = 'sort-descending.gif';
+	$othersortorder = 'asc';
+    }
+    
+    $arrowstring = '<a href="' . $g_options['scripturl'] . '?' . makeQueryString($var_sort, $name,
+	array($var_sortorder));
 
-	if ($sort == $name)
-	{
-		$arrowstring .= "&amp;$var_sortorder=$othersortorder";
-		$jsarrow = "'" . $var_sortorder . "': '" . $othersortorder . "'";
-	}
-	else
-	{
-		$arrowstring .= "&amp;$var_sortorder=$sortorder";
-		$jsarrow = "'" . $var_sortorder . "': '" . $sortorder . "'";
-	}
+    if ($sort == $name)
+    {
+	$arrowstring .= "&amp;$var_sortorder=$othersortorder";
+	$jsarrow = "'" . $var_sortorder . "': '" . $othersortorder . "'";
+    }
+    else
+    {
+	$arrowstring .= "&amp;$var_sortorder=$sortorder";
+	$jsarrow = "'" . $var_sortorder . "': '" . $sortorder . "'";
+    }
 
-	if ($sorthash)
-	{
-		$arrowstring .= "#$sorthash";
-	}
+    if ($sorthash)
+    {
+	$arrowstring .= "#$sorthash";
+    }
 
-	$arrowstring .= '" class="head"';
-	
-	if ( $ajax )
-	{
-		$arrowstring .= " onclick=\"Tabs.refreshTab({'$var_sort': '$name', $jsarrow}); return false;\"";
-	}
-	
-	$arrowstring .= ' title="Change sorting order">' . "$longname</a>";
+    $arrowstring .= '" class="head"';
+    
+    if ( $ajax )
+    {
+	$arrowstring .= " onclick=\"Tabs.refreshTab({'$var_sort': '$name', $jsarrow}); return false;\"";
+    }
+    
+    $arrowstring .= ' title="Change sorting order">' . "$longname</a>";
 
-	if ($sort == $name)
-	{
-		$arrowstring .= '&nbsp;<img src="' . IMAGE_PATH . "/$sortimg\"" .
-			" style=\"padding-left:4px;padding-right:4px;\" alt=\"$sortimg\" />";
-	}
+    if ($sort == $name)
+    {
+	$arrowstring .= '&nbsp;<img src="' . IMAGE_PATH . "/$sortimg\"" .
+	    " style=\"padding-left:4px;padding-right:4px;\" alt=\"$sortimg\" />";
+    }
 
 
-	return $arrowstring;
+    return $arrowstring;
 }
 
 /**
@@ -321,31 +326,31 @@ function getSortArrow($sort, $sortorder, $name, $longname, $var_sort = 'sort', $
  */
 function getSelect($name, $values, $currentvalue = '')
 {
-	$select = "<select name=\"$name\" style=\"width:300px;\">\n";
+    $select = "<select name=\"$name\" style=\"width:300px;\">\n";
 
-	$gotcval = false;
+    $gotcval = false;
 
-	foreach ($values as $k => $v)
+    foreach ($values as $k => $v)
+    {
+	$select .= "\t<option value=\"$k\"";
+
+	if ($k == $currentvalue)
 	{
-		$select .= "\t<option value=\"$k\"";
-
-		if ($k == $currentvalue)
-		{
-			$select .= ' selected="selected"';
-			$gotcval = true;
-		}
-
-		$select .= ">$v</option>\n";
+	    $select .= ' selected="selected"';
+	    $gotcval = true;
 	}
 
-	if ($currentvalue && !$gotcval)
-	{
-		$select .= "\t<option value=\"$currentvalue\" selected=\"selected\">$currentvalue</option>\n";
-	}
+	$select .= ">$v</option>\n";
+    }
 
-	$select .= '</select>';
+    if ($currentvalue && !$gotcval)
+    {
+	$select .= "\t<option value=\"$currentvalue\" selected=\"selected\">$currentvalue</option>\n";
+    }
 
-	return $select;
+    $select .= '</select>';
+
+    return $select;
 }
 
 /**
@@ -360,46 +365,57 @@ function getSelect($name, $values, $currentvalue = '')
  
 function getLink($url, $type = 'http://', $target = '_blank')
 {
-	$urld=parse_url($url);
+    // PHP 8 Fix: Explicit string cast
+    $url = (string)$url;
+    $urld = parse_url($url);
 
-	if(!isset($urld['scheme']) && (!isset($urld['host']) && isset($urld['path'])))
-	{
-			$urld['scheme']=str_replace('://', '', $type);
-			$urld['host']=$urld['path'];
-			unset($urld['path']);
-	}
+    if ($urld === false) {
+        return 'Invalid Url :(';
+    }
 
-	if($urld['scheme']!='http' && $urld['scheme']!='https')
-	{
-			return 'Invalid Url :(';
-	}
+    if(!isset($urld['scheme']) && (!isset($urld['host']) && isset($urld['path'])))
+    {
+	    $urld['scheme']=str_replace('://', '', $type);
+	    $urld['host']=$urld['path'];
+	    unset($urld['path']);
+    }
+    
+    // PHP 8 Fix: Ensure scheme exists before checking
+    $scheme = isset($urld['scheme']) ? $urld['scheme'] : '';
+    if($scheme !='http' && $scheme !='https')
+    {
+	    return 'Invalid Url :(';
+    }
 
-	if(!isset($urld['path']))
-	{
-			$urld['path']='';
-	}
+    if(!isset($urld['path']))
+    {
+	    $urld['path']='';
+    }
 
-	if(!isset($urld['query']))
-	{
-			$urld['query']='';
-	}
-	else
-	{
-			$urld['query']='?' . urlencode($urld['query']);
-	}
+    if(!isset($urld['query']))
+    {
+	    $urld['query']='';
+    }
+    else
+    {
+	    $urld['query']='?' . urlencode($urld['query']);
+    }
 
-	if(!isset($urld['fragment']))
-	{
-			$urld['fragment']='';
-	}
-	else
-	{
-			$urld['fragment']='#' . urlencode($urld['fragment']);
-	}
+    if(!isset($urld['fragment']))
+    {
+	    $urld['fragment']='';
+    }
+    else
+    {
+	    $urld['fragment']='#' . urlencode($urld['fragment']);
+    }
 
-	$uri=sprintf("%s%s%s", $urld['path'], $urld['query'], $urld['fragment']);
-	$host_uri=$urld['host'] . $uri;
-	return sprintf('<a href="%s://%s%s" target="%s">%s</a>',$urld['scheme'], $urld['host'], $uri, $target, htmlspecialchars($host_uri, ENT_COMPAT));
+    $host = isset($urld['host']) ? $urld['host'] : '';
+    $uri = sprintf("%s%s%s", $urld['path'], $urld['query'], $urld['fragment']);
+    $host_uri = $host . $uri;
+    
+    // PHP 8 Fix: scheme is now safe string
+    return sprintf('<a href="%s://%s%s" target="%s">%s</a>', $scheme, $host, $uri, $target, htmlspecialchars($host_uri, ENT_COMPAT));
 }
 
 /**
@@ -411,28 +427,30 @@ function getLink($url, $type = 'http://', $target = '_blank')
  */
 function getEmailLink($email, $maxlength = 40)
 {
-	if (preg_match('/(.+)@(.+)/', $email, $regs))
+    // PHP 8 Fix: Ensure string
+    $email = (string)$email;
+    if (preg_match('/(.+)@(.+)/', $email, $regs))
+    {
+	if (strlen($email) > $maxlength)
 	{
-		if (strlen($email) > $maxlength)
-		{
-			$email_title = substr($email, 0, $maxlength - 3) . '...';
-		}
-		else
-		{
-			$email_title = $email;
-		}
-
-		$email = str_replace('"', urlencode('"'), $email);
-		$email = str_replace('<', urlencode('<'), $email);
-		$email = str_replace('>', urlencode('>'), $email);
-
-		return "<a href=\"mailto:$email\">" . htmlspecialchars($email_title, ENT_COMPAT) . '</a>';
+	    $email_title = substr($email, 0, $maxlength - 3) . '...';
 	}
-
 	else
 	{
-		return '';
+	    $email_title = $email;
 	}
+
+	$email = str_replace('"', urlencode('"'), $email);
+	$email = str_replace('<', urlencode('<'), $email);
+	$email = str_replace('>', urlencode('>'), $email);
+
+	return "<a href=\"mailto:$email\">" . htmlspecialchars($email_title, ENT_COMPAT) . '</a>';
+    }
+
+    else
+    {
+	return '';
+    }
 }
 
 /**
@@ -443,98 +461,113 @@ function getEmailLink($email, $maxlength = 40)
  */
 function getImage($filename)
 {
-	preg_match('/^(.*\/)(.+)$/', $filename, $matches);
+    $filename = (string)$filename;
+    if (preg_match('/^(.*\/)(.+)$/', $filename, $matches)) {
 	$relpath = $matches[1];
 	$realfilename = $matches[2];
 	
 	$path = IMAGE_PATH . $filename;
 	$url = IMAGE_PATH . $relpath . rawurlencode($realfilename);
-
+    
 	// check if image exists
 	if (file_exists($path . '.png'))
 	{
-		$ext = 'png';
+	    $ext = 'png';
 	} elseif (file_exists($path . '.gif'))
 	{
-		$ext = 'gif';
+	    $ext = 'gif';
 	} elseif (file_exists($path . '.jpg'))
 	{
-		$ext = 'jpg';
+	    $ext = 'jpg';
 	}
 	else
 	{
-		$ext = '';
+	    $ext = '';
 	}
-
+    
 	if ($ext)
 	{
-		$size = getImageSize("$path.$ext");
-
-		return array('url' => "$url.$ext", 'path' => "$path.$ext", 'width' => $size[0], 'height' => $size[1],
-			'size' => $size[3]);
+	    $size = @getImageSize("$path.$ext");
+            if ($size) {
+	        return array('url' => "$url.$ext", 'path' => "$path.$ext", 'width' => $size[0], 'height' => $size[1], 'size' => $size[3]);
+            }
 	}
+    }
 
     return false;
 }
 
 function mystripslashes($text)
 {
-	// Deprecated, throws an warning in php 7.4 and above
-	// return get_magic_quotes_gpc() ? stripslashes($text) : $text;
-	return $text;
+    // Deprecated, throws an warning in php 7.4 and above
+    // return get_magic_quotes_gpc() ? stripslashes($text) : $text;
+    return $text;
 }
 
 function getRealGame($game)
 {
-	global $db;
-	$result = $db->query("SELECT realgame from hlstats_Games WHERE code='$game'");
-	list($realgame) = $db->fetch_row($result);
-	return $realgame;
+    global $db;
+    $game_esc = $db->escape($game);
+    $result = $db->query("SELECT realgame from hlstats_Games WHERE code='$game_esc'");
+    // PHP 8 Fix: Replace list() which fails on empty result
+    $row = $db->fetch_row($result);
+    $realgame = ($row) ? $row[0] : '';
+    return $realgame;
 }
 
 function printSectionTitle($title)
 {
-	echo '<span class="fHeading">&nbsp;<img src="'.IMAGE_PATH."/downarrow.gif\" alt=\"\" />&nbsp;$title</span><br /><br />\n";
+    echo '<span class="fHeading">&nbsp;<img src="'.IMAGE_PATH."/downarrow.gif\" alt=\"\" />&nbsp;$title</span><br /><br />\n";
 }
 
 function getStyleText($style)
 {
-	return "\t<link rel=\"stylesheet\" type=\"text/css\" href=\"./css/$style.css\" />\n";
+    return "\t<link rel=\"stylesheet\" type=\"text/css\" href=\"./css/$style.css\" />\n";
 }
 
 function getJSText($js)
 {
-	return "\t<script type=\"text/javascript\" src=\"".INCLUDE_PATH."/js/$js.js\"></script> \n";
+    return "\t<script type=\"text/javascript\" src=\"".INCLUDE_PATH."/js/$js.js\"></script> \n";
 }
 
 function get_player_rank($playerdata) {
-	global $db, $g_options;
-	
-	$rank = 0;
-	$tempdeaths = $playerdata['deaths'];
-	if ($tempdeaths == 0)
-		$tempdeaths = 1;
+    global $db, $g_options;
+    
+    $rank = 0;
+    $tempdeaths = (int)$playerdata['deaths'];
+    if ($tempdeaths == 0)
+	$tempdeaths = 1;
 
-	$query = "
-		SELECT
-			COUNT(*)
-		FROM
-			hlstats_Players
-		WHERE
-			game='".$playerdata['game']."'
-			AND hideranking = 0
-			AND kills >= 1
-			AND (
-					(".$g_options['rankingtype']." > '".$playerdata[$g_options['rankingtype']]."') OR (
-						(".$g_options['rankingtype']." = '".$playerdata[$g_options['rankingtype']]."') AND (kills/IF(deaths=0,1,deaths) > ".($playerdata['kills']/$tempdeaths).")
-					)
-			)
-	";
-	$db->query($query);
-	list($rank) = $db->fetch_row();
-	$rank++;
+    $game_esc = $db->escape($playerdata['game']);
+    $rankingtype = $g_options['rankingtype'];
+    // Ensure rankingtype is safe (usually kills or skill)
+    if ($rankingtype !== 'kills' && $rankingtype !== 'skill') $rankingtype = 'skill';
+    
+    $player_rank_val = $db->escape($playerdata[$rankingtype]);
+    $player_kills = (float)$playerdata['kills'];
 
-	return $rank;
+    $query = "
+	SELECT
+	    COUNT(*)
+	FROM
+	    hlstats_Players
+	WHERE
+	    game='$game_esc'
+	    AND hideranking = 0
+	    AND kills >= 1
+	    AND (
+		    (".$rankingtype." > '".$player_rank_val."') OR (
+			(".$rankingtype." = '".$player_rank_val."') AND (kills/IF(deaths=0,1,deaths) > ".($player_kills/$tempdeaths).")
+		    )
+	    )
+    ";
+    $db->query($query);
+    // PHP 8 Fix: Replace list()
+    $row = $db->fetch_row();
+    $rank = ($row) ? (int)$row[0] : 0;
+    $rank++;
+
+    return $rank;
 }
 
 if (!function_exists('file_get_contents')) {
@@ -568,14 +601,15 @@ if (!function_exists('file_get_contents')) {
  */
 function hex2rgb($hexVal = '')
 {
-	$hexVal = preg_replace('[^a-fA-F0-9]', '', $hexVal);
-	if (strlen($hexVal) != 6)
-	{
-		return 'ERR: Incorrect colorcode, expecting 6 chars (a-f, 0-9)';
-	}
-	$arrTmp = explode(' ', chunk_split($hexVal, 2, ' '));
-	$arrTmp = array_map('hexdec', $arrTmp);
-	return array('red' => $arrTmp[0], 'green' => $arrTmp[1], 'blue' => $arrTmp[2]);
+    // PHP 8 Fix: Add delimiters to regex pattern
+    $hexVal = preg_replace('/[^a-fA-F0-9]/', '', (string)$hexVal);
+    if (strlen($hexVal) != 6)
+    {
+	return 'ERR: Incorrect colorcode, expecting 6 chars (a-f, 0-9)';
+    }
+    $arrTmp = explode(' ', chunk_split($hexVal, 2, ' '));
+    $arrTmp = array_map('hexdec', $arrTmp);
+    return array('red' => $arrTmp[0], 'green' => $arrTmp[1], 'blue' => $arrTmp[2]);
 }
 
 ?>

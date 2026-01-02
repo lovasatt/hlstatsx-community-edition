@@ -2,7 +2,7 @@
  /*
      pData - Simplifying data population for pChart
      Copyright (C) 2008 Jean-Damien POGOLOTTI
-     Version  1.13 last updated on 08/17/08
+     Version  1.13 (PHP 8.4 Fix)
 
      http://pchart.sourceforge.net
 
@@ -18,39 +18,15 @@
 
      You should have received a copy of the GNU General Public License
      along with this program.  If not, see <http://www.gnu.org/licenses/>.
-
-     Class initialisation :
-      pData()
-     Data populating methods :
-      ImportFromCSV($FileName,$Delimiter=",",$DataColumns=-1,$HasHeader=FALSE,$DataName=-1)
-      AddPoint($Value,$Serie="Serie1",$Description="")
-     Series manipulation methods :
-      AddSerie($SerieName="Serie1")
-      AddAllSeries()
-      RemoveSerie($SerieName="Serie1")
-      SetAbsciseLabelSerie($SerieName = "Name")
-      SetSerieName($Name,$SerieName="Serie1")
-  +   SetSerieSymbol($Name,$Symbol)
-      SetXAxisName($Name="X Axis")
-      SetYAxisName($Name="Y Axis")
-      SetXAxisFormat($Format="number")
-      SetYAxisFormat($Format="number")
-      SetXAxisUnit($Unit="")
-      SetYAxisUnit($Unit="")
-      removeSerieName($SerieName)
-      removeAllSeries()
-     Data retrieval methods :
-      GetData()
-      GetDataDescription()
  */
 
  /* pData class definition */
  class pData
   {
-   var $Data;
-   var $DataDescription;
+   public $Data;
+   public $DataDescription;
 
-   function __construct()
+   public function __construct()
     {
      $this->Data                           = array();
      $this->DataDescription                = array();
@@ -59,9 +35,13 @@
      $this->DataDescription["Format"]["Y"] = "number";
      $this->DataDescription["Unit"]["X"]   = NULL;
      $this->DataDescription["Unit"]["Y"]   = NULL;
+     $this->DataDescription["Values"]      = array();
+     $this->DataDescription["Description"] = array();
+     $this->DataDescription["Symbol"]      = array();
+     $this->DataDescription["Axis"]        = array();
     }
 
-   function ImportFromCSV($FileName,$Delimiter=",",$DataColumns=-1,$HasHeader=FALSE,$DataName=-1)
+   public function ImportFromCSV($FileName,$Delimiter=",",$DataColumns=-1,$HasHeader=FALSE,$DataName=-1)
     {
      $handle = @fopen($FileName,"r");
      if ($handle)
@@ -72,7 +52,8 @@
          $buffer = fgets($handle, 4096);
          $buffer = str_replace(chr(10),"",$buffer);
          $buffer = str_replace(chr(13),"",$buffer);
-         $Values = split($Delimiter,$buffer);
+         /* PHP 8 fix: split -> explode */
+         $Values = explode($Delimiter,$buffer);
 
          if ( $buffer != "" )
           {
@@ -117,16 +98,19 @@
       }
     }
 
-   function AddPoint($Value,$Serie="Serie1",$Description="")
+   public function AddPoint($Value,$Serie="Serie1",$Description="")
     {
      if (is_array($Value) && count($Value) == 1)
       $Value = $Value[0];
 
      $ID = 0;
      for($i=0;$i<=count($this->Data);$i++)
-      { if(isset($this->data[$i][$Serie])) { $ID = $i+1; } }
+      { 
+          /* PHP Fix: Case sensitivity $this->data -> $this->Data */
+          if(isset($this->Data[$i][$Serie])) { $ID = $i+1; } 
+      }
 
-     if ( count($Value) == 1 )
+     if ( !is_array($Value) )
       {
        $this->Data[$ID][$Serie] = $Value;
        if ( $Description != "" )
@@ -146,11 +130,11 @@
       }
     }
 
-   function AddSerie($SerieName="Serie1")
+   public function AddSerie($SerieName="Serie1")
     {
-     if ( !isset($this->DataDescription["Values"]) )
+     if ( !isset($this->DataDescription["Values"]) || !is_array($this->DataDescription["Values"]))
       {
-       $this->DataDescription["Values"][] = $SerieName;
+       $this->DataDescription["Values"] = array($SerieName);
       }
      else
       {
@@ -163,9 +147,10 @@
       }
     }
 
-   function AddAllSeries()
+   public function AddAllSeries()
     {
      unset($this->DataDescription["Values"]);
+     $this->DataDescription["Values"] = array();
 
      if ( isset($this->Data[0]) )
       {
@@ -177,7 +162,7 @@
       }
     }
 
-   function RemoveSerie($SerieName="Serie1")
+   public function RemoveSerie($SerieName="Serie1")
     {
      if ( !isset($this->DataDescription["Values"]) )
       return(0);
@@ -190,69 +175,71 @@
       }
     }
 
-   function SetAbsciseLabelSerie($SerieName = "Name")
+   public function SetAbsciseLabelSerie($SerieName = "Name")
     {
      $this->DataDescription["Position"] = $SerieName;
     }
 
-   function SetSerieName($Name,$SerieName="Serie1")
+   public function SetSerieName($Name,$SerieName="Serie1")
     {
      $this->DataDescription["Description"][$SerieName] = $Name;
     }
 
-   function SetXAxisName($Name="X Axis")
+   public function SetXAxisName($Name="X Axis")
     {
      $this->DataDescription["Axis"]["X"] = $Name;
     }
 
-   function SetYAxisName($Name="Y Axis")
+   public function SetYAxisName($Name="Y Axis")
     {
      $this->DataDescription["Axis"]["Y"] = $Name;
     }
 
-   function SetXAxisFormat($Format="number")
+   public function SetXAxisFormat($Format="number")
     {
      $this->DataDescription["Format"]["X"] = $Format;
     }
 
-   function SetYAxisFormat($Format="number")
+   public function SetYAxisFormat($Format="number")
     {
      $this->DataDescription["Format"]["Y"] = $Format;
     }
 
-   function SetXAxisUnit($Unit="")
+   public function SetXAxisUnit($Unit="")
     {
      $this->DataDescription["Unit"]["X"] = $Unit;
     }
 
-   function SetYAxisUnit($Unit="")
+   public function SetYAxisUnit($Unit="")
     {
      $this->DataDescription["Unit"]["Y"] = $Unit;
     }
 
-   function SetSerieSymbol($Name,$Symbol)
+   public function SetSerieSymbol($Name,$Symbol)
     {
      $this->DataDescription["Symbol"][$Name] = $Symbol;
     }
 
-   function removeSerieName($SerieName)
+   public function removeSerieName($SerieName)
     {
      if ( isset($this->DataDescription["Description"][$SerieName]) )
       unset($this->DataDescription["Description"][$SerieName]);
     }
 
-   function removeAllSeries()
+   public function removeAllSeries()
     {
-     foreach($this->DataDescription["Values"] as $Key => $Value)
-      unset($this->DataDescription["Values"][$Key]);
+     if(isset($this->DataDescription["Values"])) {
+        foreach($this->DataDescription["Values"] as $Key => $Value)
+            unset($this->DataDescription["Values"][$Key]);
+     }
     }
 
-   function GetData()
+   public function GetData()
     {
      return($this->Data);
     }
 
-   function GetDataDescription()
+   public function GetDataDescription()
     {
      return($this->DataDescription);
     }

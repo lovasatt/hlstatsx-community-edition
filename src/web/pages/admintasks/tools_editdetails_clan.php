@@ -36,78 +36,88 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 For support and installation notes visit http://www.hlxcommunity.com
 */
 
-	if (!defined('IN_HLSTATS')) {
+    if (!defined('IN_HLSTATS')) {
         die('Do not access this file directly.');
     }
 
-	if ($auth->userdata["acclevel"] < 80) {
+    global $db, $auth, $g_options, $selTask;
+
+    // PHP 8 Fix: Null coalescing check
+    if (($auth->userdata["acclevel"] ?? 0) < 80) {
         die ("Access denied!");
-	}
-
-    $id = -1;
-	if (isset($_GET['id']) && is_numeric($_GET['id'])) {
-		$id = valid_request($_GET['id'], true);
-	}
-
-	$result = $db->query("SELECT `value` FROM hlstats_Options_Choices WHERE `keyname` = 'google_map_region' ORDER BY `value`");
-    while ($rowdata = $db->fetch_row($result)) {
-        $mapselect.=";".$rowdata[0]."/".ucwords(strtolower($rowdata[0]));
     }
 
-	$mapselect.=";";   
+    $id = -1;
+    if (isset($_GET['id']) && is_numeric($_GET['id'])) {
+	$id = valid_request((int)$_GET['id'], true);
+    }
+
+    // PHP 8 Fix: Initialize variable
+    $mapselect = "";
+    $result = $db->query("SELECT `value` FROM hlstats_Options_Choices WHERE `keyname` = 'google_map_region' ORDER BY `value`");
+    while ($rowdata = $db->fetch_row($result)) {
+        // PHP 8 Fix: Cast to string
+        $val = (string)$rowdata[0];
+        $mapselect .= ";" . $val . "/" . ucwords(strtolower($val));
+    }
+
+    $mapselect .= ";";   
 ?>
 
-&nbsp;&nbsp;&nbsp;&nbsp;<img src="<?php echo IMAGE_PATH; ?>/downarrow.gif" width="9" height="6" class="imageformat" alt="" /><b>&nbsp;<a href="<?php echo $g_options['scripturl']; ?>?mode=admin&amp;task=tools_editdetails">Edit Player or Clan Details</a></b><br />
+&nbsp;&nbsp;&nbsp;&nbsp;<img src="<?php echo IMAGE_PATH; ?>/downarrow.gif" width="9" height="6" class="imageformat" alt="" /><b>&nbsp;<a href="<?php echo htmlspecialchars($g_options['scripturl']); ?>?mode=admin&amp;task=tools_editdetails">Edit Player or Clan Details</a></b><br />
 
 <img src="<?php echo IMAGE_PATH; ?>/spacer.gif" width="1" height="8" border="0"><br />
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<img src="<?php echo IMAGE_PATH; ?>/downarrow.gif" width="9" height="6" class="imageformat" alt="" /><b>&nbsp;<?php echo "Edit Clan #$id"; ?></b><br /><br />
 
-<form method="post" action="<?php echo $g_options['scripturl'] . "?mode=admin&amp;task=$selTask&amp;id=$id&" . strip_tags(SID); ?>">
+<form method="post" action="<?php echo htmlspecialchars($g_options['scripturl']) . "?mode=admin&amp;task=$selTask&amp;id=$id&" . strip_tags(SID); ?>">
 <?php
-	$proppage = new PropertyPage("hlstats_Clans", "clanId", $id, array(
-		new PropertyPage_Group("Profile", array(
-			new PropertyPage_Property("name", "Clan Name", "text"),
-			new PropertyPage_Property("homepage", "Homepage URL", "text"),
-			new PropertyPage_Property("mapregion", "Map Region", "select", $mapselect),
-			new PropertyPage_Property("hidden", "1 = Hide from clan list", "text")
-		))
-	));
+    $proppage = new PropertyPage("hlstats_Clans", "clanId", $id, array(
+	new PropertyPage_Group("Profile", array(
+	    new PropertyPage_Property("name", "Clan Name", "text"),
+	    new PropertyPage_Property("homepage", "Homepage URL", "text"),
+	    new PropertyPage_Property("mapregion", "Map Region", "select", $mapselect),
+	    new PropertyPage_Property("hidden", "1 = Hide from clan list", "text")
+	))
+    ));
 
-	if (isset($_POST['name'])) {
-		$proppage->update();
-		message("success", "Profile updated successfully.");
-	}
+    if (isset($_POST['name'])) {
+	$proppage->update();
+	message("success", "Profile updated successfully.");
+    }
+    
+    // Security: Ensure ID is integer
+    $id = (int)$id;
 
-	$result = $db->query("
-		SELECT
-			*
-		FROM
-			hlstats_Clans
-		WHERE
-			clanId='$id'
-	");
+    $result = $db->query("
+	SELECT
+	    *
+	FROM
+	    hlstats_Clans
+	WHERE
+	    clanId='$id'
+    ");
 
-	if ($db->num_rows() < 1) {
+    if ($db->num_rows() < 1) {
         die("No clan exists with ID #$id");
-	}
-	
-	$data = $db->fetch_array($result);
-	
-	echo "<span class='fTitle'>";
-	echo $data['tag'];
-	echo "</span>";
-	
-	echo "<span class='fNormal'> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"
-		. "<a href=\"" . $g_options['scripturl'] . "?mode=claninfo&amp;clan=$id&amp;" . strip_tags(SID) . "\">"
-		. "(View Clan Details)</a></span>";
+    }
+    
+    $data = $db->fetch_array($result);
+    
+    echo "<span class='fTitle'>";
+    echo htmlspecialchars((string)$data['tag']);
+    echo "</span>";
+    
+    echo "<span class='fNormal'> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"
+	. "<a href=\"" . htmlspecialchars($g_options['scripturl']) . "?mode=claninfo&amp;clan=$id&amp;" . strip_tags(SID) . "\">"
+	. "(View Clan Details)</a></span>";
 ?><br /><br />
 
 <table width="60%" align="center" border="0" cellspacing="0" cellpadding="0">
 <tr>
-	<td class="fNormal"><?php
-		$proppage->draw($data);
+    <td class="fNormal"><?php
+	$proppage->draw($data);
 ?>
-	<center><input type="submit" value="  Apply  " class="submit"></center></td>
+    <center><input type="submit" value="  Apply  " class="submit"></center></td>
 </tr>
 </table>
 </form>

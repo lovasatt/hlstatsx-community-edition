@@ -40,83 +40,86 @@ For support and installation notes visit http://www.hlxcommunity.com
         die('Do not access this file directly.');
     }
 
-	if ($auth->userdata["acclevel"] < 80) {
-        die ("Access denied!");
-	}
+    global $db, $auth;
 
-	$edlist = new EditList("id", "hlstats_ClanTags", "clan", false);
-	$edlist->columns[] = new EditListColumn("pattern", "Pattern", 40, true, "text", "", 64);
-	$edlist->columns[] = new EditListColumn("position", "Match Position", 0, true, "select", "EITHER/EITHER;START/START only;END/END only");
-	
-	if ($_POST)
-	{
-		if ($edlist->update())
-			message("success", "Operation successful.");
-		else
-			message("warning", $edlist->error());
-	}
-	
+    // PHP 8 Fix: Null coalescing check
+    if (($auth->userdata["acclevel"] ?? 0) < 80) {
+        die ("Access denied!");
+    }
+
+    $edlist = new EditList("id", "hlstats_ClanTags", "clan", false);
+    $edlist->columns[] = new EditListColumn("pattern", "Pattern", 40, true, "text", "", 64);
+    $edlist->columns[] = new EditListColumn("position", "Match Position", 0, true, "select", "EITHER/EITHER;START/START only;END/END only");
+    
+    if ($_POST)
+    {
+	if ($edlist->update())
+	    message("success", "Operation successful.");
+	else
+	    message("warning", $edlist->error());
+    }
+    
 ?>
 
 Here you can define the patterns used to determine what clan a player is in. These patterns are applied to players' names when they connect or change name.<p>
 
 Special characters in the pattern:<p>
 
-<table border=0 cellspacing=0 cellpadding=4>
+<table border="0" cellspacing="0" cellpadding="4">
 
 <tr class="head">
-	<td class="fSmall">Character</td>
-	<td class="fSmall">Description</td>
+    <td class="fSmall">Character</td>
+    <td class="fSmall">Description</td>
 </tr>
 
 <tr>
-	<td class="fNormal"><tt>A</tt></td>
-	<td class="fNormal">Matches one character  (i.e. a character is required)</td>
+    <td class="fNormal"><tt>A</tt></td>
+    <td class="fNormal">Matches one character  (i.e. a character is required)</td>
 </tr>
 
 <tr>
-	<td class="fNormal"><tt>X</tt></td>
-	<td class="fNormal">Matches zero or one characters  (i.e. a character is optional)</td>
+    <td class="fNormal"><tt>X</tt></td>
+    <td class="fNormal">Matches zero or one characters  (i.e. a character is optional)</td>
 </tr>
 
 <tr>
-	<td class="fNormal"><tt>a</tt></td>
-	<td class="fNormal">Matches literal A or a</td>
+    <td class="fNormal"><tt>a</tt></td>
+    <td class="fNormal">Matches literal A or a</td>
 </tr>
 
 <tr>
-	<td class="fNormal"><tt>x</tt></td>
-	<td class="fNormal">Matches literal X or x</td>
+    <td class="fNormal"><tt>x</tt></td>
+    <td class="fNormal">Matches literal X or x</td>
 </tr>
 
 </table><p>
 
 Example patterns:<p>
 
-<table border=0 cellspacing=0 cellpadding=4>
+<table border="0" cellspacing="0" cellpadding="4">
 
 <tr class="head">
-	<td class="fSmall">Pattern</td>
-	<td class="fSmall">Description</td>
-	<td class="fSmall">Example</td>
+    <td class="fSmall">Pattern</td>
+    <td class="fSmall">Description</td>
+    <td class="fSmall">Example</td>
 </tr>
 
 <tr>
-	<td class="fNormal"><tt>[AXXXXX]</tt></td>
-	<td class="fNormal">Matches 1 to 6 characters inside square braces</td>
-	<td class="fNormal"><tt>[ZOOM]Player</tt></td>
+    <td class="fNormal"><tt>[AXXXXX]</tt></td>
+    <td class="fNormal">Matches 1 to 6 characters inside square braces</td>
+    <td class="fNormal"><tt>[ZOOM]Player</tt></td>
 </tr>
 
 <tr>
-	<td class="fNormal"><tt>{AAXX}</tt></td>
-	<td class="fNormal">Matches 2 to 4 characters inside curly braces</td>
-	<td class="fNormal"><tt>{S3G}Player</tt></td>
+    <td class="fNormal"><tt>{AAXX}</tt></td>
+    <td class="fNormal">Matches 2 to 4 characters inside curly braces</td>
+    <td class="fNormal"><tt>{S3G}Player</tt></td>
 </tr>
 
 <tr>
-	<td class="fNormal"><tt>rex>></tt></td>
-	<td class="fNormal">Matches the string "rex>>", "REX>>", etc.</td>
-	<td class="fNormal"><tt>REX>>Tyranno</tt></td>
+    <td class="fNormal"><tt>rex>></tt></td>
+    <td class="fNormal">Matches the string "rex>>", "REX>>", etc.</td>
+    <td class="fNormal"><tt>REX>>Tyranno</tt></td>
 </tr>
 
 </table><p>
@@ -126,24 +129,23 @@ Avoid adding patterns to the database that are too generic. Always ensure you ha
 The Match Position field sets which end of the player's name the clan tag is allowed to appear.<p>
 
 <?php
-	
-	$result = $db->query("
-		SELECT
-			id,
-			pattern,
-			position
-		FROM
-			hlstats_ClanTags
-		ORDER BY
-			id
-	");
-	
-	$edlist->draw($result);
+    
+    $result = $db->query("
+	SELECT
+	    id,
+	    pattern,
+	    position
+	FROM
+	    hlstats_ClanTags
+	ORDER BY
+	    id
+    ");
+    
+    $edlist->draw($result);
 ?>
 
-<table width="75%" border=0 cellspacing=0 cellpadding=0>
+<table width="75%" border="0" cellspacing="0" cellpadding="0">
 <tr>
-	<td align="center"><input type="submit" value="  Apply  " class="submit"></td>
+    <td align="center"><input type="submit" value="  Apply  " class="submit"></td>
 </tr>
 </table>
-

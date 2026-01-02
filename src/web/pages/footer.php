@@ -40,52 +40,65 @@ For support and installation notes visit http://www.hlxcommunity.com
         die('Do not access this file directly.');
     }
 
-	// calculate the scripttime
-	global $scripttime, $db;
-	$scripttime = round(microtime(true) - $scripttime, 4);
+    // calculate the scripttime
+    global $scripttime, $db, $g_options, $mode, $redirect_to_game;
+
+    // PHP 8 Fix: Ensure numeric types for arithmetic
+    $start_time = (isset($scripttime) && is_numeric($scripttime)) ? (float)$scripttime : microtime(true);
+    $scripttime = round(microtime(true) - $start_time, 4);
 ?>
 <div style="clear:both;"></div>
 <br />
 <br />
-	<div id="footer">
-			<a href="http://www.hlxce.com" target="_blank"><img src="<?php echo IMAGE_PATH; ?>/footer-small.png" alt="HLstatsX Community Edition" border="0" /></a>
-	</div>
+    <div id="footer">
+        <!-- Security: Escape constants -->
+	<a href="http://www.hlxce.com" target="_blank"><img src="<?php echo htmlspecialchars(IMAGE_PATH); ?>/footer-small.png" alt="HLstatsX Community Edition" border="0" /></a>
+    </div>
 <br />
 <div class="fSmall" style="text-align:center;">
 <?php
-	if (isset($_SESSION['nojs']) && $_SESSION['nojs'] == 1) {
-		echo 'You are currently viewing the basic version of this page, please enable JavaScript and reload the page to access full functionality.<br />';
-	}
+    if (isset($_SESSION['nojs']) && $_SESSION['nojs'] == 1) {
+	echo 'You are currently viewing the basic version of this page, please enable JavaScript and reload the page to access full functionality.<br />';
+    }
 
-	echo 'Generated in real-time by <a href="http://www.hlxce.com" target="_blank">HLstatsX Community Edition '.$g_options['version'].'</a>';
+    // PHP 8 Fix: Safe version output
+    $version_out = isset($g_options['version']) ? htmlspecialchars($g_options['version']) : 'Unknown';
+    echo 'Generated in real-time by <a href="http://www.hlxce.com" target="_blank">HLstatsX Community Edition ' . $version_out . '</a>';
 
-	if ($g_options['showqueries'] == 1) {
-		echo '
-			<br />
-			Executed '.$db->querycount." queries, generated this page in $scripttime Seconds\n";
-	}
+    if (isset($g_options['showqueries']) && $g_options['showqueries'] == 1) {
+        $query_count = isset($db->querycount) ? $db->querycount : 0;
+	echo '
+	    <br />
+	    Executed ' . $query_count . " queries, generated this page in $scripttime Seconds\n";
+    }
 ?>
 <br />
 All images are copyrighted by their respective owners.
 
 <?php
-	echo '<br /><br />[<a href="'.$g_options['scripturl']."?mode=admin\">Admin</a>]";
+    // PHP 8 Fix: Escape URL to prevent XSS
+    $script_url = isset($g_options['scripturl']) ? htmlspecialchars($g_options['scripturl']) : '';
+    echo '<br /><br />[<a href="' . $script_url . "?mode=admin\">Admin</a>]";
 
-	if (isset($_SESSION['loggedin'])) {
+    if (isset($_SESSION['loggedin'])) {
 
-		echo '&nbsp;[<a href="hlstats.php?logout=1">Logout</a>]';
+	echo '&nbsp;[<a href="hlstats.php?logout=1">Logout</a>]';
 
-	}
+    }
 ?>
 </div>
 </div>
 <?php
-	global $mode, $redirect_to_game;
-	if (($g_options["show_google_map"] == 1) && ($mode == "contents") && ($redirect_to_game > 0))
-	{
-		include(INCLUDE_PATH . '/google_maps.php');
-		printMap();
-	}
+    // PHP 8 Fix: Check existence of all variables before comparison
+    $show_map = (isset($g_options["show_google_map"]) && $g_options["show_google_map"] == 1);
+    $is_content_mode = (isset($mode) && $mode == "contents");
+    $has_redirect = (isset($redirect_to_game) && $redirect_to_game > 0);
+
+    if ($show_map && $is_content_mode && $has_redirect)
+    {
+	include(INCLUDE_PATH . '/google_maps.php');
+	printMap();
+    }
 ?>
 </body>
 </html>

@@ -36,212 +36,222 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 For support and installation notes visit http://www.hlxcommunity.com
 */
 
-	if (!defined('IN_HLSTATS')) {
-		die('Do not access this file directly.');
-	}
+    if (!defined('IN_HLSTATS')) {
+	die('Do not access this file directly.');
+    }
 
-	// Player Rankings
-	$db->query("SELECT name FROM hlstats_Games WHERE code='$game'");
-	if ($db->num_rows() < 1) {
-		error("No such game '$game'.");
-	}
+    global $db, $game, $g_options;
 
-	list($gamename) = $db->fetch_row();
-	$db->free_result();
-	
-	$minkills = 1;
-	
-	if ($g_options['rankingtype'] != 'kills')
-	{
-		$table = new Table
+    // Security: Escape game variable
+    $game_esc = $db->escape($game);
+
+    // Player Rankings
+    $db->query("SELECT name FROM hlstats_Games WHERE code='$game_esc'");
+    if ($db->num_rows() < 1) {
+	error("No such game '$game'.");
+    }
+
+    // PHP 8 Fix: Replace list()
+    $row = $db->fetch_row();
+    $gamename = ($row) ? $row[0] : '';
+    $db->free_result();
+    
+    $minkills = 1;
+    
+    if (isset($g_options['rankingtype']) && $g_options['rankingtype'] != 'kills')
+    {
+	$table = new Table
+	(
+	    array
+	    (
+		new TableColumn
 		(
-			array
-			(
-				new TableColumn
-				(
-					'lastName',
-					'Player',
-					'width=30&flag=1&link=' . urlencode('mode=statsme&amp;player=%k')
-				),
-				new TableColumn
-				(
-					'skill',
-					'Points',
-					'width=7&align=right&skill_change=1'
-				),
-				new TableColumn
-				(
-					'activity',
-					'Activity',
-					'width=10&sort=no&type=bargraph'
-				),
-				new TableColumn
-				(
-					'connection_time',
-					'Connection Time',
-					'width=10&align=right&type=timestamp'
-				),
-				new TableColumn
-				(
-					'kills',
-					'Kills',
-					'width=7&align=right'
-				),
-				new TableColumn
-				(
-					'deaths',
-					'Deaths',
-					'width=7&align=right'
-				),
-				new TableColumn
-				(
-					'kpd',
-					'K:D',
-					'width=6&align=right'
-				),
-				new TableColumn
-				(
-					'headshots',
-					'Headshots',
-					'width=6&align=right'
-				),
-				new TableColumn
-				(
-					'hpk',
-					'HS:K',
-					'width=6&align=right'
-				),
-				new TableColumn
-				(
-					'acc',
-					'Accuracy',
-					'width=6&align=right&append=' . urlencode('%')
-				)
-			),
-			'playerId',
-			$g_options['rankingtype'],
-			'kpd',
-			true
-		);
-	}
-	else
-	{
-		$table = new Table
+		    'lastName',
+		    'Player',
+		    'width=30&flag=1&link=' . urlencode('mode=statsme&amp;player=%k')
+		),
+		new TableColumn
 		(
-			array
-			(
-				new TableColumn
-				(
-					'lastName',
-					'Player',
-					'width=30&flag=1&link=' . urlencode('mode=statsme&amp;player=%k')
-				),
-				new TableColumn
-				(
-					'activity',
-					'Activity',
-					'width=10&sort=no&type=bargraph'
-					),
-				new TableColumn
-				(
-					'kills',
-					'Kills',
-					'width=7&align=right'
-				),
-				new TableColumn
-				(
-					'deaths',
-					'Deaths',
-					'width=7&align=right'
-				),
-				new TableColumn
-				(
-					'kpd',
-					'K:D',
-					'width=6&align=right'
-				),
-				new TableColumn
-				(
-					'headshots',
-					'Headshots',
-					'width=6&align=right'
-				),
-				new TableColumn
-				(
-					'hpk',
-					'HS:K',
-					'width=6&align=right'
-				),
-				new TableColumn
-				(
-					'acc',
-					'Accuracy',
-					'width=6&align=right&append=' . urlencode('%')
-				),
-				new TableColumn
-				(
-					'skill',
-					'Points',
-					'width=7&align=right&skill_change=1'
-				),
-				new TableColumn
-				(
-					'connection_time',
-					'Connection Time',
-					'width=10&align=right&type=timestamp'
-				)
-			),
-		'playerId',
-		$g_options['rankingtype'],
-		'kpd',
-		true
-		);
-	}
-	
-	$day_interval = 28;  
-	$result = $db->query("
-		SELECT
-			playerId,
-			connection_time,
-			lastName,
-			flag,
-			country,
-			skill,
-			kills,
-			deaths,
-			IFNULL(kills/deaths, '-') AS kpd,
-			headshots,
-			IFNULL(headshots/kills, '-') AS hpk,
-			IFNULL(ROUND((hits / shots * 100), 1), 0.0) AS acc,
-			activity,
-			last_skill_change
-		FROM
-			hlstats_Players
-		WHERE
-			game='$game'
-			AND hideranking=0
-			AND kills >= $minkills
-		ORDER BY
-			$table->sort $table->sortorder,
-			$table->sort2 $table->sortorder,
-			lastName ASC
-		LIMIT
-			$table->startitem,
-			$table->numperpage
-	");
-	
-	$resultCount = $db->query("
-		SELECT
-			COUNT(*)
-		FROM
-			hlstats_Players
-		WHERE
-			game='$game'
-			AND hideranking=0
-			AND kills >= $minkills
-	");
-	
-	list($numitems) = $db->fetch_row($resultCount);
-	
-	$table->draw($result, 25, 100);
+		    'skill',
+		    'Points',
+		    'width=7&align=right&skill_change=1'
+		),
+		new TableColumn
+		(
+		    'activity',
+		    'Activity',
+		    'width=10&sort=no&type=bargraph'
+		),
+		new TableColumn
+		(
+		    'connection_time',
+		    'Connection Time',
+		    'width=10&align=right&type=timestamp'
+		),
+		new TableColumn
+		(
+		    'kills',
+		    'Kills',
+		    'width=7&align=right'
+		),
+		new TableColumn
+		(
+		    'deaths',
+		    'Deaths',
+		    'width=7&align=right'
+		),
+		new TableColumn
+		(
+		    'kpd',
+		    'K:D',
+		    'width=6&align=right'
+		),
+		new TableColumn
+		(
+		    'headshots',
+		    'Headshots',
+		    'width=6&align=right'
+		),
+		new TableColumn
+		(
+		    'hpk',
+		    'HS:K',
+		    'width=6&align=right'
+		),
+		new TableColumn
+		(
+		    'acc',
+		    'Accuracy',
+		    'width=6&align=right&append=' . urlencode('%')
+		)
+	    ),
+	    'playerId',
+	    $g_options['rankingtype'],
+	    'kpd',
+	    true
+	);
+    }
+    else
+    {
+	$table = new Table
+	(
+	    array
+	    (
+		new TableColumn
+		(
+		    'lastName',
+		    'Player',
+		    'width=30&flag=1&link=' . urlencode('mode=statsme&amp;player=%k')
+		),
+		new TableColumn
+		(
+		    'activity',
+		    'Activity',
+		    'width=10&sort=no&type=bargraph'
+		    ),
+		new TableColumn
+		(
+		    'kills',
+		    'Kills',
+		    'width=7&align=right'
+		),
+		new TableColumn
+		(
+		    'deaths',
+		    'Deaths',
+		    'width=7&align=right'
+		),
+		new TableColumn
+		(
+		    'kpd',
+		    'K:D',
+		    'width=6&align=right'
+		),
+		new TableColumn
+		(
+		    'headshots',
+		    'Headshots',
+		    'width=6&align=right'
+		),
+		new TableColumn
+		(
+		    'hpk',
+		    'HS:K',
+		    'width=6&align=right'
+		),
+		new TableColumn
+		(
+		    'acc',
+		    'Accuracy',
+		    'width=6&align=right&append=' . urlencode('%')
+		),
+		new TableColumn
+		(
+		    'skill',
+		    'Points',
+		    'width=7&align=right&skill_change=1'
+		),
+		new TableColumn
+		(
+		    'connection_time',
+		    'Connection Time',
+		    'width=10&align=right&type=timestamp'
+		)
+	    ),
+	'playerId',
+	isset($g_options['rankingtype']) ? $g_options['rankingtype'] : 'kills',
+	'kpd',
+	true
+	);
+    }
+    
+    $day_interval = 28;  
+    $result = $db->query("
+	SELECT
+	    playerId,
+	    connection_time,
+	    lastName,
+	    flag,
+	    country,
+	    skill,
+	    kills,
+	    deaths,
+	    IFNULL(kills/deaths, '-') AS kpd,
+	    headshots,
+	    IFNULL(headshots/kills, '-') AS hpk,
+	    IFNULL(ROUND((hits / shots * 100), 1), 0.0) AS acc,
+	    activity,
+	    last_skill_change
+	FROM
+	    hlstats_Players
+	WHERE
+	    game='$game_esc'
+	    AND hideranking=0
+	    AND kills >= $minkills
+	ORDER BY
+	    $table->sort $table->sortorder,
+	    $table->sort2 $table->sortorder,
+	    lastName ASC
+	LIMIT
+	    $table->startitem,
+	    $table->numperpage
+    ");
+    
+    $resultCount = $db->query("
+	SELECT
+	    COUNT(*)
+	FROM
+	    hlstats_Players
+	WHERE
+	    game='$game_esc'
+	    AND hideranking=0
+	    AND kills >= $minkills
+    ");
+    
+    // PHP 8 Fix: Replace list()
+    $row = $db->fetch_row($resultCount);
+    $numitems = ($row) ? (int)$row[0] : 0;
+    
+    // Logic Fix: Pass correct total item count instead of hardcoded 25
+    $table->draw($result, $numitems, 100);
 ?>

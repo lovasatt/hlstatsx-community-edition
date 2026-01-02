@@ -36,23 +36,38 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 For support and installation notes visit http://www.hlxcommunity.com
 */
 
-	global $game;
-	
+    if (!defined('IN_HLSTATS')) {
+        die('Do not access this file directly.');
+    }
+
+    global $game;
+    
 // Search
-	require(PAGE_PATH . '/search-class.php');
-	pageHeader
-	(
-		array ('Search'),
-		array ('Search' => '')
-	);
+    require(PAGE_PATH . '/search-class.php');
+    pageHeader
+    (
+	array ('Search'),
+	array ('Search' => '')
+    );
 
-	$sr_query = $_GET['q'];
-	$sr_type = valid_request(strval($_GET['st']), false) or 'player';
-	$sr_game = valid_request(strval((isset($_GET['game'])) ? $_GET['game'] : $game), false);
-	$search = new Search($sr_query, $sr_type, $sr_game);
-	$search->drawForm(array('mode' => 'search'));
+    // PHP 8 Fix: Null coalescing and type safety
+    $sr_query = isset($_GET['q']) ? $_GET['q'] : '';
+    
+    // PHP 8 Fix: Logic correction for default value assignment
+    $st_input = isset($_GET['st']) ? $_GET['st'] : '';
+    $sr_type = valid_request((string)$st_input, false);
+    if (!$sr_type) {
+        $sr_type = 'player';
+    }
+    
+    // Handle game input
+    $game_input = isset($_GET['game']) ? $_GET['game'] : $game;
+    $sr_game = valid_request((string)$game_input, false);
+    
+    $search = new Search((string)$sr_query, (string)$sr_type, (string)$sr_game);
+    $search->drawForm(array('mode' => 'search'));
 
-	if ($sr_query || $sr_query == '0') {
-		$search->drawResults();
-	}
+    if ($sr_query || $sr_query === '0') {
+	$search->drawResults();
+    }
 ?>

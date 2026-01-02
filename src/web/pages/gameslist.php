@@ -39,39 +39,53 @@ For support and installation notes visit http://www.hlxcommunity.com
     if (!defined('IN_HLSTATS')) {
         die('Do not access this file directly.');
     }
-	
-global $game;
+    
+    global $game, $db, $g_options;
+    
     // Get list of active games	
-	$resultGames = $db->query("
-		SELECT
-			code,
-			name
-		FROM
-			hlstats_Games
-		WHERE
-			hidden='0'
-		ORDER BY
-			realgame, name ASC
-	");
+    $resultGames = $db->query("
+	SELECT
+	    code,
+	    name
+	FROM
+	    hlstats_Games
+	WHERE
+	    hidden='0'
+	ORDER BY
+	    realgame, name ASC
+    ");
 
-	?>
+    ?>
 <ul id="header_gameslist">
 <?php        
-		// Iterate over array of game names and codes
-		while ($gamedata = $db->fetch_row($resultGames))
-		{
-			$image = getImage("/games/$gamedata[0]/game");
-			if ($image) {
-				if ($game == $gamedata[0]) {
-					$img_id = 'id="gameslist-active-game"';
-				} else {
-					$img_id = '';
-				}
-				echo "\t\t\t<li>\n";
-				echo "\t\t\t\t<a href=\"" . $g_options['scripturl'] . "?game=$gamedata[0]\">" . 
-						"<img src=\"" .$image['url'] ."\" style=\"margin-left: 2px; margin-right: 2px;\" alt=\"" . strtoupper($gamedata[0]) ."\" title=\"" . $gamedata[1] ."\" $img_id /></a>";
-				echo "\n\t\t\t</li>\n";
-			}
+	// Iterate over array of game names and codes
+	while ($gamedata = $db->fetch_row($resultGames))
+	{
+            // PHP 8 Fix: Ensure string types
+            $game_code = (string)$gamedata[0];
+            $game_name = (string)$gamedata[1];
+            
+	    $image = getImage("/games/$game_code/game");
+            
+	    if ($image) {
+                // PHP 8 Fix: Check isset to avoid warning
+		if (isset($game) && $game === $game_code) {
+		    $img_id = 'id="gameslist-active-game"';
+		} else {
+		    $img_id = '';
 		}
+                
+                // Security: Escape output
+                $url = htmlspecialchars($g_options['scripturl']) . "?game=" . urlencode($game_code);
+                $alt = htmlspecialchars(strtoupper($game_code));
+                $title = htmlspecialchars($game_name, ENT_QUOTES, 'UTF-8');
+                $img_src = htmlspecialchars($image['url']);
+                
+		echo "\t\t\t<li>\n";
+		echo "\t\t\t\t<a href=\"$url\">" . 
+			"<img src=\"$img_src\" style=\"margin-left: 2px; margin-right: 2px;\" alt=\"$alt\" title=\"$title\" $img_id /></a>";
+		echo "\n\t\t\t</li>\n";
+	    }
+	}
 ?>
-		</ul>
+	</ul>

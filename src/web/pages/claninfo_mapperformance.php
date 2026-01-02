@@ -40,129 +40,139 @@ For support and installation notes visit http://www.hlxcommunity.com
         die('Do not access this file directly.');
     }
 
-	flush();
-	
-	$tblMaps = new Table(
-		array(
-			new TableColumn(
-				'map',
-				'Map Name',
-				'width=15&align=left&link=' . urlencode("mode=mapinfo&amp;map=%k&amp;game=$game")
-			),
-			new TableColumn(
-				'kills',
-				'Kills',
-				'width=6&align=right'
-			),
-			new TableColumn(
-				'kpercent',
-				'Percentage of Kills',
-				'width=15&sort=no&type=bargraph'
-			),
-			new TableColumn(
-				'kpercent',
-				'%',
-				'width=5&sort=no&align=right&append=' . urlencode('%')
-			),
-			new TableColumn(
-				'deaths',
-				'Deaths',
-				'width=6&align=right'
-			),
-			new TableColumn(
-				'kpd',
-				'Kills per Death',
-				'width=13&align=right'
-			),
-			new TableColumn(
-				'headshots',
-				'Headshots',
-				'width=9&align=right'
-			),
-			new TableColumn(
-				'hpercent',
-				'Percentage of Headshots',
-				'width=16&sort=no&type=bargraph'
-			),
-			new TableColumn(
-				'hpercent',
-				'%',
-				'width=5&sort=no&align=right&append=' . urlencode('%')
-			),
-			new TableColumn(
-				'hpk',
-				'Hpk',
-				'width=5&align=right'
-			)
-			
-		),
-		'map',
-		'kills',
-		'kills',
-		true,
-		9999,
-		'maps_page',
-		'maps_sort',
-		'maps_sortorder',
-		'tabmaps',
-		'desc',
-		true
-	);
-	
-	$db->query("
-		CREATE TEMPORARY TABLE tmp_clan_kills
-			SELECT
-				IF(map='', '(Unaccounted)', map) AS map,
-				COUNT(*) AS kills,
-				SUM(headshot=1) AS headshots
-			FROM
-				hlstats_Events_Frags, hlstats_Players
-			WHERE
-				hlstats_Players.playerId = hlstats_Events_Frags.killerId
-				AND hlstats_Players.clan = $clan
-			GROUP BY
-				map;
-	");
-	
-	$db->query("
-		CREATE TEMPORARY TABLE tmp_clan_deaths
-			SELECT
-				IF(map='', '(Unaccounted)', map) AS map,
-				COUNT(*) AS deaths
-			FROM
-				hlstats_Events_Frags, hlstats_Players
-			WHERE
-				hlstats_Players.playerId = hlstats_Events_Frags.victimId
-				AND hlstats_Players.clan = $clan
-			GROUP BY
-				map;
-	");
+    global $db, $game, $clan, $realkills, $realheadshots;
 
-	$result = $db->query("
-		SELECT *, 
-			IFNULL(kills/deaths, '-') AS kpd,
-			IFNULL(headshots / kills, '-') AS hpk,
-			ROUND(kills / $realkills * 100, 2) AS kpercent,
-			ROUND(headshots / $realheadshots * 100, 2) AS hpercent
-		FROM
-			tmp_clan_kills, tmp_clan_deaths
-		WHERE
-			tmp_clan_kills.map = tmp_clan_deaths.map
-		ORDER BY
-			$tblMaps->sort $tblMaps->sortorder,
-			$tblMaps->sort2 $tblMaps->sortorder
-	");
-	
-	$numitems = $db->num_rows($result);
-	if ($numitems > 0)
-	{
+    // Ensure safe types
+    $clan = (int)$clan;
+    $game_url = urlencode($game);
+    
+    // Prevent division by zero in SQL
+    $div_realkills = ((int)$realkills > 0) ? (int)$realkills : 1;
+    $div_realheadshots = ((int)$realheadshots > 0) ? (int)$realheadshots : 1;
+
+    flush();
+    
+    $tblMaps = new Table(
+	array(
+	    new TableColumn(
+		'map',
+		'Map Name',
+		'width=15&align=left&link=' . urlencode("mode=mapinfo&amp;map=%k&amp;game=$game_url")
+	    ),
+	    new TableColumn(
+		'kills',
+		'Kills',
+		'width=6&align=right'
+	    ),
+	    new TableColumn(
+		'kpercent',
+		'Percentage of Kills',
+		'width=15&sort=no&type=bargraph'
+	    ),
+	    new TableColumn(
+		'kpercent',
+		'%',
+		'width=5&sort=no&align=right&append=' . urlencode('%')
+	    ),
+	    new TableColumn(
+		'deaths',
+		'Deaths',
+		'width=6&align=right'
+	    ),
+	    new TableColumn(
+		'kpd',
+		'Kills per Death',
+		'width=13&align=right'
+	    ),
+	    new TableColumn(
+		'headshots',
+		'Headshots',
+		'width=9&align=right'
+	    ),
+	    new TableColumn(
+		'hpercent',
+		'Percentage of Headshots',
+		'width=16&sort=no&type=bargraph'
+	    ),
+	    new TableColumn(
+		'hpercent',
+		'%',
+		'width=5&sort=no&align=right&append=' . urlencode('%')
+	    ),
+	    new TableColumn(
+		'hpk',
+		'Hpk',
+		'width=5&align=right'
+	    )
+	    
+	),
+	'map',
+	'kills',
+	'kills',
+	true,
+	9999,
+	'maps_page',
+	'maps_sort',
+	'maps_sortorder',
+	'tabmaps',
+	'desc',
+	true
+    );
+    
+    $db->query("
+	CREATE TEMPORARY TABLE tmp_clan_kills
+	    SELECT
+		IF(map='', '(Unaccounted)', map) AS map,
+		COUNT(*) AS kills,
+		SUM(headshot=1) AS headshots
+	    FROM
+		hlstats_Events_Frags, hlstats_Players
+	    WHERE
+		hlstats_Players.playerId = hlstats_Events_Frags.killerId
+		AND hlstats_Players.clan = $clan
+	    GROUP BY
+		map;
+    ");
+    
+    $db->query("
+	CREATE TEMPORARY TABLE tmp_clan_deaths
+	    SELECT
+		IF(map='', '(Unaccounted)', map) AS map,
+		COUNT(*) AS deaths
+	    FROM
+		hlstats_Events_Frags, hlstats_Players
+	    WHERE
+		hlstats_Players.playerId = hlstats_Events_Frags.victimId
+		AND hlstats_Players.clan = $clan
+	    GROUP BY
+		map;
+    ");
+
+    $result = $db->query("
+	SELECT *, 
+	    IFNULL(kills/deaths, '-') AS kpd,
+	    IFNULL(headshots / kills, '-') AS hpk,
+	    ROUND(kills / $div_realkills * 100, 2) AS kpercent,
+	    ROUND(headshots / $div_realheadshots * 100, 2) AS hpercent
+	FROM
+	    tmp_clan_kills, tmp_clan_deaths
+	WHERE
+	    tmp_clan_kills.map = tmp_clan_deaths.map
+	ORDER BY
+	    $tblMaps->sort $tblMaps->sortorder,
+	    $tblMaps->sort2 $tblMaps->sortorder
+    ");
+    
+    $numitems = $db->num_rows($result);
+    if ($numitems > 0)
+    {
 ?>
-	<div style="clear:both;padding-top:20px;"></div>
+    <div style="clear:both;padding-top:20px;"></div>
 <?php
-	printSectionTitle('Map Performance *');
-	$tblMaps->draw($result, $db->num_rows($result), 95);
+    printSectionTitle('Map Performance *');
+    $tblMaps->draw($result, $numitems, 95);
 ?>
 <br /><br />
 <?php
-	}
+    }
 ?>

@@ -40,22 +40,26 @@ For support and installation notes visit http://www.hlxcommunity.com
         die('Do not access this file directly.');
     }
 
-	$server_id = 1;
-	if (isset($_GET['server_id']) && is_numeric($_GET['server_id'])) {
-		$server_id = valid_request($_GET['server_id'], true);
-	}
+    global $db, $game, $g_options;
+
+    // PHP 8 Fix: Null coalescing and type casting
+    $server_id_in = isset($_GET['server_id']) ? $_GET['server_id'] : 1;
+    $server_id = valid_request((int)$server_id_in, true);
 ?>
-	<table class="data-table">
-		<tr class="data-table-head">
-			<td style="width:55%;" class="fSmall">&nbsp;Participating Servers</td>
-			<td style="width:23%;" class="fSmall">&nbsp;Address</td>
-			<td style="width:6%;text-align:center;" class="fSmall">&nbsp;Map</td>
-			<td style="width:6%;text-align:center;" class="fSmall">&nbsp;Played</td>
-			<td style="width:10%;text-align:center;" class="fSmall">&nbsp;Players</td>
-		</tr>
+    <table class="data-table">
+	<tr class="data-table-head">
+	    <td style="width:55%;" class="fSmall">&nbsp;Participating Servers</td>
+	    <td style="width:23%;" class="fSmall">&nbsp;Address</td>
+	    <td style="width:6%;text-align:center;" class="fSmall">&nbsp;Map</td>
+	    <td style="width:6%;text-align:center;" class="fSmall">&nbsp;Played</td>
+	    <td style="width:10%;text-align:center;" class="fSmall">&nbsp;Players</td>
+	</tr>
         
 <?php
-	$query= "
+    // Security: Escape game variable
+    $game_esc = $db->escape($game);
+
+    $query= "
             SELECT
                 serverId,
                 name,
@@ -63,7 +67,7 @@ For support and installation notes visit http://www.hlxcommunity.com
                     publicaddress,
                     concat(address, ':', port)
                 ) AS addr,
-		kills,
+	        kills,
                 headshots,              
                 act_players,                                
                 max_players,
@@ -74,53 +78,55 @@ For support and installation notes visit http://www.hlxcommunity.com
             FROM
                 hlstats_Servers
             WHERE
-                game='$game'
+                game='$game_esc'
             ORDER BY
                 sortorder, name, serverId
-	";
-	$db->query($query);
-	$this_server = array();
-	$servers = array();
-	while ($rowdata = $db->fetch_array()) {
-		$servers[] = $rowdata;
-		if ($rowdata['serverId'] == $server_id)
-			$this_server = $rowdata;
-	}
+    ";
+    $db->query($query);
+    $this_server = array();
+    $servers = array();
+    while ($rowdata = $db->fetch_array()) {
+	$servers[] = $rowdata;
+	if ($rowdata['serverId'] == $server_id)
+	    $this_server = $rowdata;
+    }
           
-	$i=0;
-	for ($i=0; $i<count($servers); $i++)
-	{
-		$rowdata = $servers[$i]; 
-		$server_id = $rowdata['serverId'];
-		$c = ($i % 2) + 1;
-		$addr = $rowdata["addr"];
-		$kills     = $rowdata['kills'];
-		$headshots = $rowdata['headshots'];
-		$player_string = $rowdata['act_players']."/".$rowdata['max_players'];
-		$map_ct_wins = $rowdata['map_ct_wins'];
-		$map_ts_wins = $rowdata['map_ts_wins'];
+    $i=0;
+    for ($i=0; $i<count($servers); $i++)
+    {
+	$rowdata = $servers[$i]; 
+	$server_id = $rowdata['serverId'];
+	$c = ($i % 2) + 1;
+	$addr = $rowdata["addr"];
+	$kills     = $rowdata['kills'];
+	$headshots = $rowdata['headshots'];
+	$player_string = $rowdata['act_players']."/".$rowdata['max_players'];
+	$map_ct_wins = $rowdata['map_ct_wins'];
+	$map_ts_wins = $rowdata['map_ts_wins'];
 ?>
 
-		<tr class="bg<?php echo $c; ?>">
-			<td class="fSmall"><?php
-				echo '<strong>'.$rowdata['name'].'</strong>';
-			?></td>
-			<td class="fSmall"><?php
-				echo $addr;
-			?></td>
-			<td style="text-align:center;" class="fSmall"><?php
-				echo $rowdata['act_map'];
-			?></td>
-			<td style="text-align:center;" class="fSmall"><?php
-				$stamp = time()-$rowdata['map_started'];
-				$hours = sprintf('%02d', floor($stamp / 3600));
-				$min   = sprintf('%02d', floor(($stamp % 3600) / 60));
-				$sec   = sprintf('%02d', floor($stamp % 60)); 
-				echo "$hours:$min:$sec";
-			?></td>
-			<td style="text-align:center;" class="fSmall"><?php
-				echo $player_string;
-			?></td>
-		</tr>
+	<tr class="bg<?php echo $c; ?>">
+	    <td class="fSmall"><?php
+		echo '<strong>'.htmlspecialchars($rowdata['name']).'</strong>';
+	    ?></td>
+	    <td class="fSmall"><?php
+		echo htmlspecialchars($addr);
+	    ?></td>
+	    <td style="text-align:center;" class="fSmall"><?php
+		echo htmlspecialchars($rowdata['act_map']);
+	    ?></td>
+	    <td style="text-align:center;" class="fSmall"><?php
+                $map_started = isset($rowdata['map_started']) ? (int)$rowdata['map_started'] : 0;
+		$stamp = ($map_started > 0) ? (time() - $map_started) : 0;
+                
+		$hours = sprintf('%02d', floor($stamp / 3600));
+		$min   = sprintf('%02d', floor(($stamp % 3600) / 60));
+		$sec   = sprintf('%02d', floor($stamp % 60)); 
+		echo "$hours:$min:$sec";
+	    ?></td>
+	    <td style="text-align:center;" class="fSmall"><?php
+		echo $player_string;
+	    ?></td>
+	</tr>
 <?php } ?>
-	</table>
+    </table>

@@ -40,111 +40,127 @@ For support and installation notes visit http://www.hlxcommunity.com
         die('Do not access this file directly.');
     }
 
-    if ($auth->userdata['acclevel'] < 80) {
+    global $db, $auth, $task;
+
+    // PHP 8 Fix: Null coalescing check
+    if (($auth->userdata['acclevel'] ?? 0) < 80) {
         die ('Access denied!');
     }
 ?>
 
-&nbsp;&nbsp;&nbsp;&nbsp;<img src="<?php echo IMAGE_PATH; ?>/downarrow.gif" width=9 height=6 class="imageformat"><b>&nbsp;<?php echo $task->title; ?></b><p>
+&nbsp;&nbsp;&nbsp;&nbsp;<img src="<?php echo IMAGE_PATH; ?>/downarrow.gif" width="9" height="6" class="imageformat" alt=""><b>&nbsp;<?php echo htmlspecialchars($task->title); ?></b><p>
 
 <?php
 
-	if (isset($_POST['confirm'])){
-		$convert_to = DB_COLLATE;
-		$character_set = DB_CHARSET;
+    if (isset($_POST['confirm'])){
+	$convert_to = DB_COLLATE;
+	$character_set = DB_CHARSET;
+        $print_only = (isset($_POST['printonly']) && $_POST['printonly'] > 0);
 
-		if ($_POST['printonly'] > 0) {
-			echo '<strong>Run these statements against your MySql database</strong><br><br>';
-			echo "ALTER DATABASE `".DB_NAME."` DEFAULT CHARACTER SET $character_set COLLATE $convert_to;<br>";
+	if ($print_only) {
+	    echo '<strong>Run these statements against your MySql database</strong><br><br>';
+	    echo "ALTER DATABASE `".DB_NAME."` DEFAULT CHARACTER SET $character_set COLLATE $convert_to;<br>";
 
-			$rs_tables = $db->query('SHOW TABLES') or die("DB:> Cannot SHOW TABLES");
+	    $rs_tables = $db->query('SHOW TABLES');
+            if (!$rs_tables) die("DB:> Cannot SHOW TABLES");
 
-			while ($row_tables = $db->fetch_row($rs_tables))
-			{
-				$table = $db->escape($row_tables[0]);
+	    while ($row_tables = $db->fetch_row($rs_tables))
+	    {
+		$table = $db->escape($row_tables[0]);
 
-				echo "ALTER TABLE `$table` CONVERT TO CHARACTER SET $character_set COLLATE $convert_to;<br>";
+		echo "ALTER TABLE `$table` CONVERT TO CHARACTER SET $character_set COLLATE $convert_to;<br>";
 
-				$rs = $db->query("SHOW FULL FIELDS FROM `$table` WHERE collation is not null AND collation <> '{$convert_to}'") or die ("DB:> Cannot SHOW FULL FIELDS");
+		$rs = $db->query("SHOW FULL FIELDS FROM `$table` WHERE collation is not null AND collation <> '{$convert_to}'");
+                if (!$rs) die ("DB:> Cannot SHOW FULL FIELDS");
 
-				while ($row = mysqli_fetch_assoc($rs))
-				{
-					if ($row['Collation'] == '')
-						continue;
-					if ( strtolower($row['Null']) == 'yes' )
-						$nullable = ' NULL ';
-					else
-						$nullable = ' NOT NULL';
-					if ( $row['Default'] === NULL && $nullable = ' NOT NULL ')
-						$default = " DEFAULT ''";
-					else if ( $row['Default'] === NULL )
-						$default = ' DEFAULT NULL';
-					else if ($row['Default']!='')
-						$default = " DEFAULT '".$db->escape($row['Default'])."'";
-					else
-						$default = '';
-					
-					$field = $db->escape($row['Field']);
-					echo "ALTER TABLE `$table` CHANGE `$field` `$field` $row[Type] CHARACTER SET $character_set COLLATE $convert_to $nullable $default;<br>";
-				}
-			}
-		} else {
-			echo "Converting database, table, and row collations to {$character_set}:<ul>\n";
-			set_time_limit(0);
-			echo '<li>Changing '.DB_NAME.' default character set and collation... ';
-			$db->query("ALTER DATABASE `".DB_NAME."` DEFAULT CHARACTER SET $character_set COLLATE $convert_to;") or die("DB:> Cannot ALTER DATABASE");
-			echo 'OK';
-			$rs_tables = $db->query('SHOW TABLES') or die("DB:> Cannot SHOW TABLES");
-			while ($row_tables = $db->fetch_row($rs_tables))
-			{
-				$table = $db->escape($row_tables[0]);
-
-				echo "<li>Converting Table: $table ... ";
-
-				$db->query("ALTER TABLE `$table` CONVERT TO CHARACTER SET $character_set COLLATE $convert_to;");
-
-				echo 'OK';
-
-				$rs = $db->query("SHOW FULL FIELDS FROM `$table` WHERE collation is not null AND collation <> '{$convert_to}'") or die("DB:> Cannot SHOW FULL FIELDS");
-
-				while ($row=mysqli_fetch_assoc($rs))
-				{
-					if ($row['Collation'] == '')
-						continue;
-					if ( strtolower($row['Null']) == 'yes' )
-						$nullable = ' NULL ';
-					else
-						$nullable = ' NOT NULL';
-					if ( $row['Default'] === NULL && $nullable = ' NOT NULL ')
-						$default = " DEFAULT ''";
-					else if ( $row['Default'] === NULL )
-						$default = ' DEFAULT NULL';
-					else if ($row['Default']!='')
-						$default = " DEFAULT '".$db->escape($row['Default'])."'";
-					else
-						$default = '';
-					
-					$field = $db->escape($row['Field']);
-					echo "<li>Converting Table: $table   Column: $field ... ";
-					$db->query("ALTER TABLE `$table` CHANGE `$field` `$field` $row[Type] CHARACTER SET $character_set COLLATE $convert_to $nullable $default;");
-					echo 'OK';
-				}
-			}
-			echo '</ul>';
-			
-			echo 'Done.<p>';
+                // PHP 8 Fix: Use class method instead of procedural mysqli_fetch_assoc
+		while ($row = $db->fetch_array($rs))
+		{
+		    if ($row['Collation'] == '')
+			continue;
+		    if ( strtolower((string)$row['Null']) == 'yes' )
+			$nullable = ' NULL ';
+		    else
+			$nullable = ' NOT NULL';
+                    
+                    // Fix: Logic error in original code (= vs ==)
+		    if ( $row['Default'] === NULL && trim($nullable) == 'NOT NULL')
+			$default = " DEFAULT ''";
+		    else if ( $row['Default'] === NULL )
+			$default = ' DEFAULT NULL';
+		    else if ($row['Default']!='')
+			$default = " DEFAULT '".$db->escape($row['Default'])."'";
+		    else
+			$default = '';
+		    
+		    $field = $db->escape($row['Field']);
+		    echo "ALTER TABLE `$table` CHANGE `$field` `$field` $row[Type] CHARACTER SET $character_set COLLATE $convert_to $nullable $default;<br>";
 		}
-		
+	    }
+	} else {
+	    echo "Converting database, table, and row collations to {$character_set}:<ul>\n";
+	    set_time_limit(0);
+	    echo '<li>Changing '.DB_NAME.' default character set and collation... ';
+            
+            $db->query("ALTER DATABASE `".DB_NAME."` DEFAULT CHARACTER SET $character_set COLLATE $convert_to;") or die("DB:> Cannot ALTER DATABASE");
+	    
+            echo 'OK';
+	    $rs_tables = $db->query('SHOW TABLES');
+            if (!$rs_tables) die("DB:> Cannot SHOW TABLES");
+
+	    while ($row_tables = $db->fetch_row($rs_tables))
+	    {
+		$table = $db->escape($row_tables[0]);
+
+		echo "<li>Converting Table: $table ... ";
+
+		$db->query("ALTER TABLE `$table` CONVERT TO CHARACTER SET $character_set COLLATE $convert_to;");
+
+		echo 'OK';
+
+		$rs = $db->query("SHOW FULL FIELDS FROM `$table` WHERE collation is not null AND collation <> '{$convert_to}'");
+                if (!$rs) die("DB:> Cannot SHOW FULL FIELDS");
+
+		while ($row = $db->fetch_array($rs))
+		{
+		    if ($row['Collation'] == '')
+			continue;
+		    if ( strtolower((string)$row['Null']) == 'yes' )
+			$nullable = ' NULL ';
+		    else
+			$nullable = ' NOT NULL';
+                    
+                    // Fix: Logic error in original code (= vs ==)
+		    if ( $row['Default'] === NULL && trim($nullable) == 'NOT NULL')
+			$default = " DEFAULT ''";
+		    else if ( $row['Default'] === NULL )
+			$default = ' DEFAULT NULL';
+		    else if ($row['Default']!='')
+			$default = " DEFAULT '".$db->escape($row['Default'])."'";
+		    else
+			$default = '';
+		    
+		    $field = $db->escape($row['Field']);
+		    echo "<li>Converting Table: $table   Column: $field ... ";
+		    $db->query("ALTER TABLE `$table` CHANGE `$field` `$field` $row[Type] CHARACTER SET $character_set COLLATE $convert_to $nullable $default;");
+		    echo 'OK';
+		}
+	    }
+	    echo '</ul>';
+	    
+	    echo 'Done.<p>';
+	}
+	
     } else {
         
 ?>        
 
 <form method="POST">
-<table width="60%" align="center" border=0 cellspacing=0 cellpadding=0 class="border">
+<table width="60%" align="center" border="0" cellspacing="0" cellpadding="0" class="border">
 
 <tr>
     <td>
-        <table width="100%" border=0 cellspacing=1 cellpadding=10>
+        <table width="100%" border="0" cellspacing="1" cellpadding="10">
         
         <tr class="bg1">
             <td class="fNormal">
@@ -169,5 +185,4 @@ You should not lose any data, but be sure to back up your database before runnin
 
 <?php
     }
-?>    
-    
+?>

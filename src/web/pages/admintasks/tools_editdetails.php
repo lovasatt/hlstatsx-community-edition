@@ -40,93 +40,105 @@ For support and installation notes visit http://www.hlxcommunity.com
         die('Do not access this file directly.');
     }
 
-	if ($auth->userdata["acclevel"] < 80) {
+    global $auth, $task, $g_options, $selTask;
+
+    // PHP 8 Fix: Null coalescing check
+    if (($auth->userdata["acclevel"] ?? 0) < 80) {
         die ("Access denied!");
-	}
+    }
     
 ?>
 
-&nbsp;&nbsp;&nbsp;&nbsp;<img src="<?php echo IMAGE_PATH; ?>/downarrow.gif" width=9 height=6 class="imageformat"><b>&nbsp;<?php echo $task->title; ?></b><p>
+&nbsp;&nbsp;&nbsp;&nbsp;<img src="<?php echo IMAGE_PATH; ?>/downarrow.gif" width="9" height="6" class="imageformat"><b>&nbsp;<?php echo htmlspecialchars($task->title); ?></b><p>
 
 <span style="padding-left:35px;">You can enter a player or clan ID number directly, or you can search for a player or clan.</span><p>
 
-<table border="0" width="95%" align="center" border=0 cellspacing=0 cellpadding=0>
+<table style="width:95%;" align="center" border="0" cellspacing="0" cellpadding="0">
 
 <tr valign="top">
-	<td width="100%" class="fNormal">&nbsp;<img src="<?php echo IMAGE_PATH; ?>/downarrow.gif" width=9 height=6 class="imageformat"><b>&nbsp;Jump Direct</b><p>
+    <td width="100%" class="fNormal">&nbsp;<img src="<?php echo IMAGE_PATH; ?>/downarrow.gif" width="9" height="6" class="imageformat"><b>&nbsp;Jump Direct</b><p>
+    
+	<form method="GET" action="<?php echo htmlspecialchars($g_options["scripturl"]); ?>">
+	<input type="hidden" name="mode" value="admin">
+	<table width="100%" border="0" cellspacing="0" cellpadding="0">
 	
-		<form method="GET" action="<?php echo $g_options["scripturl"]; ?>">
-		<input type="hidden" name="mode" value="admin">
-		<table width="100%" border=0 cellspacing=0 cellpadding=0>
+	<tr>
+	    <td width="5%">&nbsp;</td>
+	    <td width="95%">
+		<table width="40%" border="0" cellspacing="0" cellpadding="0" class="border">
 		
-		<tr>
-			<td width="5%">&nbsp;</td>
-			<td width="95%">
-				<table width="40%" border=0 cellspacing=0 cellpadding=0 class="border">
-				
-				<tr valign="top" >
-					<td>
-						<table width="100%" border=0 cellspacing=1 cellpadding=4>
-						<tr valign="middle" class="bg1">
-							<td nowrap width="45%" class="fNormal">Type:</td>
-							<td width="55%">
-								<?php
-									echo getSelect("task",
-										array(
-											"tools_editdetails_player"=>"Player",
-											"tools_editdetails_clan"=>"Clan"
-										)
-									);
-								?></td>
-						</tr>
-						
-						<tr valign="middle" class="bg1">
-							<td nowrap width="45%" class="fNormal">ID Number:</td>
-							<td width="55%"><input type="text" name="id" size=15 maxlength=12 class="textbox"></td>
-						</tr>
-						
-						</table></td>
-					<td align="right">
-						<table border=0 cellspacing=0 cellpadding=10>
-						<tr>
-							<td><input type="submit" value=" Edit &gt;&gt; " class="submit"></td>
-						</tr>
-						</table></td>
-				</tr>
-				
-				</table></td>
+		<tr valign="top" >
+		    <td>
+			<table width="100%" border="0" cellspacing="1" cellpadding="4">
+			<tr valign="middle" class="bg1">
+			    <td nowrap width="45%" class="fNormal">Type:</td>
+			    <td width="55%">
+				<?php
+				    echo getSelect("task",
+					array(
+					    "tools_editdetails_player"=>"Player",
+					    "tools_editdetails_clan"=>"Clan"
+					)
+				    );
+				?></td>
+			</tr>
+			
+			<tr valign="middle" class="bg1">
+			    <td nowrap width="45%" class="fNormal">ID Number:</td>
+			    <td width="55%"><input type="text" name="id" size="15" maxlength="12" class="textbox"></td>
+			</tr>
+			
+			</table></td>
+		    <td align="right">
+			<table border="0" cellspacing="0" cellpadding="10">
+			<tr>
+			    <td><input type="submit" value=" Edit &gt;&gt; " class="submit"></td>
+			</tr>
+			</table></td>
 		</tr>
 		
-		</table>
-		
-		</form></td>
+		</table></td>
+	</tr>
+	
+	</table>
+	
+	</form></td>
 </tr>
 
 </table><p>
 
 <?php
-	require(PAGE_PATH . "/search-class.php");
-	
-	$sr_query = $_GET["q"];
+    require(PAGE_PATH . "/search-class.php");
+    
+    // PHP 8 Fix: Ensure string type and existence
+    $sr_query = isset($_GET["q"]) ? (string)$_GET["q"] : "";
+    
     $search_pattern  = array("/script/i", "/;/", "/%/");
     $replace_pattern = array("", "", "");
     $sr_query = preg_replace($search_pattern, $replace_pattern, $sr_query);
 
-	$sr_type = valid_request($_GET["st"], false) or "player";
-	$sr_game = valid_request($_GET["game"], false);
-	
-	$search = new Search($sr_query, $sr_type, $sr_game);
-	
-	$search->drawForm(array(
-		"mode"=>"admin",
-		"task"=>$selTask
-	));
-	
-	if ($sr_query)
-	{
-		$search->drawResults(
-			"mode=admin&task=tools_editdetails_player&id=%k",
-			"mode=admin&task=tools_editdetails_clan&id=%k"
-		);
-	}
+    // PHP 8 Fix: Handle input keys safely
+    $st_input = isset($_GET["st"]) ? $_GET["st"] : "";
+    $sr_type = valid_request($st_input, false);
+    if (!$sr_type) {
+        $sr_type = "player";
+    }
+
+    $game_input = isset($_GET["game"]) ? $_GET["game"] : "";
+    $sr_game = valid_request($game_input, false);
+    
+    $search = new Search($sr_query, $sr_type, $sr_game);
+    
+    $search->drawForm(array(
+	"mode"=>"admin",
+	"task"=>$selTask
+    ));
+    
+    if ($sr_query)
+    {
+	$search->drawResults(
+	    "mode=admin&task=tools_editdetails_player&id=%k",
+	    "mode=admin&task=tools_editdetails_clan&id=%k"
+	);
+    }
 ?>

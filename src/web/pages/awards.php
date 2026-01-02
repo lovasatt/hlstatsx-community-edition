@@ -40,64 +40,87 @@ For support and installation notes visit http://www.hlxcommunity.com
         die('Do not access this file directly.');
     }
 
-	// Awards Info Page
+    global $db, $game, $g_options;
 
-	$db->query("SELECT name FROM hlstats_Games WHERE code='$game'");
-	if ($db->num_rows() < 1) error("No such game '$game'.");
+    // Awards Info Page
+    
+    // Security: Escape game variable
+    $game_esc = $db->escape($game);
 
-	list($gamename) = $db->fetch_row();
-	$db->free_result();
+    $db->query("SELECT name FROM hlstats_Games WHERE code='$game_esc'");
+    if ($db->num_rows() < 1) error("No such game '$game'.");
 
-	$type = valid_request($_GET['type'] ?? '');
-	$tab = valid_request($_GET['tab'] ?? '');
+    // PHP 8 Fix: Replace list() to prevent fatal error on empty result
+    $row = $db->fetch_row();
+    $gamename = ($row) ? $row[0] : '';
+    $db->free_result();
 
-	if ($type == 'ajax' )
+    // PHP 8 Fix: Null coalescing and type casting
+    $type_in = isset($_GET['type']) ? $_GET['type'] : '';
+    $type = valid_request((string)$type_in, false);
+    
+    $tab_in = isset($_GET['tab']) ? $_GET['tab'] : '';
+    $tab = valid_request((string)$tab_in, false);
+
+    if ($type == 'ajax' )
+    {
+        // PHP 8 Fix: Correct regex syntax delimiters and allow pipe separator
+	$tabs = explode('|', preg_replace('/[^a-z|]/', '', strtolower($tab)));
+	
+	foreach ( $tabs as $t )
 	{
-		$tabs = explode('|', preg_replace('[^a-z]', '', $tab));
-		
-		foreach ( $tabs as $tab )
-		{
-			if ( file_exists(PAGE_PATH . '/awards_' . $tab . '.php') )
-			{
-				@include(PAGE_PATH . '/awards_' . $tab . '.php');
-			}
-		}
-		exit;
+            // Security: Ensure filename contains only safe characters
+            $t = preg_replace('/[^a-z]/', '', $t);
+            if (empty($t)) continue;
+            
+	    if ( file_exists(PAGE_PATH . '/awards_' . $t . '.php') )
+	    {
+		@include(PAGE_PATH . '/awards_' . $t . '.php');
+	    }
 	}
+	exit;
+    }
 
-	pageHeader(
-		array($gamename, 'Awards Info'),
-		array($gamename=>"%s?game=$game", 'Awards Info'=>'')
-	);
+    pageHeader(
+	array($gamename, 'Awards Info'),
+	array($gamename=>"%s?game=$game", 'Awards Info'=>'')
+    );
 ?>
 
-<?php if ($g_options['playerinfo_tabs']=='1') { ?>
+<?php 
+// PHP 8 Fix: Ensure array key exists
+if (isset($g_options['playerinfo_tabs']) && $g_options['playerinfo_tabs']=='1') { 
+?>
 
 <div id="main">
-	<ul class="subsection_tabs" id="tabs_submenu">
-		<li><a href="#" id="tab_daily">Daily&nbsp;Awards</a></li>
-		<li><a href="#" id="tab_global">Global&nbsp;Awards</a></li>
-		<li><a href="#" id="tab_ranks">Ranks</a></li>
-		<li><a href="#" id="tab_ribbons">Ribbons</a></li>
-	</ul>
+    <ul class="subsection_tabs" id="tabs_submenu">
+	<li><a href="#" id="tab_daily">Daily&nbsp;Awards</a></li>
+	<li><a href="#" id="tab_global">Global&nbsp;Awards</a></li>
+	<li><a href="#" id="tab_ranks">Ranks</a></li>
+	<li><a href="#" id="tab_ribbons">Ribbons</a></li>
+    </ul>
 <br />
 <div id="main_content"></div>
 <?php
 if ($tab)
 {
-	$defaulttab = $tab;
+    $defaulttab = $tab;
 }
 else
 {
-	$defaulttab = 'daily';
+    $defaulttab = 'daily';
 }
+// Security: Escape game variable in JS output
+$game_js = htmlspecialchars($game, ENT_QUOTES, 'UTF-8');
+$defaulttab_js = htmlspecialchars($defaulttab, ENT_QUOTES, 'UTF-8');
+
 echo "<script type=\"text/javascript\">
-	new Tabs($('main_content'), $$('#main ul.subsection_tabs a'), {
-		'mode': 'awards',
-		'game': '$game',
-		'loadingImage': '".IMAGE_PATH."/ajax.gif',
-		'defaultTab': '$defaulttab'
-	});"
+    new Tabs($('main_content'), $$('#main ul.subsection_tabs a'), {
+	'mode': 'awards',
+	'game': '$game_js',
+	'loadingImage': '".IMAGE_PATH."/ajax.gif',
+	'defaultTab': '$defaulttab_js'
+    });"
 ?>
 </script>
 
@@ -106,21 +129,21 @@ echo "<script type=\"text/javascript\">
 
 <?php } else {
 
-	echo "\n<div id=\"daily\">\n";
-	include PAGE_PATH.'/awards_daily.php';
-	echo "\n</div>\n";
+    echo "\n<div id=\"daily\">\n";
+    include PAGE_PATH.'/awards_daily.php';
+    echo "\n</div>\n";
 
-	echo "\n<div id=\"global\">\n";
-	include PAGE_PATH.'/awards_global.php'; 
-	echo "\n</div>\n";
+    echo "\n<div id=\"global\">\n";
+    include PAGE_PATH.'/awards_global.php'; 
+    echo "\n</div>\n";
 
-	echo "\n<div id=\"ranks\">\n";
-	include PAGE_PATH.'/awards_ranks.php';
-	echo "\n</div>\n";
+    echo "\n<div id=\"ranks\">\n";
+    include PAGE_PATH.'/awards_ranks.php';
+    echo "\n</div>\n";
 
-	echo "\n<div id=\"ribbons\">\n";
-	include PAGE_PATH.'/awards_ribbons.php';
-	echo "\n</div>\n";
+    echo "\n<div id=\"ribbons\">\n";
+    include PAGE_PATH.'/awards_ribbons.php';
+    echo "\n</div>\n";
 
 }
 ?>

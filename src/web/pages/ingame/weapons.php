@@ -36,211 +36,248 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 For support and installation notes visit http://www.hlxcommunity.com
 */
 
-	if (!defined('IN_HLSTATS')) {
-		die('Do not access this file directly.');
+    if (!defined('IN_HLSTATS')) {
+	die('Do not access this file directly.');
+    }
+
+    global $db, $game, $g_options;
+
+    // Player Details
+    
+    // PHP 8 Fix: Null coalescing and type casting
+    $player_in = isset($_GET['player']) ? $_GET['player'] : 0;
+    $player = valid_request((int)$player_in, true);
+    
+    $uniqueid_in = isset($_GET['uniqueid']) ? $_GET['uniqueid'] : '';
+    $uniqueid = valid_request((string)$uniqueid_in, false);
+    
+    $game_in = isset($_GET['game']) ? $_GET['game'] : '';
+    $game = valid_request((string)$game_in, false);
+    
+    // Security: Escape variables
+    $uniqueid_esc = $db->escape($uniqueid);
+    $game_esc = $db->escape($game);
+
+    if (!$player && $uniqueid) {
+	if (!$game) {
+            $redirect_url = $g_options['scripturl'] . "&mode=search&st=uniqueid&q=" . urlencode($uniqueid);
+	    header("Location: $redirect_url");
+	    exit;
 	}
 
-	// Player Details
-	
-	$player = valid_request(intval($_GET['player']), true);
-	$uniqueid  = valid_request(strval($_GET['uniqueid']), false);
-	$game = valid_request(strval($_GET['game']), false);
-
-	if (!$player && $uniqueid) {
-		if (!$game) {
-			header('Location: ' . $g_options['scripturl'] . "&mode=search&st=uniqueid&q=$uniqueid");
-			exit;
-		}
-
-		$db->query("
-			SELECT
-				playerId
-			FROM
-				hlstats_PlayerUniqueIds
-			WHERE
-				uniqueId='$uniqueid'
-				AND game='$game'
-		");
-		
-		if ($db->num_rows() > 1) {
-			header('Location: ' . $g_options['scripturl'] . "&mode=search&st=uniqueid&q=$uniqueid&game=$game");
-			exit;
-		} elseif ($db->num_rows() < 1) {
-			error("No players found matching uniqueId '$uniqueid'");
-		} else {
-			list($player) = $db->fetch_row();
-			$player = intval($player);
-		}
-	} elseif (!$player && !$uniqueid) {
-		error('No player ID specified.');
-	}
-	
 	$db->query("
-		SELECT
-			hlstats_Players.playerId,
-			hlstats_Players.lastName,
-			hlstats_Players.game
-		FROM
-			hlstats_Players
-		WHERE
-			playerId=$player
+	    SELECT
+		playerId
+	    FROM
+		hlstats_PlayerUniqueIds
+	    WHERE
+		uniqueId='$uniqueid_esc'
+		AND game='$game_esc'
 	");
-
-	if ($db->num_rows() != 1) {
-		error("No such player '$player'.");
-	}
-
-	$playerdata = $db->fetch_array();
-	$db->free_result();
 	
-	$pl_name = $playerdata['lastName'];
-	if (strlen($pl_name) > 10) {
-		$pl_shortname = substr($pl_name, 0, 8) . '...';
+	if ($db->num_rows() > 1) {
+            $redirect_url = $g_options['scripturl'] . "&mode=search&st=uniqueid&q=" . urlencode($uniqueid) . "&game=" . urlencode($game);
+	    header("Location: $redirect_url");
+	    exit;
+	} elseif ($db->num_rows() < 1) {
+	    error("No players found matching uniqueId '$uniqueid'");
 	} else {
-		$pl_shortname = $pl_name;
+            // PHP 8 Fix: Replace list()
+            $row = $db->fetch_row();
+	    $player = (int)$row[0];
 	}
+    } elseif (!$player && !$uniqueid) {
+	error('No player ID specified.');
+    }
+    
+    $db->query("
+	SELECT
+	    hlstats_Players.playerId,
+	    hlstats_Players.lastName,
+	    hlstats_Players.game
+	FROM
+	    hlstats_Players
+	WHERE
+	    playerId='$player'
+    ");
 
-	$pl_name = htmlspecialchars($pl_name, ENT_COMPAT);
-	$pl_shortname = htmlspecialchars($pl_shortname, ENT_COMPAT);
-	$pl_urlname = urlencode($playerdata['lastName']);
+    if ($db->num_rows() != 1) {
+	error("No such player '$player'.");
+    }
 
-	$game = $playerdata['game'];
-	$db->query("SELECT name FROM hlstats_Games WHERE code='$game'");
-	if ($db->num_rows() != 1) {
-		$gamename = ucfirst($game);
-	} else {
-		list($gamename) = $db->fetch_row();
-	}
-	
-	// Get Weapon Name
-	$result = $db->query
-	("
-		SELECT
-			hlstats_Weapons.code,
-			hlstats_Weapons.name
-		FROM
-			hlstats_Weapons
-		WHERE
-			hlstats_Weapons.game = '$game'
-	");
-	while ($rowdata = $db->fetch_row($result))
-	{ 
-		$code = $rowdata[0];
-		$fname[strToLower($code)] = $rowdata[1];
-	}
+    $playerdata = $db->fetch_array();
+    $db->free_result();
+    
+    // PHP 8 Fix: Handle null name
+    $pl_name = isset($playerdata['lastName']) ? $playerdata['lastName'] : '';
+    
+    if (strlen((string)$pl_name) > 10) {
+	$pl_shortname = substr($pl_name, 0, 8) . '...';
+    } else {
+	$pl_shortname = $pl_name;
+    }
 
-	$tblWeapons = new Table(
-		array(
-			new TableColumn(
-				'weapon',
-				'Weapon',
-				'width=15&type=weaponimg&align=center&link=' . urlencode("mode=weaponinfo&weapon=%k&game=$game"),
-				$fname
-			),
-			new TableColumn(
-				'modifier',
-				'Modifier',
-				'width=10&align=right'
-			),
-			new TableColumn(
-				'kills',
-				'Kills',
-				'width=11&align=right'
-			),
-			new TableColumn(
-				'kpercent',
-				'Perc. Kills',
-				'width=18&sort=no&type=bargraph'
-			),
-			new TableColumn(
-				'kpercent',
-				'%',
-				'width=5&sort=no&align=right&append=' . urlencode('%')
-			),
-			new TableColumn(
-				'headshots',
-				'Headshots',
-				'width=8&align=right'
-			),
-			new TableColumn(
-				'hpercent',
-				'Perc. Headshots',
-				'width=18&sort=no&type=bargraph'
-			),
-			new TableColumn(
-				'hpercent',
-				'%',
-				'width=5&sort=no&align=right&append=' . urlencode('%')
-			),
-			new TableColumn(
-				'hpk',
-				'Hpk',
-				'width=5&align=right'
-			)
-		),
+    $pl_name = htmlspecialchars((string)$pl_name, ENT_COMPAT);
+    $pl_shortname = htmlspecialchars((string)$pl_shortname, ENT_COMPAT);
+    $pl_urlname = urlencode(isset($playerdata['lastName']) ? $playerdata['lastName'] : '');
+
+    $game = isset($playerdata['game']) ? $playerdata['game'] : '';
+    $game_esc = $db->escape($game);
+    
+    $db->query("SELECT name FROM hlstats_Games WHERE code='$game_esc'");
+    if ($db->num_rows() != 1) {
+	$gamename = ucfirst($game);
+    } else {
+        // PHP 8 Fix: Replace list()
+        $row = $db->fetch_row();
+	$gamename = $row[0];
+    }
+    
+    // Added: Page Header for proper layout
+    pageHeader(
+	array ($gamename, 'Weapon Usage', $pl_name),
+	array ($gamename=>"%s?game=$game", 'Weapon Usage'=>'')
+    );
+    
+    // Get Weapon Name
+    $result = $db->query
+    ("
+	SELECT
+	    hlstats_Weapons.code,
+	    hlstats_Weapons.name
+	FROM
+	    hlstats_Weapons
+	WHERE
+	    hlstats_Weapons.game = '$game_esc'
+    ");
+    $fname = array();
+    while ($rowdata = $db->fetch_row($result))
+    { 
+	$code = $rowdata[0];
+        // PHP 8 Fix: Explicit string cast
+	$fname[strtolower((string)$code)] = $rowdata[1];
+    }
+
+    $tblWeapons = new Table(
+	array(
+	    new TableColumn(
 		'weapon',
+		'Weapon',
+		'width=15&type=weaponimg&align=center&link=' . urlencode("mode=weaponinfo&weapon=%k&game=$game"),
+		$fname
+	    ),
+	    new TableColumn(
+		'modifier',
+		'Modifier',
+		'width=10&align=right'
+	    ),
+	    new TableColumn(
 		'kills',
-		'weapon',
-		true,
-		9999,
-		'weap_page',
-		'weap_sort',
-		'weap_sortorder',
-		'weapons'
-	);
-	
-	$db->query("
-			SELECT
-				COUNT(*)
-			FROM
-				hlstats_Events_Frags
-			LEFT JOIN hlstats_Servers ON
-				hlstats_Servers.serverId=hlstats_Events_Frags.serverId
-			WHERE
-				hlstats_Servers.game='$game' AND killerId=$player
-	");
+		'Kills',
+		'width=11&align=right'
+	    ),
+	    new TableColumn(
+		'kpercent',
+		'Perc. Kills',
+		'width=18&sort=no&type=bargraph'
+	    ),
+	    new TableColumn(
+		'kpercent',
+		'%',
+		'width=5&sort=no&align=right&append=' . urlencode('%')
+	    ),
+	    new TableColumn(
+		'headshots',
+		'Headshots',
+		'width=8&align=right'
+	    ),
+	    new TableColumn(
+		'hpercent',
+		'Perc. Headshots',
+		'width=18&sort=no&type=bargraph'
+	    ),
+	    new TableColumn(
+		'hpercent',
+		'%',
+		'width=5&sort=no&align=right&append=' . urlencode('%')
+	    ),
+	    new TableColumn(
+		'hpk',
+		'Hpk',
+		'width=5&align=right'
+	    )
+	),
+	'weapon',
+	'kills',
+	'weapon',
+	true,
+	9999,
+	'weap_page',
+	'weap_sort',
+	'weap_sortorder',
+	'weapons'
+    );
+    
+    $db->query("
+	    SELECT
+		COUNT(*)
+	    FROM
+		hlstats_Events_Frags
+	    LEFT JOIN hlstats_Servers ON
+		hlstats_Servers.serverId=hlstats_Events_Frags.serverId
+	    WHERE
+		hlstats_Servers.game='$game_esc' AND killerId='$player'
+    ");
 
-	list($realkills) = $db->fetch_row();
+    // PHP 8 Fix: Replace list()
+    $row = $db->fetch_row();
+    $realkills = ($row) ? (int)$row[0] : 0;
 
-	$db->query("
-			SELECT
-				COUNT(*)
-			FROM
-				hlstats_Events_Frags
-			LEFT JOIN hlstats_Servers ON
-				hlstats_Servers.serverId=hlstats_Events_Frags.serverId
-			WHERE
-				hlstats_Servers.game='$game' AND killerId=$player
-				AND headshot=1      
-	");
+    $db->query("
+	    SELECT
+		COUNT(*)
+	    FROM
+		hlstats_Events_Frags
+	    LEFT JOIN hlstats_Servers ON
+		hlstats_Servers.serverId=hlstats_Events_Frags.serverId
+	    WHERE
+		hlstats_Servers.game='$game_esc' AND killerId='$player'
+		AND headshot=1      
+    ");
 
-	list($realheadshots) = $db->fetch_row();
+    // PHP 8 Fix: Replace list()
+    $row = $db->fetch_row();
+    $realheadshots = ($row) ? (int)$row[0] : 0;
+    
+    // Prevent division by zero
+    $realkills_sql = ($realkills > 0) ? $realkills : 1;
+    $realheadshots_sql = ($realheadshots > 0) ? $realheadshots : 1;
 
-	$result = $db->query("
-		SELECT
-			hlstats_Events_Frags.weapon,
-			IFNULL(hlstats_Weapons.modifier, 1.00) AS modifier,
-			COUNT(hlstats_Events_Frags.weapon) AS kills,
-			ROUND(CONCAT(COUNT(hlstats_Events_Frags.weapon)) / $realkills * 100, 2) AS kpercent,
-			SUM(hlstats_Events_Frags.headshot=1) as headshots,
-			SUM(hlstats_Events_Frags.headshot=1) / COUNT(hlstats_Events_Frags.weapon) AS hpk,
-			ROUND(CONCAT(SUM(hlstats_Events_Frags.headshot=1)) / $realheadshots * 100, 2) AS hpercent
-		FROM
-			hlstats_Events_Frags
-		LEFT JOIN hlstats_Weapons ON
-			hlstats_Weapons.code = hlstats_Events_Frags.weapon
-		LEFT JOIN hlstats_Servers ON
-			hlstats_Servers.serverId=hlstats_Events_Frags.serverId
-		WHERE
-			hlstats_Servers.game='$game' AND hlstats_Events_Frags.killerId=$player
-			AND (hlstats_Weapons.game='$game' OR hlstats_Weapons.weaponId IS NULL)
-		GROUP BY
-			hlstats_Events_Frags.weapon,
-			hlstats_Weapons.modifier
-		ORDER BY
-			$tblWeapons->sort $tblWeapons->sortorder,
-			$tblWeapons->sort2 $tblWeapons->sortorder
-	");
+    $result = $db->query("
+	SELECT
+	    hlstats_Events_Frags.weapon,
+	    IFNULL(hlstats_Weapons.modifier, 1.00) AS modifier,
+	    COUNT(hlstats_Events_Frags.weapon) AS kills,
+	    ROUND(COUNT(hlstats_Events_Frags.weapon) / $realkills_sql * 100, 2) AS kpercent,
+	    SUM(hlstats_Events_Frags.headshot=1) as headshots,
+	    SUM(hlstats_Events_Frags.headshot=1) / COUNT(hlstats_Events_Frags.weapon) AS hpk,
+	    ROUND(SUM(hlstats_Events_Frags.headshot=1) / $realheadshots_sql * 100, 2) AS hpercent
+	FROM
+	    hlstats_Events_Frags
+	LEFT JOIN hlstats_Weapons ON
+	    hlstats_Weapons.code = hlstats_Events_Frags.weapon
+	LEFT JOIN hlstats_Servers ON
+	    hlstats_Servers.serverId=hlstats_Events_Frags.serverId
+	WHERE
+	    hlstats_Servers.game='$game_esc' AND hlstats_Events_Frags.killerId='$player'
+	    AND (hlstats_Weapons.game='$game_esc' OR hlstats_Weapons.weaponId IS NULL)
+	GROUP BY
+	    hlstats_Events_Frags.weapon,
+	    hlstats_Weapons.modifier
+	ORDER BY
+	    $tblWeapons->sort $tblWeapons->sortorder,
+	    $tblWeapons->sort2 $tblWeapons->sortorder
+    ");
 
-		$tblWeapons->draw($result, $db->num_rows($result), 100);
+	$tblWeapons->draw($result, $db->num_rows($result), 100);
 ?>

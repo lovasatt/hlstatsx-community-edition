@@ -40,111 +40,125 @@ For support and installation notes visit http://www.hlxcommunity.com
         die('Do not access this file directly.');
     }
 
-	$result = $db->query("
-		SELECT
-			rankName,
-			minKills,
-			rankId,
-			count(playerId) AS obj_count
-		FROM
-			hlstats_Ranks
-		INNER JOIN
-			hlstats_Players
-		ON (
+    global $db, $game, $g_options;
+
+    // Security: Escape game variable
+    $game_esc = $db->escape($game);
+
+    $result = $db->query("
+	SELECT
+	    rankName,
+	    minKills,
+	    rankId,
+	    count(playerId) AS obj_count
+	FROM
+	    hlstats_Ranks
+	INNER JOIN
+	    hlstats_Players
+	ON (
            hlstats_Ranks.game=hlstats_Players.game
            )	
-		WHERE
-			kills>=minKills
-			AND kills<=maxKills
-			AND hlstats_Ranks.game='$game'
-		GROUP BY
-			rankName,
-			minKills,
-			rankId
-	");
-	
-	while ($r = $db->fetch_array())
-	{
-		$ranks[$r['rankId']] = $r['obj_count'];
-	}
+	WHERE
+	    kills>=minKills
+	    AND kills<=maxKills
+	    AND hlstats_Ranks.game='$game_esc'
+	GROUP BY
+	    rankName,
+	    minKills,
+	    rankId
+    ");
+    
+    $ranks = array(); // Initialize array
+    while ($r = $db->fetch_array())
+    {
+	$ranks[$r['rankId']] = $r['obj_count'];
+    }
 
-	// select the available ranks
-	$result = $db->query("
-		SELECT
-			rankName,
-			minKills,
-			maxKills,
-			rankId,
-			image
-		FROM
-			hlstats_Ranks
-		WHERE
-			hlstats_Ranks.game='$game'	
-		ORDER BY
-			minKills
-	");
+    // select the available ranks
+    $result = $db->query("
+	SELECT
+	    rankName,
+	    minKills,
+	    maxKills,
+	    rankId,
+	    image
+	FROM
+	    hlstats_Ranks
+	WHERE
+	    hlstats_Ranks.game='$game_esc'	
+	ORDER BY
+	    minKills
+    ");
 ?>
 
 <div class="block">
-	<?php printSectionTitle('Ranks'); ?>
-	<div class="subblock">
-		<table class="data-table">
+    <?php printSectionTitle('Ranks'); ?>
+    <div class="subblock">
+	<table class="data-table">
 <?php
-	// draw the rank info table (5 columns)
-	$i = 0;
+    // draw the rank info table (5 columns)
+    $i = 0;
 
-	$cols = $g_options['awardrankscols'];
-	if ($cols < 1 || $cols > 10) $cols = 5;
-	{
-		$colwidth = round(100 / $cols);
-	}
+    // PHP 8 Fix: Ensure integer and key existence
+    $cols = isset($g_options['awardrankscols']) ? (int)$g_options['awardrankscols'] : 5;
+    if ($cols < 1 || $cols > 10) {
+        $cols = 5;
+    }
+    
+    $colwidth = round(100 / $cols);
 
-	while ($r = $db->fetch_array())
+    while ($r = $db->fetch_array())
+    {
+	if ($i == $cols)
 	{
-		if ($i == $cols)
-		{
-			echo "</tr>";
-			$i = 0;
-		}
-		if ($i == 0)
-		{
-			echo "<tr class='bg1'>";
-		}
-   
-		$image = getImage('/ranks/'.$r['image'].'_small');
-		$link = '<a href="hlstats.php?mode=rankinfo&amp;rank='.$r['rankId']."&amp;game=$game\">";
-		if ($image)
-		{
-			$imagestring = '<img src="'.$image['url'].'" alt="'.$r['image'].'" />';
-		}
-		else
-		{
-			$imagestring = 'Player List';
-		}
-		$achvd = '';
-		if ($ranks[$r['rankId']] > 0)
-		{
-			$imagestring = "$link$imagestring</a>";
-			$achvd = 'Achieved by '.$ranks[$r['rankId']].' Players';
-		}    
-   
-		echo "<td style=\"text-align:center;vertical-align:top;width:$colwidth%;\">"
-			.'<strong>'.$r['rankName'].'</strong><br />'
-			.'<span class="fSmall">('.$r['minKills'].'-'.$r['maxKills'].'&nbsp;kills)'.'<br />'
-			."$achvd<br /></span>"
-			.$imagestring.'
-			</td>';
-		$i++;
+	    echo "</tr>";
+	    $i = 0;
 	}
-	if ($i != 0)
+	if ($i == 0)
 	{
-		for ($i = $i; $i < $cols; $i++)
-		{
-			echo '<td class="bg1">&nbsp;</td>';
-		}
-		echo '</tr>';
+	    echo "<tr class='bg1'>";
 	}
+   
+	$image = getImage('/ranks/'.$r['image'].'_small');
+        $game_url = htmlspecialchars($game);
+	$link = '<a href="hlstats.php?mode=rankinfo&amp;rank='.$r['rankId']."&amp;game=$game_url\">";
+	
+        if ($image)
+	{
+	    $imagestring = '<img src="'.$image['url'].'" alt="'.htmlspecialchars((string)$r['image']).'" />';
+	}
+	else
+	{
+	    $imagestring = 'Player List';
+	}
+	
+        $achvd = '';
+        // PHP 8 Fix: Check if key exists using Null Coalescing
+        $player_count = $ranks[$r['rankId']] ?? 0;
+        
+	if ($player_count > 0)
+	{
+	    $imagestring = "$link$imagestring</a>";
+	    $achvd = 'Achieved by '.number_format($player_count).' Players';
+	}    
+   
+	echo "<td style=\"text-align:center;vertical-align:top;width:$colwidth%;\">"
+	    .'<strong>'.htmlspecialchars((string)$r['rankName']).'</strong><br />'
+	    .'<span class="fSmall">('.$r['minKills'].'-'.$r['maxKills'].'&nbsp;kills)'.'<br />'
+	    ."$achvd<br /></span>"
+	    .$imagestring.'
+	    </td>';
+	$i++;
+    }
+    if ($i != 0)
+    {
+	for ($i = $i; $i < $cols; $i++)
+	{
+	    echo '<td class="bg1">&nbsp;</td>';
+	}
+	echo '</tr>';
+    }
 ?>
-		</table>
-	</div>
+	</table>
+    </div>
 </div>

@@ -36,186 +36,201 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 For support and installation notes visit http://www.hlxcommunity.com
 */
 
-	if (!defined('IN_HLSTATS')) {
-		die('Do not access this file directly.');
-	}
+    if (!defined('IN_HLSTATS')) {
+	die('Do not access this file directly.');
+    }
+
+    global $db, $g_options;
 
     // Player Chat History
-	$player = valid_request(intval($_GET['player']), true) or error('No player ID specified.');
+    
+    // PHP 8 Fix: Null coalescing and type casting
+    $player_in = isset($_GET['player']) ? $_GET['player'] : 0;
+    $player = valid_request((int)$player_in, true);
+    
+    if (!$player) {
+         error('No player ID specified.');
+    }
 
-	$db->query("
-		SELECT
-			unhex(replace(hex(hlstats_Players.lastName), 'E280AE', '')) as lastName,
-			hlstats_Players.game
-		FROM
-			hlstats_Players
-		WHERE
-			hlstats_Players.playerId = $player
-	");
+    $db->query("
+	SELECT
+	    unhex(replace(hex(hlstats_Players.lastName), 'E280AE', '')) as lastName,
+	    hlstats_Players.game
+	FROM
+	    hlstats_Players
+	WHERE
+	    hlstats_Players.playerId = $player
+    ");
 
-	if ($db->num_rows() != 1) {
-		error("No such player '$player'.");
-	}
+    if ($db->num_rows() != 1) {
+	error("No such player '$player'.");
+    }
 
-	$playerdata = $db->fetch_array();
+    $playerdata = $db->fetch_array();
+    
+    // PHP 8 Fix: Ensure not null
+    $pl_name = isset($playerdata['lastName']) ? $playerdata['lastName'] : '';
 
-	$pl_name = $playerdata['lastName'];
+    if (strlen((string)$pl_name) > 10) {
+	$pl_shortname = substr($pl_name, 0, 8) . '...';
+    } else {
+	$pl_shortname = $pl_name;
+    }
 
-	if (strlen($pl_name) > 10) {
-		$pl_shortname = substr($pl_name, 0, 8) . '...';
-	} else {
-		$pl_shortname = $pl_name;
-	}
+    $pl_name = htmlspecialchars((string)$pl_name, ENT_COMPAT);
+    $pl_shortname = htmlspecialchars((string)$pl_shortname, ENT_COMPAT);
+    $game = isset($playerdata['game']) ? $playerdata['game'] : '';
+    
+    // Security: Escape game
+    $game_esc = $db->escape($game);
+    
+    $db->query
+    ("
+	SELECT
+	    hlstats_Games.name
+	FROM
+	    hlstats_Games
+	WHERE
+	    hlstats_Games.code = '$game_esc'
+    ");
 
-	$pl_name = htmlspecialchars($pl_name, ENT_COMPAT);
-	$pl_shortname = htmlspecialchars($pl_shortname, ENT_COMPAT);
-	$game = $playerdata['game'];
-	$db->query
-	("
-		SELECT
-			hlstats_Games.name
-		FROM
-			hlstats_Games
-		WHERE
-			hlstats_Games.code = '$game'
-	");
+    if ($db->num_rows() != 1) {
+	$gamename = ucfirst($game);
+    } else {
+        // PHP 8 Fix: Replace list()
+        $row = $db->fetch_row();
+	$gamename = ($row) ? $row[0] : '';
+    }
 
-	if ($db->num_rows() != 1) {
-		$gamename = ucfirst($game);
-	} else {
-		list($gamename) = $db->fetch_row();
-	}
-
-	pageHeader
+    pageHeader
+    (
+	array ($gamename, 'Chat History', $pl_name),
+	array
 	(
-		array ($gamename, 'Chat History', $pl_name),
-		array
-		(
-			$gamename=>$g_options['scripturl'] . "?game=$game",
-			'Player Rankings'=>$g_options['scripturl'] . "?mode=players&game=$game",
-			'Player Details'=>$g_options['scripturl'] . "?mode=playerinfo&player=$player",
-			'Chat History'=>''
-		),
-		$playername = ""
-	);
+	    $gamename=>$g_options['scripturl'] . "?game=$game",
+	    'Player Rankings'=>$g_options['scripturl'] . "?mode=players&game=$game",
+	    'Player Details'=>$g_options['scripturl'] . "?mode=playerinfo&player=$player",
+	    'Chat History'=>''
+	),
+	$playername = ""
+    );
 
-	flush();
+    flush();
 
-	$table = new Table
-	(
-		array
-		(
-			new TableColumn
-			(
-				'eventTime',
-				'Date',
-				'width=16'
-			),
-
-			new TableColumn
-			(
-				'message',
-				'Message',
-				'width=44&sort=no&append=.&embedlink=yes'
-			),
-			new TableColumn
-			(
-				'serverName',
-				'Server',
-				'width=24'
-			),
-			new TableColumn
-			(
-				'map',
-				'Map',
-				'width=16'
-			)
-		),
+    $table = new Table(
+	array(
+	    new TableColumn(
 		'eventTime',
-		'eventTime',
+		'Date',
+		'width=16'
+	    ),
+
+	    new TableColumn(
+		'message',
+		'Message',
+		'width=44&sort=no&append=.&embedlink=yes'
+	    ),
+	    new TableColumn(
 		'serverName',
-		false,
-		50,
-		'page',
-		'sort',
-		'sortorder'
-	);
-	$surl = $g_options['scripturl'];
-	
-	$whereclause="hlstats_Events_Chat.playerId = $player ";
-	$filter=isset($_REQUEST['filter'])?$_REQUEST['filter']:"";
-	if(!empty($filter))
-	{
-				$whereclause.="AND MATCH (hlstats_Events_Chat.message) AGAINST ('" . $db->escape($filter) . "' in BOOLEAN MODE)";
-	}
-	
-	$result = $db->query
-	("
-		SELECT
-			hlstats_Events_Chat.eventTime,
-			IF(hlstats_Events_Chat.message_mode=2, CONCAT('(Team) ', hlstats_Events_Chat.message), IF(hlstats_Events_Chat.message_mode=3, CONCAT('(Squad) ', hlstats_Events_Chat.message), hlstats_Events_Chat.message)) AS message,
-			hlstats_Servers.name AS serverName,
-			hlstats_Events_Chat.map
-		FROM
-			hlstats_Events_Chat
-		LEFT JOIN 
-			hlstats_Servers
-		ON
-			hlstats_Events_Chat.serverId = hlstats_Servers.serverId
-		WHERE
-			$whereclause	
-		ORDER BY
-			$table->sort $table->sortorder,
-			$table->sort2 $table->sortorder
-		LIMIT
-			$table->startitem,
-			$table->numperpage
-	");
-	
-	$resultCount = $db->query
-	("
-		SELECT
-			COUNT(*)
-		FROM
-			hlstats_Events_Chat
-		LEFT JOIN 
-			hlstats_Servers
-		ON
-			hlstats_Events_Chat.serverId = hlstats_Servers.serverId
-		WHERE
-			$whereclause
-	");
-			
-	list($numitems) = $db->fetch_row($resultCount);
-	
+		'Server',
+		'width=24'
+	    ),
+	    new TableColumn(
+		'map',
+		'Map',
+		'width=16'
+	    )
+	),
+	'eventTime',
+	'eventTime',
+	'serverName',
+	false,
+	50,
+	'page',
+	'sort',
+	'sortorder'
+    );
+    $surl = $g_options['scripturl'];
+    
+    $whereclause="hlstats_Events_Chat.playerId = $player ";
+    
+    // PHP 8 Fix: Null coalescing
+    $filter = isset($_REQUEST['filter']) ? $_REQUEST['filter'] : "";
+    
+    if(!empty($filter))
+    {
+	$whereclause.="AND MATCH (hlstats_Events_Chat.message) AGAINST ('" . $db->escape($filter) . "' in BOOLEAN MODE)";
+    }
+    
+    $result = $db->query
+    ("
+	SELECT
+	    hlstats_Events_Chat.eventTime,
+	    IF(hlstats_Events_Chat.message_mode=2, CONCAT('(Team) ', hlstats_Events_Chat.message), IF(hlstats_Events_Chat.message_mode=3, CONCAT('(Squad) ', hlstats_Events_Chat.message), hlstats_Events_Chat.message)) AS message,
+	    hlstats_Servers.name AS serverName,
+	    hlstats_Events_Chat.map
+	FROM
+	    hlstats_Events_Chat
+	LEFT JOIN 
+	    hlstats_Servers
+	ON
+	    hlstats_Events_Chat.serverId = hlstats_Servers.serverId
+	WHERE
+	    $whereclause	
+	ORDER BY
+	    $table->sort $table->sortorder,
+	    $table->sort2 $table->sortorder
+	LIMIT
+	    $table->startitem,
+	    $table->numperpage
+    ");
+    
+    $resultCount = $db->query
+    ("
+	SELECT
+	    COUNT(*)
+	FROM
+	    hlstats_Events_Chat
+	LEFT JOIN 
+	    hlstats_Servers
+	ON
+	    hlstats_Events_Chat.serverId = hlstats_Servers.serverId
+	WHERE
+	    $whereclause
+    ");
+    
+    // PHP 8 Fix: Replace list()
+    $row = $db->fetch_row($resultCount);
+    $numitems = ($row) ? (int)$row[0] : 0;
+    
 ?>
 <div class="block">
 <?php
-	printSectionTitle('Player Chat History (Last '.$g_options['DeleteDays'].' Days)');
+    printSectionTitle('Player Chat History (Last '.$g_options['DeleteDays'].' Days)');
 ?>
-	<div class="subblock">
-		<div style="float:left;">
-			<span>
-			<form method="get" action="<?php echo $g_options['scripturl']; ?>" style="margin:0px;padding:0px;">
-				<input type="hidden" name="mode" value="chathistory" />
-				<input type="hidden" name="player" value="<?php echo $player; ?>" />
-				<strong>&#8226;</strong>
-				Filter: <input type="text" name="filter" value="<?php echo htmlentities($filter); ?>" /> 
-				<input type="submit" value="View" class="smallsubmit" />
-			</form>
-			</span>
-		</div>
+    <div class="subblock">
+	<div style="float:left;">
+	    <span>
+	    <form method="get" action="<?php echo htmlspecialchars($g_options['scripturl']); ?>" style="margin:0px;padding:0px;">
+		<input type="hidden" name="mode" value="chathistory" />
+		<input type="hidden" name="player" value="<?php echo $player; ?>" />
+		<strong>&#8226;</strong>
+		Filter: <input type="text" name="filter" value="<?php echo htmlentities((string)$filter); ?>" /> 
+		<input type="submit" value="View" class="smallsubmit" />
+	    </form>
+	    </span>
 	</div>
-	<div style="clear: both; padding-top: 20px;"></div>
+    </div>
+    <div style="clear: both; padding-top: 20px;"></div>
 <?php
-	if ($numitems > 0)
-	{
-		$table->draw($result, $numitems, 95);
-	}
+    if ($numitems > 0)
+    {
+	$table->draw($result, $numitems, 95);
+    }
 ?><br /><br />
-	<div class="subblock">
-		<div style="float:right;">
-			Go to: <a href="<?php echo $g_options['scripturl'] . "?mode=playerinfo&amp;player=$player"; ?>"><?php echo $pl_name; ?>'s Statistics</a>
-		</div>
+    <div class="subblock">
+	<div style="float:right;">
+	    Go to: <a href="<?php echo htmlspecialchars($g_options['scripturl']) . "?mode=playerinfo&amp;player=$player"; ?>"><?php echo $pl_name; ?>'s Statistics</a>
 	</div>
+    </div>
 </div>

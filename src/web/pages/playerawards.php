@@ -41,211 +41,227 @@ For support and installation notes visit http://www.hlxcommunity.com
     }
 
     // Player Awards History
-	$player = valid_request($_GET['player'], true) or error("No player ID specified.");
-
-	$db->query("
-		SELECT
-			hlstats_Players.lastName,
-			hlstats_Players.game
-		FROM
-			hlstats_Players
-		WHERE
-			hlstats_Players.playerId = $player
-	");
-
-	if ($db->num_rows() != 1) {
-		error("No such player '$player'.");
-	}
-
-	$playerdata = $db->fetch_array();
-	$pl_name = $playerdata['lastName'];
-
-	if (strlen($pl_name) > 10) {
-		$pl_shortname = substr($pl_name, 0, 8) . "...";
-	} else {
-		$pl_shortname = $pl_name;
-	}
-
-	$pl_name = htmlspecialchars($pl_name, ENT_COMPAT);
-	$pl_shortname = htmlspecialchars($pl_shortname, ENT_COMPAT);
-	$game = $playerdata['game'];
+    // PHP 8 Fix: Strict casting
+    $player_input = $_GET['player'] ?? 0;
+    $player = (int)$player_input;
+    
+    if ($player <= 0) {
+        error("No player ID specified.");
+    }
 
     $db->query("
-		SELECT
-			hlstats_Games.name
-		FROM
-			hlstats_Games
-		WHERE
-			hlstats_Games.code = '$game'
-	");
+	SELECT
+	    hlstats_Players.lastName,
+	    hlstats_Players.game
+	FROM
+	    hlstats_Players
+	WHERE
+	    hlstats_Players.playerId = $player
+    ");
 
-	if ($db->num_rows() != 1) {
-		$gamename = ucfirst($game);
-	} else {
-		list($gamename) = $db->fetch_row();
-	}
+    if ($db->num_rows() != 1) {
+	error("No such player '$player'.");
+    }
 
-	pageHeader
+    $playerdata = $db->fetch_array();
+    $pl_name = $playerdata['lastName'];
+
+    if (strlen($pl_name) > 10) {
+	$pl_shortname = substr($pl_name, 0, 8) . "...";
+    } else {
+	$pl_shortname = $pl_name;
+    }
+
+    $pl_name = htmlspecialchars($pl_name, ENT_COMPAT);
+    $pl_shortname = htmlspecialchars($pl_shortname, ENT_COMPAT);
+    $game = $playerdata['game'];
+    $game_esc = $db->escape($game);
+
+    $db->query("
+	SELECT
+	    hlstats_Games.name
+	FROM
+	    hlstats_Games
+	WHERE
+	    hlstats_Games.code = '$game_esc'
+    ");
+
+    if ($db->num_rows() != 1) {
+	$gamename = ucfirst($game);
+    } else {
+        // PHP 8 Fix: Replace list()
+        $row = $db->fetch_row();
+        $gamename = ($row) ? $row[0] : ucfirst($game);
+    }
+
+    pageHeader
+    (
+	array ($gamename, 'Awards History', $pl_name),
+	array
 	(
-		array ($gamename, 'Awards History', $pl_name),
-		array
-		(
-			$gamename=>$g_options['scripturl'] . "?game=$game",
-			'Player Rankings'=>$g_options['scripturl'] . "?mode=players&game=$game",
-			'Player Details'=>$g_options['scripturl'] . "?mode=playerinfo&player=$player",
-			'Awards History'=>''
-		),
-		$playername = ""
-	);
+	    $gamename=>$g_options['scripturl'] . "?game=$game",
+	    'Player Rankings'=>$g_options['scripturl'] . "?mode=players&game=$game",
+	    'Player Details'=>$g_options['scripturl'] . "?mode=playerinfo&player=$player",
+	    'Awards History'=>''
+	),
+	$playername = ""
+    );
 
-	flush();
-	$cnttext = 'Earned';
-	$lnktext = '&link='.urlencode("mode=playerawards&player=".$player."&amp;awardId=%k");
-	if (isset($_GET['awardId'])) {
-		$awardId = valid_request($_GET['awardId'], true) or error("No clan ID specified."); 
-	}
+    flush();
+    $cnttext = 'Earned';
+    $lnktext = '&link='.urlencode("mode=playerawards&player=".$player."&amp;awardId=%k");
+    
+    $awardId = null;
+    if (isset($_GET['awardId']) && is_numeric($_GET['awardId'])) {
+	$awardId = (int)$_GET['awardId']; 
+        $cnttext = 'Kills on Day';
+        $lnktext = '';
+    }
 
-	$cnttext = 'Kills on Day';
-	$lnktext = '';
-
-	$table = new Table
+    $table = new Table
+    (
+	array
 	(
-		array
-		(
-			new TableColumn
-			(
-				'awardTime',
-				(isset($awardId))?'Date':'Date Last Earned',
-				'width=17'
-			),
-			new TableColumn(
-				'name',
-				'Name',
-				'width=23'
-			),
-			new TableColumn(
-				'verb',
-				'Description',
-				'width=50'.$lnktext
-			),
-			new TableColumn(
-				'count',
-				$cnttext,
-				'width=10&align=right'
-			)
-		),
-		'awardId',
+	    new TableColumn
+	    (
 		'awardTime',
+		(isset($awardId))?'Date':'Date Last Earned',
+		'width=17'
+	    ),
+	    new TableColumn(
 		'name',
-		false,
-		50,
-		'page',
-		'sort',
-		'sortorder'
-	);
-	$surl = $g_options['scripturl'];
-	if (isset($awardId))
-	{
-		$result = $db->query
-		("
-			SELECT
-				hlstats_Players_Awards.awardTime,
+		'Name',
+		'width=23'
+	    ),
+	    new TableColumn(
+		'verb',
+		'Description',
+		'width=50'.$lnktext
+	    ),
+	    new TableColumn(
+		'count',
+		$cnttext,
+		'width=10&align=right'
+	    )
+	),
+	'awardId',
+	'awardTime',
+	'name',
+	false,
+	50,
+	'page',
+	'sort',
+	'sortorder'
+    );
+    $surl = $g_options['scripturl'];
+    
+    if (isset($awardId))
+    {
+	$result = $db->query
+	("
+	    SELECT
+		hlstats_Players_Awards.awardTime,
                 hlstats_Awards.Name,
-				hlstats_Awards.verb,
-				hlstats_Players_Awards.count,
-				hlstats_Awards.awardId
-			FROM
-				hlstats_Players_Awards
-			INNER JOIN
-				hlstats_Awards
-			ON
-				hlstats_Awards.awardId = hlstats_Players_Awards.awardId
-			WHERE
-				hlstats_Players_Awards.playerId = $player
-				AND hlstats_Players_Awards.awardId = $awardId
-			ORDER BY
-				$table->sort $table->sortorder,
-				$table->sort2 $table->sortorder
-			LIMIT
-				$table->startitem,
-				$table->numperpage
-		");
-		$resultCount = $db->query
-		("
-			SELECT
-				COUNT(awardId)
-			FROM
-				hlstats_Players_Awards
-			WHERE
-				hlstats_Players_Awards.playerId = $player
-				AND hlstats_Players_Awards.awardId = $awardId
-		");
-	}
-	else
-	{
-		$result = $db->query
-		("
-			SELECT
-				MAX(hlstats_Players_Awards.awardTime) AS awardTime,
-				hlstats_Awards.name,
-				hlstats_Awards.verb,
-				COUNT(verb) AS count,
-				hlstats_Awards.awardId
-			FROM
-				hlstats_Players_Awards
-			INNER JOIN
-				hlstats_Awards
-			ON
-				hlstats_Awards.awardId = hlstats_Players_Awards.awardId
-			WHERE
-				hlstats_Players_Awards.playerId = $player
-			GROUP BY
-				hlstats_Awards.name,
-				hlstats_Awards.verb
-			ORDER BY
-				$table->sort $table->sortorder,
-				$table->sort2 $table->sortorder
-			LIMIT
-				$table->startitem,$table->numperpage
-		");
-		$resultCount = $db->query
-		("
-			SELECT
-				COUNT(awardId)
-			FROM
-				hlstats_Players_Awards
-			WHERE
-				hlstats_Players_Awards.playerId = $player
-			GROUP BY
-				hlstats_Players_Awards.awardId
-		");
-	}
-	list($numitems) = $db->fetch_row($resultCount);
+		hlstats_Awards.verb,
+		hlstats_Players_Awards.count,
+		hlstats_Awards.awardId
+	    FROM
+		hlstats_Players_Awards
+	    INNER JOIN
+		hlstats_Awards
+	    ON
+		hlstats_Awards.awardId = hlstats_Players_Awards.awardId
+	    WHERE
+		hlstats_Players_Awards.playerId = $player
+		AND hlstats_Players_Awards.awardId = $awardId
+	    ORDER BY
+		$table->sort $table->sortorder,
+		$table->sort2 $table->sortorder
+	    LIMIT
+		$table->startitem,
+		$table->numperpage
+	");
+	$resultCount = $db->query
+	("
+	    SELECT
+		COUNT(awardId)
+	    FROM
+		hlstats_Players_Awards
+	    WHERE
+		hlstats_Players_Awards.playerId = $player
+		AND hlstats_Players_Awards.awardId = $awardId
+	");
+    }
+    else
+    {
+	$result = $db->query
+	("
+	    SELECT
+		MAX(hlstats_Players_Awards.awardTime) AS awardTime,
+		hlstats_Awards.name,
+		hlstats_Awards.verb,
+		COUNT(verb) AS count,
+		hlstats_Awards.awardId
+	    FROM
+		hlstats_Players_Awards
+	    INNER JOIN
+		hlstats_Awards
+	    ON
+		hlstats_Awards.awardId = hlstats_Players_Awards.awardId
+	    WHERE
+		hlstats_Players_Awards.playerId = $player
+	    GROUP BY
+		hlstats_Awards.name,
+		hlstats_Awards.verb
+	    ORDER BY
+		$table->sort $table->sortorder,
+		$table->sort2 $table->sortorder
+	    LIMIT
+		$table->startitem,$table->numperpage
+	");
+	$resultCount = $db->query
+	("
+	    SELECT
+		COUNT(awardId)
+	    FROM
+		hlstats_Players_Awards
+	    WHERE
+		hlstats_Players_Awards.playerId = $player
+	    GROUP BY
+		hlstats_Players_Awards.awardId
+	");
+    }
+    
+    // PHP 8 Fix: Safe num_rows check instead of list()
+    $numitems = $db->num_rows($resultCount);
+    // For GROUP BY queries (the else block), num_rows returns the number of groups, which is what we want for pagination
 ?>
 
 <div class="block">
 <?php
-	printSectionTitle('Player Awards History');
-	if ($numitems > 0)
-	{
-		$table->draw($result, $numitems, 95);
-	}
+    printSectionTitle('Player Awards History');
+    if ($numitems > 0)
+    {
+	$table->draw($result, $numitems, 95);
+    }
 ?><br /><br />
-	<div class="subblock">
-		<div style="float:right;">
-			<?php 
-				$db->query
-				("
-					SELECT
-						hlstats_Players.lastName
-					FROM
-						hlstats_Players
-					WHERE
-						hlstats_Players.playerId = $player
-				");
-				list($lastName) = $db->fetch_row();
-			?>
-			Go to: <a href="<?php echo $g_options['scripturl'] . "?mode=playerinfo&amp;player=$player"; ?>"><?php echo $lastName; ?>'s Statistics</a>
-		</div>
+    <div class="subblock">
+	<div style="float:right;">
+	    <?php 
+		$db->query
+		("
+		    SELECT
+			hlstats_Players.lastName
+		    FROM
+			hlstats_Players
+		    WHERE
+			hlstats_Players.playerId = $player
+		");
+                // PHP 8 Fix: Replace list()
+                $row = $db->fetch_row();
+                $lastName = ($row) ? $row[0] : 'Unknown';
+	    ?>
+	    Go to: <a href="<?php echo $g_options['scripturl'] . "?mode=playerinfo&amp;player=$player"; ?>"><?php echo htmlspecialchars($lastName); ?>'s Statistics</a>
 	</div>
+    </div>
 </div>

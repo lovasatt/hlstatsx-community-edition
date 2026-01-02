@@ -37,36 +37,41 @@ For support and installation notes visit http://www.hlxcommunity.com
 */
 
 foreach ($_SERVER as $key => $entry) {
-	if ($key !== "HTTP_COOKIE") {
-		$search_pattern  = array("/<script>/", "/<\/script>/", "/[^A-Za-z0-9.\-\/=:;_?#&~]/");
-		$replace_pattern = array("", "", "");
-		$entry = preg_replace($search_pattern, $replace_pattern, $entry);
+    // PHP 8 Fix: Ensure we only process strings
+    if ($key !== "HTTP_COOKIE" && is_string($entry)) {
+	$search_pattern  = array("/<script>/", "/<\/script>/", "/[^A-Za-z0-9.\-\/=:;_?#&~]/");
+	$replace_pattern = array("", "", "");
+	$entry = preg_replace($search_pattern, $replace_pattern, $entry);
   
-		if ($key == "PHP_SELF") {
-			if ((strrchr($entry, "/") !== "/hlstats.php") &&
-				(strrchr($entry, "/") !== "/ingame.php") &&
-				(strrchr($entry, "/") !== "/show_graph.php") &&
-				(strrchr($entry, "/") !== "/sig.php") &&
-				(strrchr($entry, "/") !== "/sig2.php") &&
-				(strrchr($entry, "/") !== "/index.php") &&
-				(strrchr($entry, "/") !== "/status.php") &&
-				(strrchr($entry, "/") !== "/top10.php") &&
-				(strrchr($entry, "/") !== "/config.php") &&
-				(strrchr($entry, "/") !== "/") &&
-				($entry !== "")) {
-				header("Location: http://".$_SERVER['HTTP_HOST']."/hlstats.php");    
-				exit;
-			}    
-		}
-		$_SERVER[$key] = $entry;
+	if ($key == "PHP_SELF") {
+            $last_segment = strrchr($entry, "/");
+            // Check logical validity
+	    if (($last_segment !== "/hlstats.php") &&
+		($last_segment !== "/ingame.php") &&
+		($last_segment !== "/show_graph.php") &&
+		($last_segment !== "/sig.php") &&
+		($last_segment !== "/sig2.php") &&
+		($last_segment !== "/index.php") &&
+		($last_segment !== "/status.php") &&
+		($last_segment !== "/top10.php") &&
+		($last_segment !== "/config.php") &&
+		($last_segment !== "/") &&
+		($entry !== "")) {
+                
+                $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+		header("Location: http://".$host."/hlstats.php");    
+		exit;
+	    }    
 	}
+	$_SERVER[$key] = $entry;
+    }
 }
 
 // Several Stuff end
 @header("Content-Type: text/html; charset=utf-8");
 
-// do not report NOTICE warnings
-@error_reporting(E_ALL ^ E_NOTICE);
+// do not report NOTICE warnings or DEPRECATED errors
+@error_reporting(E_ALL ^ E_NOTICE ^ E_DEPRECATED);
 
 ////
 //// Initialisation
@@ -88,28 +93,32 @@ require(INCLUDE_PATH . "/functions.php");
 $db_classname = "DB_" . DB_TYPE;
 if ( class_exists($db_classname) )
 {
-	$db = new $db_classname(DB_ADDR, DB_USER, DB_PASS, DB_NAME, DB_PCONNECT);
+    $db = new $db_classname(DB_ADDR, DB_USER, DB_PASS, DB_NAME, DB_PCONNECT);
 }
 else
 {
-	error('Database class does not exist.  Please check your config.php file for DB_TYPE');
+    error('Database class does not exist.  Please check your config.php file for DB_TYPE');
 }
 
 $g_options = getOptions();
 
-if (!isset($g_options['scripturl']))
-	$g_options['scripturl'] = str_replace('\\','/',$_SERVER['PHP_SELF']);
+if (!isset($g_options['scripturl'])) {
+    $php_self = $_SERVER['PHP_SELF'] ?? '';
+    $g_options['scripturl'] = str_replace('\\','/', $php_self);
+}
 
 
 ////
 //// Main
 ////
 
+$game = '';
 if (isset($_GET["game"])) {
-	$game = valid_request($_GET["game"], false);
+    $game = valid_request((string)$_GET["game"], false);
 }
 
-$mode = isset($_GET["mode"]) ? $_GET["mode"] : "";
+// PHP 8 Fix: Null coalescing
+$mode = $_GET["mode"] ?? "";
 
 $valid_modes = array(
     "pro",
@@ -136,17 +145,19 @@ $valid_modes = array(
 
 if (!in_array($mode, $valid_modes))
 {
-	$mode = "status";
+    $mode = "status";
 }
 
 pageHeader();
 
-if ( file_exists(PAGE_PATH . "/ingame/$mode.php") )
-	@include(PAGE_PATH . "/ingame/$mode.php");
+// Security: limit inclusion to valid filename characters
+$safe_mode = basename($mode);
+
+if ( file_exists(PAGE_PATH . "/ingame/$safe_mode.php") )
+    @include(PAGE_PATH . "/ingame/$safe_mode.php");
 else
-	error('Unable to find ' . PAGE_PATH . "/ingame/$mode.php");
+    error('Unable to find ' . PAGE_PATH . "/ingame/$safe_mode.php");
 
 pageFooter();
 
 ?>
-

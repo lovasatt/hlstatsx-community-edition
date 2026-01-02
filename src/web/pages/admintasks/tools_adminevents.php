@@ -40,176 +40,187 @@ For support and installation notes visit http://www.hlxcommunity.com
         die('Do not access this file directly.');
     }
 
-	if ($auth->userdata["acclevel"] < 80) {
+    global $db, $auth, $g_options, $task;
+
+    // PHP 8 Fix: Null coalescing check
+    if (($auth->userdata["acclevel"] ?? 0) < 80) {
         die ("Access denied!");
-	}
+    }
 ?>
 
-&nbsp;&nbsp;&nbsp;&nbsp;<img src="<?php echo IMAGE_PATH; ?>/downarrow.gif" width=9 height=6 class="imageformat"><b>&nbsp;<?php echo $task->title; ?></b> (Last <?php echo $g_options["DeleteDays"]; ?> Days)<p>
+&nbsp;&nbsp;&nbsp;&nbsp;<img src="<?php echo IMAGE_PATH; ?>/downarrow.gif" width="9" height="6" class="imageformat"><b>&nbsp;<?php echo htmlspecialchars($task->title); ?></b> (Last <?php echo $g_options["DeleteDays"]; ?> Days)<p>
 
 <?php
-	$table = new Table(
-		array(
-			new TableColumn(
-				"eventTime",
-				"Date",
-				"width=20"
-			),
-			new TableColumn(
-				"eventType",
-				"Type",
-				"width=10&align=center"
-			),
-			new TableColumn(
-				"eventDesc",
-				"Description",
-				"width=40&sort=no&append=.&embedlink=yes"
-			),
-			new TableColumn(
-				"serverName",
-				"Server",
-				"width=20"
-			),
-			new TableColumn(
-				"map",
-				"Map",
-				"width=10"
-			)
-		),
+    $table = new Table(
+	array(
+	    new TableColumn(
 		"eventTime",
-		"eventTime",
+		"Date",
+		"width=20"
+	    ),
+	    new TableColumn(
 		"eventType",
-		false,
-		50,
-		"page",
-		"sort",
-		"sortorder"
-	);
-	
-	$db->query("DROP TABLE IF EXISTS hlstats_AdminEventHistory");
+		"Type",
+		"width=10&align=center"
+	    ),
+	    new TableColumn(
+		"eventDesc",
+		"Description",
+		"width=40&sort=no&append=.&embedlink=yes"
+	    ),
+	    new TableColumn(
+		"serverName",
+		"Server",
+		"width=20"
+	    ),
+	    new TableColumn(
+		"map",
+		"Map",
+		"width=10"
+	    )
+	),
+	"eventTime",
+	"eventTime",
+	"eventType",
+	false,
+	50,
+	"page",
+	"sort",
+	"sortorder"
+    );
+    
+    $db->query("DROP TABLE IF EXISTS hlstats_AdminEventHistory");
 
-	$sql_create_temp_table = "
-		CREATE TEMPORARY TABLE hlstats_AdminEventHistory
+    $sql_create_temp_table = "
+	CREATE TEMPORARY TABLE hlstats_AdminEventHistory
+	(
+	    eventType VARCHAR(64) NOT NULL,
+	    eventTime DATETIME NOT NULL,
+	    eventDesc VARCHAR(255) NOT NULL,
+	    serverName VARCHAR(255) NOT NULL,
+	    map VARCHAR(64) NOT NULL
+	) DEFAULT CHARSET=" . DB_CHARSET . " DEFAULT COLLATE=" . DB_COLLATE . ";
+    ";
+
+    $db->query($sql_create_temp_table);
+
+    function insertEvents ($table, $select)
+    {
+	global $db, $g_options;
+	
+	$select = str_replace("<table>", "hlstats_Events_$table", $select);
+	$db->query("
+	    INSERT INTO
+		hlstats_AdminEventHistory
 		(
-			eventType VARCHAR(64) NOT NULL,
-			eventTime DATETIME NOT NULL,
-			eventDesc VARCHAR(255) NOT NULL,
-			serverName VARCHAR(255) NOT NULL,
-			map VARCHAR(64) NOT NULL
-		) DEFAULT CHARSET=" . DB_CHARSET . " DEFAULT COLLATE=" . DB_COLLATE . ";
-	";
-
-	$db->query($sql_create_temp_table);
-
-	function insertEvents ($table, $select)
-	{
-		global $db;
-		
-		$select = str_replace("<table>", "hlstats_Events_$table", $select);
-		$db->query("
-			INSERT INTO
-				hlstats_AdminEventHistory
-				(
-					eventType,
-					eventTime,
-					eventDesc,
-					serverName,
-					map
-				)
-			$select
-		");
-	}
-	
-	insertEvents("Rcon", "
-		SELECT
-			CONCAT(<table>.type, ' Rcon'),
-			<table>.eventTime,
-			CONCAT('\"', command, '\"\nFrom: %A%".$g_options['scripturl']."?mode=search&q=', remoteIp, '&st=ip&game=%', remoteIp, '%/A%', IF(password<>'',CONCAT(', password: \"', password, '\"'),'')),
-			IFNULL(hlstats_Servers.name, 'Unknown'),
-			<table>.map
-		FROM
-			<table>
-		LEFT JOIN hlstats_Servers ON
-			hlstats_Servers.serverId = <table>.serverId
+		    eventType,
+		    eventTime,
+		    eventDesc,
+		    serverName,
+		    map
+		)
+	    $select
 	");
-	
-	insertEvents("Admin", "
-		SELECT
-			<table>.type,
-			<table>.eventTime,
-			IF(playerName != '',
-				CONCAT('\"', playerName, '\": ', message),
-				message
-			),
-			IFNULL(hlstats_Servers.name, 'Unknown'),
-			<table>.map
-		FROM
-			<table>
-		LEFT JOIN hlstats_Servers ON
-			hlstats_Servers.serverId = <table>.serverId
-	");
+    }
+    
+    insertEvents("Rcon", "
+	SELECT
+	    CONCAT(<table>.type, ' Rcon'),
+	    <table>.eventTime,
+	    CONCAT('\"', command, '\"\nFrom: %A%".$g_options['scripturl']."?mode=search&q=', remoteIp, '&st=ip&game=%', remoteIp, '%/A%', IF(password<>'',CONCAT(', password: \"', password, '\"'),'')),
+	    IFNULL(hlstats_Servers.name, 'Unknown'),
+	    <table>.map
+	FROM
+	    <table>
+	LEFT JOIN hlstats_Servers ON
+	    hlstats_Servers.serverId = <table>.serverId
+    ");
+    
+    insertEvents("Admin", "
+	SELECT
+	    <table>.type,
+	    <table>.eventTime,
+	    IF(playerName != '',
+		CONCAT('\"', playerName, '\": ', message),
+		message
+	    ),
+	    IFNULL(hlstats_Servers.name, 'Unknown'),
+	    <table>.map
+	FROM
+	    <table>
+	LEFT JOIN hlstats_Servers ON
+	    hlstats_Servers.serverId = <table>.serverId
+    ");
 
-	$where = "";
+    $where = "";
     $select_type = "";
 
-	if (isset($_GET['type']) && $_GET['type'] != '') {
-		$select_type = $_GET['type'];
-		$where = "WHERE eventType='" . $db->escape($_GET['type']) . "'";
-	}
-	
-	$result = $db->query("
-		SELECT
-			eventTime,
-			eventType,
-			eventDesc,
-			serverName,
-			map
-		FROM
-			hlstats_AdminEventHistory
-		$where
-		ORDER BY
-			$table->sort $table->sortorder,
-			$table->sort2 $table->sortorder
-		LIMIT
-			$table->startitem,$table->numperpage
-	");
-	
-	$resultCount = $db->query("
-		SELECT
-			COUNT(*)
-		FROM
-			hlstats_AdminEventHistory
-		$where
-	");
-	
-	list($numitems) = $db->fetch_row($resultCount);
+    if (isset($_GET['type']) && $_GET['type'] != '') {
+	$select_type = $_GET['type'];
+	$where = "WHERE eventType='" . $db->escape($_GET['type']) . "'";
+    }
+    
+    $result = $db->query("
+	SELECT
+	    eventTime,
+	    eventType,
+	    eventDesc,
+	    serverName,
+	    map
+	FROM
+	    hlstats_AdminEventHistory
+	$where
+	ORDER BY
+	    $table->sort $table->sortorder,
+	    $table->sort2 $table->sortorder
+	LIMIT
+	    $table->startitem,$table->numperpage
+    ");
+    
+    $resultCount = $db->query("
+	SELECT
+	    COUNT(*)
+	FROM
+	    hlstats_AdminEventHistory
+	$where
+    ");
+    
+    // PHP 8 Fix: Replace list()
+    $row = $db->fetch_row($resultCount);
+    $numitems = ($row) ? (int)$row[0] : 0;
+    
+    // PHP 8 Fix: Safe variable access for form
+    $current_task = isset($_GET['task']) ? htmlspecialchars($_GET['task']) : '';
 ?>
-<form method="get" action="<?php echo $g_options["scripturl"]; ?>">
+<form method="get" action="<?php echo htmlspecialchars($g_options["scripturl"]); ?>">
 <input type="hidden" name="mode" value="admin" />
-<input type="hidden" name="task" value="<?php echo $code; ?>" />
-<input type="hidden" name="sort" value="<?php echo $sort; ?>" />
-<input type="hidden" name="sortorder" value="<?php echo $sortorder; ?>" />
+<input type="hidden" name="task" value="<?php echo $current_task; ?>" />
+<input type="hidden" name="sort" value="<?php echo htmlspecialchars($table->sort); ?>" />
+<input type="hidden" name="sortorder" value="<?php echo htmlspecialchars($table->sortorder); ?>" />
 
 <b style="padding-left:35px;">&#149;</b> Show only events of type: <?php
-	$resultTypes = $db->query("
-		SELECT
-			DISTINCT eventType
-		FROM
-			hlstats_AdminEventHistory
-		ORDER BY
-			eventType ASC
-	");
-	
-	$types[""] = "(All)";
-	
-	while (list($k) = $db->fetch_row($resultTypes)) {
-		$types[$k] = $k;
-	}
-	
-	echo getSelect("type", $types, $select_type);
+    $resultTypes = $db->query("
+	SELECT
+	    DISTINCT eventType
+	FROM
+	    hlstats_AdminEventHistory
+	ORDER BY
+	    eventType ASC
+    ");
+    
+    $types = array();
+    $types[""] = "(All)";
+    
+    // PHP 8 Fix: Replace while list()
+    while ($row = $db->fetch_row($resultTypes)) {
+        $k = $row[0];
+	$types[$k] = $k;
+    }
+    
+    echo getSelect("type", $types, $select_type);
 ?>
 <input type="submit" value="Filter" class="smallsubmit" /><br /><br />
 </form>
 <?php
-	$table->draw($result, $numitems, 95, "center");
+    $table->draw($result, $numitems, 95, "center");
 ?>

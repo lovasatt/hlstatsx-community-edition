@@ -40,161 +40,179 @@ For support and installation notes visit http://www.hlxcommunity.com
         die('Do not access this file directly.');
     }
 
-	// Ribbon Statistics
+    // Ribbon Statistics
 
-	$ribbon =  valid_request($_GET['ribbon'], true) or error('No ribbon ID specified.');
+    // PHP 8 Fix: Null coalescing and type casting
+    $ribbon_in = isset($_GET['ribbon']) ? $_GET['ribbon'] : 0;
+    $ribbon =  valid_request($ribbon_in, true);
+    
+    if (!$ribbon) {
+        error('No ribbon ID specified.');
+    }
+    
+    // Ensure integer for SQL
+    $ribbon = (int)$ribbon;
 
-	$db->query("
-		SELECT
-			ribbonName,
-			image,
-			awardCode,
-			awardCount
-		FROM
-			hlstats_Ribbons
-		WHERE
-			hlstats_Ribbons.ribbonId=$ribbon
-	");
-	
-	$actiondata = $db->fetch_array();
-	$db->free_result();
-	$act_name = $actiondata['ribbonName'];
-	$awardmin = $actiondata['awardCount'];
-	$awardcode = $actiondata['awardCode'];
-	$image = $actiondata['image'];
+    $db->query("
+	SELECT
+	    ribbonName,
+	    image,
+	    awardCode,
+	    awardCount
+	FROM
+	    hlstats_Ribbons
+	WHERE
+	    hlstats_Ribbons.ribbonId=$ribbon
+    ");
+    
+    $actiondata = $db->fetch_array();
+    $db->free_result();
+    
+    // PHP 8 Fix: Ensure variables are defined
+    $act_name = isset($actiondata['ribbonName']) ? $actiondata['ribbonName'] : '';
+    $awardmin = isset($actiondata['awardCount']) ? (int)$actiondata['awardCount'] : 0;
+    $awardcode = isset($actiondata['awardCode']) ? $actiondata['awardCode'] : '';
+    $image = isset($actiondata['image']) ? $actiondata['image'] : '';
 
-	$db->query("SELECT name FROM hlstats_Games WHERE code='$game'");
-	if ($db->num_rows() < 1) {
-		error("No such game '$game'.");
-	}
-	
-	list($gamename) = $db->fetch_row();
-	$db->free_result();
-	
-	pageHeader(
-		array($gamename, 'Ribbon Details', $act_name),
-		array(
-			$gamename => $g_options['scripturl']."?game=$game",
-			'Ribbons' => $g_options['scripturl']."mode=awards&game=$game&tab=ribbons",
-			'Ribbon Details' => ''
-		),
-		$act_name
-	);
+    // Security: Escape variables
+    $game_esc = $db->escape($game);
+    $awardcode_esc = $db->escape($awardcode);
 
-	$table = new Table(
-		array(
-			new TableColumn
-			(
-				'playerName',
-				'Player',
-				'width=45&align=left&flag=1&link=' . urlencode('mode=playerinfo&amp;player=%k')
-			),
-			new TableColumn
-			(
-				'numawards',
-				'Daily awards',
-				'width=10&align=right&append=' . urlencode(' times')
-			),
-			new TableColumn
-			(
-				'awardName',
-				'',
-				'width=40&align=left'
-			)
-		),
-		'playerId',
-		'numawards',
+    $db->query("SELECT name FROM hlstats_Games WHERE code='$game_esc'");
+    if ($db->num_rows() < 1) {
+	error("No such game '$game'.");
+    }
+    
+    // PHP 8 Fix: Replace list()
+    $row = $db->fetch_row();
+    $gamename = ($row) ? $row[0] : '';
+    $db->free_result();
+    
+    pageHeader(
+	array($gamename, 'Ribbon Details', $act_name),
+	array(
+	    $gamename => $g_options['scripturl']."?game=$game",
+	    'Ribbons' => $g_options['scripturl']."?mode=awards&game=$game&tab=ribbons",
+	    'Ribbon Details' => ''
+	),
+	$act_name
+    );
+
+    $table = new Table(
+	array(
+	    new TableColumn
+	    (
 		'playerName',
-		true,
-		50
-	);
+		'Player',
+		'width=45&align=left&flag=1&link=' . urlencode('mode=playerinfo&amp;player=%k')
+	    ),
+	    new TableColumn
+	    (
+		'numawards',
+		'Daily awards',
+		'width=10&align=right&append=' . urlencode(' times')
+	    ),
+	    new TableColumn
+	    (
+		'awardName',
+		'',
+		'width=40&align=left'
+	    )
+	),
+	'playerId',
+	'numawards',
+	'playerName',
+	true,
+	50
+    );
 
-	$result = $db->query("
-		SELECT
-			flag,
-			lastName AS playerName,
-			hlstats_Players.playerId,
-			hlstats_Awards.name as awardName,
-			COUNT(hlstats_Awards.name) AS numawards
-		FROM
-			hlstats_Players
-		INNER JOIN
-			hlstats_Players_Awards
-			ON (
-			    hlstats_Players_Awards.playerId=hlstats_Players.playerId AND
-			    hlstats_Players_Awards.game=hlstats_Players.game			    
-			    )
-		INNER JOIN
-			hlstats_Awards 
-			ON (
-			    hlstats_Players_Awards.awardId=hlstats_Awards.awardId AND
-			    hlstats_Players_Awards.game=hlstats_Awards.game			    
-			    )
-		WHERE
-			hlstats_Awards.code = '$awardcode' AND
-			hlstats_Players.game = '$game' AND
-			hlstats_Players.hideranking<>'1'
-		GROUP BY
-			flag,
-			lastName,
-			hlstats_Players.playerId,
-			hlstats_Awards.name
-		HAVING
-			COUNT(hlstats_Awards.name) >= $awardmin  	
-		ORDER BY
-			$table->sort $table->sortorder,
-			$table->sort2 $table->sortorder
-		LIMIT $table->startitem,$table->numperpage
-	");
+    $result = $db->query("
+	SELECT
+	    flag,
+	    lastName AS playerName,
+	    hlstats_Players.playerId,
+	    hlstats_Awards.name as awardName,
+	    COUNT(hlstats_Awards.name) AS numawards
+	FROM
+	    hlstats_Players
+	INNER JOIN
+	    hlstats_Players_Awards
+	    ON (
+	        hlstats_Players_Awards.playerId=hlstats_Players.playerId AND
+	        hlstats_Players_Awards.game=hlstats_Players.game			    
+	        )
+	INNER JOIN
+	    hlstats_Awards 
+	    ON (
+	        hlstats_Players_Awards.awardId=hlstats_Awards.awardId AND
+	        hlstats_Players_Awards.game=hlstats_Awards.game			    
+	        )
+	WHERE
+	    hlstats_Awards.code = '$awardcode_esc' AND
+	    hlstats_Players.game = '$game_esc' AND
+	    hlstats_Players.hideranking<>'1'
+	GROUP BY
+	    flag,
+	    lastName,
+	    hlstats_Players.playerId,
+	    hlstats_Awards.name
+	HAVING
+	    COUNT(hlstats_Awards.name) >= $awardmin  	
+	ORDER BY
+	    $table->sort $table->sortorder,
+	    $table->sort2 $table->sortorder
+	LIMIT $table->startitem,$table->numperpage
+    ");
 
-	$resultCount = $db->query("
-		SELECT
-			flag,
-			lastName AS playerName,
-			hlstats_Players.playerId,
-			hlstats_Awards.name as awardName,
-			COUNT(hlstats_Awards.name) AS numawards
-		FROM
-			hlstats_Players
-		INNER JOIN
-			hlstats_Players_Awards
-			ON (
-			    hlstats_Players_Awards.playerId=hlstats_Players.playerId AND
-			    hlstats_Players_Awards.game=hlstats_Players.game			    
-			    )
-		INNER JOIN
-			hlstats_Awards 
-			ON (
-			    hlstats_Players_Awards.awardId=hlstats_Awards.awardId AND
-			    hlstats_Players_Awards.game=hlstats_Awards.game			    
-			    )
-		WHERE
-			hlstats_Awards.code = '$awardcode' AND
-			hlstats_Players.game = '$game' AND
-			hlstats_Players.hideranking<>'1'
-		GROUP BY
-			flag,
-			lastName,
-			hlstats_Players.playerId,
-			hlstats_Awards.name
-		HAVING
-			COUNT(hlstats_Awards.name) >= $awardmin  	
-	");
+    $resultCount = $db->query("
+	SELECT
+	    flag,
+	    lastName AS playerName,
+	    hlstats_Players.playerId,
+	    hlstats_Awards.name as awardName,
+	    COUNT(hlstats_Awards.name) AS numawards
+	FROM
+	    hlstats_Players
+	INNER JOIN
+	    hlstats_Players_Awards
+	    ON (
+	        hlstats_Players_Awards.playerId=hlstats_Players.playerId AND
+	        hlstats_Players_Awards.game=hlstats_Players.game			    
+	        )
+	INNER JOIN
+	    hlstats_Awards 
+	    ON (
+	        hlstats_Players_Awards.awardId=hlstats_Awards.awardId AND
+	        hlstats_Players_Awards.game=hlstats_Awards.game			    
+	        )
+	WHERE
+	    hlstats_Awards.code = '$awardcode_esc' AND
+	    hlstats_Players.game = '$game_esc' AND
+	    hlstats_Players.hideranking<>'1'
+	GROUP BY
+	    flag,
+	    lastName,
+	    hlstats_Players.playerId,
+	    hlstats_Awards.name
+	HAVING
+	    COUNT(hlstats_Awards.name) >= $awardmin  	
+    ");
 
-	$numitems = mysqli_num_rows($resultCount);
+    // PHP 8 Fix: Use DB method instead of procedural mysqli_num_rows
+    $numitems = $db->num_rows($resultCount);
 ?>
 
 <div class="block">
-	<?php printSectionTitle('Ribbon Details'); ?>
-	<div class="subblock">
-		<div style="float:right;">
-			Back to <a href="<?php echo $g_options['scripturl'] . "?mode=awards&amp;game=$game&tab=ribbons"; ?>">Ribbons</a>
-		</div>
-		<div style="clear:both;"></div>
+    <?php printSectionTitle('Ribbon Details'); ?>
+    <div class="subblock">
+	<div style="float:right;">
+	    Back to <a href="<?php echo htmlspecialchars($g_options['scripturl']); ?>?mode=awards&amp;game=<?php echo htmlspecialchars($game); ?>&amp;tab=ribbons">Ribbons</a>
 	</div>
-	<br /><br />
+	<div style="clear:both;"></div>
+    </div>
+    <br /><br />
 <?php
-  echo '<img src="'.IMAGE_PATH."/games/$game/ribbons/$image\" alt=\"\" /> <b>$act_name</b>";
-	$table->draw($result, $numitems, 95, 'center');
+  echo '<img src="'.IMAGE_PATH."/games/$game/ribbons/".htmlspecialchars($image)."\" alt=\"\" /> <b>".htmlspecialchars($act_name)."</b>";
+    $table->draw($result, $numitems, 95, 'center');
 ?>
 </div>

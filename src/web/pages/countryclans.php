@@ -40,193 +40,204 @@ For support and installation notes visit http://www.hlxcommunity.com
         die('Do not access this file directly.');
     }
 
+    global $db, $game, $g_options;
+
+    // Security: Escape game variable
+    $game_esc = $db->escape($game);
+
 // Country Clan Rankings
-	$db->query
-	("
-		SELECT
-			hlstats_Games.name
-		FROM
-			hlstats_Games
-		WHERE
-			hlstats_Games.code = '$game'
-	");
+    $db->query
+    ("
+	SELECT
+	    hlstats_Games.name
+	FROM
+	    hlstats_Games
+	WHERE
+	    hlstats_Games.code = '$game_esc'
+    ");
 
-	if ($db->num_rows() < 1) {
+    if ($db->num_rows() < 1) {
         error("No such game '$game'.");
-	}
+    }
 
-    list($gamename) = $db->fetch_row();
+    // PHP 8 Fix: Replace list()
+    $row = $db->fetch_row();
+    $gamename = ($row) ? $row[0] : '';
 
     $db->free_result();
 
     if (isset($_GET['minmembers'])) {
-		$minmembers = valid_request(intval($_GET["minmembers"]), true);
-	} else {
-		$minmembers = 3;
-	}
+        // PHP 8 Fix: Null coalescing and type casting
+	$minmembers = valid_request((int)$_GET['minmembers'], true);
+    } else {
+	$minmembers = 3;
+    }
+    // Ensure safe integer for SQL
+    $minmembers = (int)$minmembers;
 
-	pageHeader
-	(
-		array ($gamename, 'Country Rankings'),
-		array ($gamename=>"%s?game=$game", 'Country Rankings' => '')
-	);
+    pageHeader
+    (
+	array ($gamename, 'Country Rankings'),
+	array ($gamename=>"%s?game=$game", 'Country Rankings' => '')
+    );
 
-	$table = new Table
-	(
-		array
-		(
-			new TableColumn
-			(
-				'name',
-				'Country',
-				'width=40&flag=1&link=' . urlencode('mode=countryclansinfo&amp;flag=%k&amp;game='.$game)
-			),
-			new TableColumn
-			(
-				'skill',
-				'Avg. Points',
-				'width=8&skill_change=1&align=right'
-			),
-			new TableColumn
-			(
-				"nummembers",
-				"Members",
-				"width=5&align=right"
-			),
-			new TableColumn
-			(
-				'activity',
-				'Activity',
-				'width=8&type=bargraph'
-			),
-			new TableColumn
-			(
-				'connection_time',
-				'Connection Time',
-				'width=13&align=right&type=timestamp'
-			),
-			new TableColumn
-			(
-				'kills',
-				'Kills',
-				'width=7&align=right'
-			),
-			new TableColumn
-			(
-				'deaths',
-				'Deaths',
-				'width=7&align=right'
-			),
-			new TableColumn
-			(
-				'kpd',
-				'K:D',
-				'width=7&align=right'
-			)
-		),
-		'flag',
+    $table = new Table(
+	array(
+	    new TableColumn(
+		'name',
+		'Country',
+		'width=40&flag=1&link=' . urlencode('mode=countryclansinfo&amp;flag=%k&amp;game='.$game)
+	    ),
+	    new TableColumn(
 		'skill',
+		'Avg. Points',
+		'width=8&skill_change=1&align=right'
+	    ),
+	    new TableColumn(
+		"nummembers",
+		"Members",
+		"width=5&align=right"
+	    ),
+	    new TableColumn(
+		'activity',
+		'Activity',
+		'width=8&type=bargraph'
+	    ),
+	    new TableColumn(
+		'connection_time',
+		'Connection Time',
+		'width=13&align=right&type=timestamp'
+	    ),
+	    new TableColumn(
+		'kills',
+		'Kills',
+		'width=7&align=right'
+	    ),
+	    new TableColumn(
+		'deaths',
+		'Deaths',
+		'width=7&align=right'
+	    ),
+	    new TableColumn(
 		'kpd',
-		true
-	);
-	$result = $db->query
-	("
-		SELECT
-			hlstats_Countries.flag,
-			hlstats_Countries.name,
-			COUNT(hlstats_Players.playerId) AS nummembers,
-			SUM(hlstats_Players.kills) AS kills,
-			SUM(hlstats_Players.deaths) AS deaths,
-			SUM(hlstats_Players.connection_time) AS connection_time,
-			ROUND(AVG(hlstats_Players.skill)) AS skill,
-			ROUND(AVG(hlstats_Players.last_skill_change)) AS last_skill_change,
-			ROUND(SUM(hlstats_Players.kills) / IF(SUM(hlstats_Players.deaths) = 0, 1, SUM(hlstats_Players.deaths)), 2) AS kpd,
-			TRUNCATE(AVG(activity), 2) AS activity
-		FROM
-			hlstats_Countries 
-		LEFT JOIN
-			hlstats_Players
-		ON
-			hlstats_Players.flag = hlstats_Countries.flag
-		WHERE
-			hlstats_Players.game = '$game'
-			AND hlstats_Players.hideranking = 0
-			AND IF(".$g_options['MinActivity']." > (UNIX_TIMESTAMP() - hlstats_Players.last_event), ((100 / ".$g_options['MinActivity'].") * (".$g_options['MinActivity']." - (UNIX_TIMESTAMP() - hlstats_Players.last_event))), -1) >= 0
-		GROUP BY
-			hlstats_Countries.flag
-		HAVING
-			activity >= 0
-			AND nummembers >= $minmembers
-		ORDER BY
-			$table->sort $table->sortorder,
-			$table->sort2 $table->sortorder,
-			hlstats_Countries.name ASC
-		LIMIT
-			$table->startitem,
-			$table->numperpage
-	");
-	$resultCount = $db->query
-	("
-		SELECT
-			hlstats_Countries.flag,
-			SUM(activity) AS activity
-		FROM
-			hlstats_Countries
-		LEFT JOIN
-			hlstats_Players
-		ON
-			hlstats_Players.flag = hlstats_Countries.flag
-		WHERE
-			hlstats_Players.game = '$game'
-			AND hlstats_Players.hideranking = 0
-		GROUP BY
-			hlstats_Countries.flag
-		HAVING
-			activity >= 0
-			AND COUNT(hlstats_Players.playerId) >= $minmembers
-	");
+		'K:D',
+		'width=7&align=right'
+	    )
+	),
+	'flag',
+	'skill',
+	'kpd',
+	true
+    );
+    
+    // PHP 8 Fix: Ensure numeric value for SQL string
+    $min_act = isset($g_options['MinActivity']) ? (int)$g_options['MinActivity'] : 28;
+
+    $result = $db->query
+    ("
+	SELECT
+	    hlstats_Countries.flag,
+	    hlstats_Countries.name,
+	    COUNT(hlstats_Players.playerId) AS nummembers,
+	    SUM(hlstats_Players.kills) AS kills,
+	    SUM(hlstats_Players.deaths) AS deaths,
+	    SUM(hlstats_Players.connection_time) AS connection_time,
+	    ROUND(AVG(hlstats_Players.skill)) AS skill,
+	    ROUND(AVG(hlstats_Players.last_skill_change)) AS last_skill_change,
+	    ROUND(SUM(hlstats_Players.kills) / IF(SUM(hlstats_Players.deaths) = 0, 1, SUM(hlstats_Players.deaths)), 2) AS kpd,
+	    TRUNCATE(AVG(activity), 2) AS activity
+	FROM
+	    hlstats_Countries 
+	LEFT JOIN
+	    hlstats_Players
+	ON
+	    hlstats_Players.flag = hlstats_Countries.flag
+	WHERE
+	    hlstats_Players.game = '$game_esc'
+	    AND hlstats_Players.hideranking = 0
+	    AND IF($min_act > (UNIX_TIMESTAMP() - hlstats_Players.last_event), ((100 / $min_act) * ($min_act - (UNIX_TIMESTAMP() - hlstats_Players.last_event))), -1) >= 0
+	GROUP BY
+	    hlstats_Countries.flag
+	HAVING
+	    activity >= 0
+	    AND nummembers >= $minmembers
+	ORDER BY
+	    $table->sort $table->sortorder,
+	    $table->sort2 $table->sortorder,
+	    hlstats_Countries.name ASC
+	LIMIT
+	    $table->startitem,
+	    $table->numperpage
+    ");
+    $resultCount = $db->query
+    ("
+	SELECT
+	    hlstats_Countries.flag,
+	    SUM(activity) AS activity
+	FROM
+	    hlstats_Countries
+	LEFT JOIN
+	    hlstats_Players
+	ON
+	    hlstats_Players.flag = hlstats_Countries.flag
+	WHERE
+	    hlstats_Players.game = '$game_esc'
+	    AND hlstats_Players.hideranking = 0
+	GROUP BY
+	    hlstats_Countries.flag
+	HAVING
+	    activity >= 0
+	    AND COUNT(hlstats_Players.playerId) >= $minmembers
+    ");
+    
+    // PHP 8 Fix: Use object method for num_rows
+    $num_rows = $db->num_rows($resultCount);
 ?>
 
 <div class="block">
 <?php
-	printSectionTitle('Country Rankings');
-	$table->draw($result, $db->num_rows($resultCount), 95);
+    printSectionTitle('Country Rankings');
+    $table->draw($result, $num_rows, 95);
 ?><br /><br />
-	<div class="subblock">
-		<div style="float:left;">
-			<form method="get" action="<?php echo $g_options['scripturl']; ?>">
+    <div class="subblock">
+	<div style="float:left;">
+	    <form method="get" action="<?php echo htmlspecialchars($g_options['scripturl']); ?>">
 <?php
-	$db->query
-	("
-		SELECT
-			COUNT(DISTINCT flag) AS total_countrys
-		FROM
-			hlstats_Players
-		WHERE
-			hlstats_Players.flag NOT LIKE ''
-			AND hlstats_Players.game = '$game'
-			AND hlstats_Players.hideranking = 0
-	");
-	
-	list($total_countrys) = $db->fetch_row();
-	
-	foreach ($_GET as $k=>$v)
+    $db->query
+    ("
+	SELECT
+	    COUNT(DISTINCT flag) AS total_countrys
+	FROM
+	    hlstats_Players
+	WHERE
+	    hlstats_Players.flag NOT LIKE ''
+	    AND hlstats_Players.game = '$game_esc'
+	    AND hlstats_Players.hideranking = 0
+    ");
+    
+    // PHP 8 Fix: Replace list()
+    $row = $db->fetch_row();
+    $total_countrys = ($row) ? (int)$row[0] : 0;
+    
+    foreach ($_GET as $k=>$v)
+    {
+        // PHP 8 Fix: Cast to string
+        $k = (string)$k;
+	$v = valid_request((string)$v, 0); 
+	if ($k != 'minmembers')
 	{
-	$v = valid_request($v, 0); 
-		if ($k != 'minmembers')
-		{
-			echo "<input type=\"hidden\" name=\"" . htmlspecialchars($k) . "\" value=\"" . htmlspecialchars($v) . "\" />\n";
-		}
+	    echo "<input type=\"hidden\" name=\"" . htmlspecialchars($k) . "\" value=\"" . htmlspecialchars($v) . "\" />\n";
 	}
+    }
 ?>
-				<strong>&#8226;</strong> Show only clans with
-					<input type="text" name="minmembers" size="4" maxlength="2" value="<?php echo $minmembers; ?>" class="textbox" /> or more members from a total of <b><?php echo number_format($total_countrys); ?></b> countrys
-					<input type="submit" value="Apply" class="smallsubmit" />
-			</form>
-		</div>
-		<div style="float:right;">
-			Go to: <a href="<?php echo $g_options['scripturl'] . "?game=$game"; ?>"><?php echo $gamename; ?></a>
-		</div>
-		<div style="clear:both;"></div>
+		<strong>&#8226;</strong> Show only clans with
+		    <input type="text" name="minmembers" size="4" maxlength="2" value="<?php echo $minmembers; ?>" class="textbox" /> or more members from a total of <b><?php echo number_format($total_countrys); ?></b> countrys
+		    <input type="submit" value="Apply" class="smallsubmit" />
+	    </form>
 	</div>
+	<div style="float:right;">
+	    Go to: <a href="<?php echo htmlspecialchars($g_options['scripturl']) . "?game=$game"; ?>"><?php echo htmlspecialchars($gamename); ?></a>
+	</div>
+	<div style="clear:both;"></div>
+    </div>
 </div>

@@ -40,140 +40,150 @@ For support and installation notes visit http://www.hlxcommunity.com
         die('Do not access this file directly.');
     }
 
+    global $db, $game, $g_options;
+
+    // Security: Escape game variable
+    $game_esc = $db->escape($game);
+
 // Map Statistics
-	$db->query("
-		SELECT
-			hlstats_Games.name
-		FROM
-			hlstats_Games
-		WHERE
-			hlstats_Games.code = '$game'
-	");
+    $db->query("
+	SELECT
+	    hlstats_Games.name
+	FROM
+	    hlstats_Games
+	WHERE
+	    hlstats_Games.code = '$game_esc'
+    ");
 
-	if ($db->num_rows() < 1) {
+    if ($db->num_rows() < 1) {
         error("No such game '$game'.");
-	}
+    }
 
-	list($gamename) = $db->fetch_row();
-	$db->free_result();
+    // PHP 8 Fix: Replace list() which fails on null/false
+    $row = $db->fetch_row();
+    $gamename = ($row) ? $row[0] : '';
+    $db->free_result();
 
-	pageHeader(
-		array ($gamename, 'Map Statistics'),
-		array ($gamename=>"%s?game=$game", 'Map Statistics'=>'')
-	);
+    pageHeader(
+	array ($gamename, 'Map Statistics'),
+	array ($gamename=>"%s?game=$game", 'Map Statistics'=>'')
+    );
 
-	$tblMaps = new Table
+    $tblMaps = new Table
+    (
+	array
 	(
-		array
-		(
-			new TableColumn
-			(
-				'map',
-				'Map',
-				'width=20&align=left&link=' . urlencode("mode=mapinfo&amp;map=%k&amp;game=$game")
-			),
-			new TableColumn
-			(
-				'kills',
-				'Kills',
-				'width=8&align=right'
-			),
-			new TableColumn
-			(
-				'kpercent',
-				'%',
-				'width=7&sort=no&align=right&append=' . urlencode('%')
-			),
-			new TableColumn
-			(
-				'kpercent',
-				'Ratio',
-				'width=16&sort=no&type=bargraph'
-			),
-			new TableColumn
-			(
-				'headshots',
-				'Headshots',
-				'width=8&align=right'
-			),
-			new TableColumn
-			(
-				'hpercent',
-				'%',
-				'width=7&sort=no&align=right&append=' . urlencode('%')
-			),
-			new TableColumn
-			(
-				'hpercent',
-				'Ratio',
-				'width=16&sort=no&type=bargraph'
-			),
-			new TableColumn
-			(
-				'hpk',
-				'HS:K',
-				'width=9&align=right'
-			),
-			new TableColumn
-			(
-				'map',
-				'HeatMap',
-				'width=4&type=heatmap'
-			)
-		),
+	    new TableColumn
+	    (
 		'map',
+		'Map',
+		'width=20&align=left&link=' . urlencode("mode=mapinfo&amp;map=%k&amp;game=$game")
+	    ),
+	    new TableColumn
+	    (
 		'kills',
+		'Kills',
+		'width=8&align=right'
+	    ),
+	    new TableColumn
+	    (
+		'kpercent',
+		'%',
+		'width=7&sort=no&align=right&append=' . urlencode('%')
+	    ),
+	    new TableColumn
+	    (
+		'kpercent',
+		'Ratio',
+		'width=16&sort=no&type=bargraph'
+	    ),
+	    new TableColumn
+	    (
+		'headshots',
+		'Headshots',
+		'width=8&align=right'
+	    ),
+	    new TableColumn(
+		'hpercent',
+		'%',
+		'width=7&sort=no&align=right&append=' . urlencode('%')
+	    ),
+	    new TableColumn(
+		'hpercent',
+		'Ratio',
+		'width=16&sort=no&type=bargraph'
+	    ),
+	    new TableColumn(
+		'hpk',
+		'HS:K',
+		'width=9&align=right'
+	    ),
+	    new TableColumn(
 		'map',
-		true,
-		9999,
-		'maps_page',
-		'maps_sort',
-		'maps_sortorder'
-	);
+		'HeatMap',
+		'width=4&type=heatmap'
+	    )
+	),
+	'map',
+	'kills',
+	'map',
+	true,
+	9999,
+	'maps_page',
+	'maps_sort',
+	'maps_sortorder'
+    );
 
-	$db->query("
-	 	SELECT
-			SUM(hlstats_Maps_Counts.kills),
-			SUM(hlstats_Maps_Counts.headshots)
-		FROM
-			hlstats_Maps_Counts
-		WHERE
-			hlstats_Maps_Counts.game = '$game'
-	");
+    $db->query("
+        SELECT
+	    SUM(hlstats_Maps_Counts.kills),
+	    SUM(hlstats_Maps_Counts.headshots)
+	FROM
+	    hlstats_Maps_Counts
+	WHERE
+	    hlstats_Maps_Counts.game = '$game_esc'
+    ");
 
-	list($realkills, $realheadshots) = $db->fetch_row();
-	
-	$result = $db->query("
-		SELECT
-			IF(hlstats_Maps_Counts.map = '', '(Unaccounted)', hlstats_Maps_Counts.map) AS map,
-			hlstats_Maps_Counts.kills,
-			ROUND(kills / ".(($realkills==0)?1:$realkills)." * 100, 2) AS kpercent,
-			hlstats_Maps_Counts.headshots,
-			ROUND(hlstats_Maps_Counts.headshots / IF(hlstats_Maps_Counts.kills = 0, 1, hlstats_Maps_Counts.kills), 2) AS hpk,
-			ROUND(hlstats_Maps_Counts.headshots / ".(($realheadshots==0)?1:$realheadshots)." * 100, 2) AS hpercent
-		FROM
-			hlstats_Maps_Counts
-		WHERE
-			hlstats_Maps_Counts.game = '$game'
-		ORDER BY
-			$tblMaps->sort $tblMaps->sortorder,
-			$tblMaps->sort2 $tblMaps->sortorder
-	");
+    // PHP 8 Fix: Replace list() and ensure integer types
+    $row = $db->fetch_row();
+    $realkills = ($row && $row[0]) ? (int)$row[0] : 0;
+    $realheadshots = ($row && $row[1]) ? (int)$row[1] : 0;
+    
+    // Ensure no division by zero in SQL generation
+    $realkills_sql = ($realkills == 0) ? 1 : $realkills;
+    $realheadshots_sql = ($realheadshots == 0) ? 1 : $realheadshots;
+
+    $result = $db->query("
+	SELECT
+	    IF(hlstats_Maps_Counts.map = '', '(Unaccounted)', hlstats_Maps_Counts.map) AS map,
+	    hlstats_Maps_Counts.kills,
+	    ROUND(kills / $realkills_sql * 100, 2) AS kpercent,
+	    hlstats_Maps_Counts.headshots,
+	    ROUND(hlstats_Maps_Counts.headshots / IF(hlstats_Maps_Counts.kills = 0, 1, hlstats_Maps_Counts.kills), 2) AS hpk,
+	    ROUND(hlstats_Maps_Counts.headshots / $realheadshots_sql * 100, 2) AS hpercent
+	FROM
+	    hlstats_Maps_Counts
+	WHERE
+	    hlstats_Maps_Counts.game = '$game_esc'
+	ORDER BY
+	    $tblMaps->sort $tblMaps->sortorder,
+	    $tblMaps->sort2 $tblMaps->sortorder
+    ");
 ?>
 
 <div class="block">
-	<?php printSectionTitle('Map Statistics'); ?>
-	<div class="subblock">
-		<div style="float:left;">
-			From a total of <strong><?php echo number_format($realkills); ?></strong> kills with <strong><?php echo number_format($realheadshots); ?></strong> headshots
-		</div>
-		<div style="clear:both;"></div>
+    <?php printSectionTitle('Map Statistics'); ?>
+    <div class="subblock">
+	<div style="float:left;">
+	    From a total of <strong><?php echo number_format($realkills); ?></strong> kills with <strong><?php echo number_format($realheadshots); ?></strong> headshots
 	</div>
-	<br /><br />
-	<?php $tblMaps->draw($result, $db->num_rows($result), 95); ?><br /><br />
-	<div class="subblock">
-		<div style="float:right;">
-			Go to: <a href="<?php echo $g_options['scripturl'] . "?game=$game"; ?>"><?php echo $gamename; ?></a>
-		</div>
+	<div style="clear:both;"></div>
+    </div>
+    <br /><br />
+    <?php $tblMaps->draw($result, $db->num_rows($result), 95); ?><br /><br />
+    <div class="subblock">
+	<div style="float:right;">
+	    Go to: <a href="<?php echo htmlspecialchars($g_options['scripturl']) . "?game=$game"; ?>"><?php echo htmlspecialchars($gamename); ?></a>
 	</div>
+    </div>
 </div>

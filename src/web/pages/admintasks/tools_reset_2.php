@@ -40,77 +40,81 @@ For support and installation notes visit http://www.hlxcommunity.com
         die('Do not access this file directly.');
     }
 
-	if ($auth->userdata["acclevel"] < 80) {
+    global $db, $auth, $task;
+
+    // PHP 8 Fix: Null coalescing check
+    if (($auth->userdata["acclevel"] ?? 0) < 80) {
         die ("Access denied!");
-	}
+    }
 ?>
 
-&nbsp;&nbsp;&nbsp;&nbsp;<img src="<?php echo IMAGE_PATH; ?>/downarrow.gif" width=9 height=6 class="imageformat"><b>&nbsp;<?php echo $task->title; ?></b><p>
+&nbsp;&nbsp;&nbsp;&nbsp;<img src="<?php echo IMAGE_PATH; ?>/downarrow.gif" width="9" height="6" class="imageformat" alt=""><b>&nbsp;<?php echo htmlspecialchars($task->title); ?></b><p>
 
 <?php
     if (isset($_POST['confirm'])) {
-		
-		echo "<ul>\n";
+	
+	echo "<ul>\n";
 
       $dbt = "Deleting all inactive Players";
-			echo "<li>$dbt ... ";
-			$minTimestamp = date("U")-(3600*24*30);
-			$SQL = "DELETE FROM hlstats_Players WHERE last_event<$minTimestamp;";
-			if ($db->query($SQL)) echo "OK\n"; else echo "ERROR\n"; 
+	    echo "<li>$dbt ... ";
+            // PHP 8 Fix: Use time() instead of date("U")
+	    $minTimestamp = time() - (3600*24*30);
+	    $SQL = "DELETE FROM hlstats_Players WHERE last_event<$minTimestamp;";
+	    if ($db->query($SQL)) echo "OK\n"; else echo "ERROR\n"; 
 
       $dbt = "Deleting Clans without Players";
-			echo "<li>$dbt ... ";
-			$SQL = "DELETE FROM hlstats_Clans USING hlstats_Clans LEFT JOIN hlstats_Players ON (clan=clanId) WHERE isnull(clan);";
-			if ($db->query($SQL)) echo "OK\n"; else echo "ERROR\n"; 
+	    echo "<li>$dbt ... ";
+	    $SQL = "DELETE FROM hlstats_Clans USING hlstats_Clans LEFT JOIN hlstats_Players ON (clan=clanId) WHERE isnull(clan);";
+	    if ($db->query($SQL)) echo "OK\n"; else echo "ERROR\n"; 
     
       $dbt = "Deleting Names from inactive Players";
-			echo "<li>$dbt ... ";
-			$SQL = "DELETE FROM hlstats_PlayerNames USING hlstats_PlayerNames LEFT JOIN hlstats_Players ON (hlstats_PlayerNames.playerId=hlstats_Players.playerId) WHERE isnull(hlstats_Players.playerId);";
-			if ($db->query($SQL)) echo "OK\n"; else echo "ERROR\n"; 
+	    echo "<li>$dbt ... ";
+	    $SQL = "DELETE FROM hlstats_PlayerNames USING hlstats_PlayerNames LEFT JOIN hlstats_Players ON (hlstats_PlayerNames.playerId=hlstats_Players.playerId) WHERE isnull(hlstats_Players.playerId);";
+	    if ($db->query($SQL)) echo "OK\n"; else echo "ERROR\n"; 
 
       $dbt = "Deleting SteamIDs from inactive Players";
-			echo "<li>$dbt ... ";
-			$SQL = "DELETE FROM hlstats_PlayerUniqueIds USING hlstats_PlayerUniqueIds LEFT JOIN hlstats_Players ON (hlstats_PlayerUniqueIds.playerId=hlstats_Players.playerId) WHERE isnull(hlstats_Players.playerId);";
-			if ($db->query($SQL)) echo "OK\n"; else echo "ERROR\n"; 
+	    echo "<li>$dbt ... ";
+	    $SQL = "DELETE FROM hlstats_PlayerUniqueIds USING hlstats_PlayerUniqueIds LEFT JOIN hlstats_Players ON (hlstats_PlayerUniqueIds.playerId=hlstats_Players.playerId) WHERE isnull(hlstats_Players.playerId);";
+	    if ($db->query($SQL)) echo "OK\n"; else echo "ERROR\n"; 
 
       $dbt = "Deleting Awards from inactive Players";
-			echo "<li>$dbt ... ";
-			$SQL = "DELETE FROM hlstats_Players_Awards USING hlstats_Players_Awards LEFT JOIN hlstats_Players ON (hlstats_Players_Awards.playerId=hlstats_Players.playerId) WHERE isnull(hlstats_Players.playerId);";
-			if ($db->query($SQL)) echo "OK\n"; else echo "ERROR\n"; 
-	  
-	  $dbt = "Deleting Ribbons from inactvie Players";
-			echo "<li>$dbt ... ";
-			$SQL = "DELETE FROM hlstats_Players_Ribbons USING hlstats_Players_Ribbons LEFT JOIN hlstats_Players ON (hlstats_Players_Ribbons.playerId=hlstats_Players.playerId) WHERE isnull(hlstats_Players.playerId);";
-			if ($db->query($SQL)) echo "OK\n"; else echo "ERROR\n";
+	    echo "<li>$dbt ... ";
+	    $SQL = "DELETE FROM hlstats_Players_Awards USING hlstats_Players_Awards LEFT JOIN hlstats_Players ON (hlstats_Players_Awards.playerId=hlstats_Players.playerId) WHERE isnull(hlstats_Players.playerId);";
+	    if ($db->query($SQL)) echo "OK\n"; else echo "ERROR\n"; 
+      
+      $dbt = "Deleting Ribbons from inactvie Players";
+	    echo "<li>$dbt ... ";
+	    $SQL = "DELETE FROM hlstats_Players_Ribbons USING hlstats_Players_Ribbons LEFT JOIN hlstats_Players ON (hlstats_Players_Ribbons.playerId=hlstats_Players.playerId) WHERE isnull(hlstats_Players.playerId);";
+	    if ($db->query($SQL)) echo "OK\n"; else echo "ERROR\n";
 
       $dbt = "Deleting History from inactive Players";
-			echo "<li>$dbt ... ";
-			$SQL = "DELETE FROM hlstats_Players_History USING hlstats_Players_History LEFT JOIN hlstats_Players ON (hlstats_Players_History.playerId=hlstats_Players.playerId) WHERE isnull(hlstats_Players.playerId);";
-			if ($db->query($SQL)) echo "OK\n"; else echo "ERROR\n"; 
+	    echo "<li>$dbt ... ";
+	    $SQL = "DELETE FROM hlstats_Players_History USING hlstats_Players_History LEFT JOIN hlstats_Players ON (hlstats_Players_History.playerId=hlstats_Players.playerId) WHERE isnull(hlstats_Players.playerId);";
+	    if ($db->query($SQL)) echo "OK\n"; else echo "ERROR\n"; 
 
 
 //      $dbt = "Resetting Players count for all servers";
 //			echo "<li>$dbt ... ";
 //			$SQL = "UPDATE hlstats_Servers SET players=0;";
 //			if ($db->query($SQL)) echo "OK\n"; else echo "ERROR\n"; 
-		
-		echo "</ul>\n";
-		
-		echo "Done.<p>";
-	}
-	else
-	{
+	
+	echo "</ul>\n";
+	
+	echo "Done.<p>";
+    }
+    else
+    {
 ?>
 
 <form method="POST">
-<table width="60%" align="center" border=0 cellspacing=0 cellpadding=0 class="border">
+<table width="60%" align="center" border="0" cellspacing="0" cellpadding="0" class="border">
 
 <tr>
-	<td>
-		<table width="100%" border=0 cellspacing=1 cellpadding=10>
-		
-		<tr class="bg1">
-			<td class="fNormal">
+    <td>
+	<table width="100%" border="0" cellspacing="1" cellpadding="10">
+	
+	<tr class="bg1">
+	    <td class="fNormal">
 
 Are you sure you want to clean up all statistics? All inactive players, clans and events will be deleted from the database. (All other admin settings will be retained.)<p>
 
@@ -119,13 +123,13 @@ Are you sure you want to clean up all statistics? All inactive players, clans an
 <input type="hidden" name="confirm" value="1">
 <center><input type="submit" value="  Reset Stats  "></center>
 </td>
-		</tr>
-		
-		</table></td>
+	</tr>
+	
+	</table></td>
 </tr>
 
 </table>
 </form>
 <?php
-	}
+    }
 ?>

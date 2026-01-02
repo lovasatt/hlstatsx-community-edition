@@ -35,17 +35,17 @@ class Env {
 */
 
 class Heatmap {
-        var $version = "0.1";
+        public $version = "0.1";
 
         /**
         * Stuff we want to fire when we start.
         *
         */
         public static function init () {
-        		global $argv;
-				DB::connect();
-				self::mapinfo();
-				self::parseArguments($argv);
+	    global $argv;
+	DB::connect();
+	self::mapinfo();
+	self::parseArguments($argv);
         }
 
         /**
@@ -53,15 +53,16 @@ class Heatmap {
         *
         */
         public static function mapinfo () {
+                $mapinfo = array(); // Initialize variable to prevent issues if DB is empty
                 $query = 'SELECT
                                 g.code,
-								hc.game,
+		hc.game,
                                 hc.map,
                                 hc.xoffset,
                                 hc.yoffset,
                                 hc.flipx,
                                 hc.flipy,
-				hc.rotate,
+	hc.rotate,
                                 hc.days,
                                 hc.brush,
                                 hc.scale,
@@ -82,15 +83,17 @@ class Heatmap {
                         ORDER BY code ASC, game ASC, map ASC';
 
                 $result = DB::doQuery($query);
-                if (DB::numRows($result)) {
+                
+                // Check if result is valid object before calling numRows
+                if ($result && DB::numRows($result)) {
                         while ($row = DB::getAssoc($result)) {
                                 foreach ($row as $key => $val) {
                                         $mapinfo[$row['code']][$row['map']][$key] = $val;
                                 }
                         }
-
-                        Env::set('mapinfo', $mapinfo);
+                        
                 }
+                Env::set('mapinfo', $mapinfo);
         }
 
         private static function printHeatDot($dst_im, $src_im, $dst_x, $dst_y, $src_x, $src_y, $src_w, $src_h, $pct){
@@ -132,7 +135,8 @@ class Heatmap {
                                 }
 
                                 //get the color index with new alpha
-                                $alphacolorxy = imagecolorallocatealpha( $src_im, ( $colorxy >> 16 ) & 0xFF, ( $colorxy >> 8 ) & 0xFF, $colorxy & 0xFF, $alpha );
+                                // PHP 8 Fix: Cast float arguments to int
+                                $alphacolorxy = imagecolorallocatealpha( $src_im, (int)(( $colorxy >> 16 ) & 0xFF), (int)(( $colorxy >> 8 ) & 0xFF), (int)($colorxy & 0xFF), (int)$alpha );
 
                                 //set pixel with the new color + opacity
                                 if( !imagesetpixel( $src_im, $x, $y, $alphacolorxy ) ){
@@ -142,113 +146,124 @@ class Heatmap {
                 }
 
                 // The image copy
-                imagecopy($dst_im, $src_im, $dst_x, $dst_y, $src_x, $src_y, $src_w, $src_h);
+                // PHP 8 Fix: Cast arguments to int
+                imagecopy($dst_im, $src_im, (int)$dst_x, (int)$dst_y, (int)$src_x, (int)$src_y, (int)$src_w, (int)$src_h);
         }
 
-		public static function generate($code, $map, $mode) {
-			// generatemap($map, $code, "Total Kills", "HlstatsX:CE")
-			self::buildQuery($code, $map);
-			
-			
-			$mapinfo = Env::get('mapinfo');
-			$map_query = Env::get('map_query');
-			$disable_cache = Env::get('disable_cache');
+    public static function generate($code, $map, $mode) {
+        // generatemap($map, $code, "Total Kills", "HlstatsX:CE")
+        self::buildQuery($code, $map);
+        
+        
+        $mapinfo = Env::get('mapinfo');
+        $map_query = Env::get('map_query');
+        $disable_cache = Env::get('disable_cache');
 
-			// See if we need to rotate the map or not.
-			$rotate = $mapinfo[$code][$map]['rotate'];
+        // Safety check: ensure map config exists
+        if (!isset($mapinfo[$code][$map])) {
+            show::Event("ERROR", "Configuration for Game: $code, Map: $map not found.", 1);
+            return false;
+        }
 
-			
-			$timestamp = time();
+        // See if we need to rotate the map or not.
+        $rotate = $mapinfo[$code][$map]['rotate'];
 
-			// Fix the last part of your path.
-			$path = HLXCE_WEB . "/hlstatsimg/games/" . $mapinfo[$code][$map]['code'] . "/heatmaps";
-			show::Event("PATH", $path, 3);
+        
+        $timestamp = time();
 
-			// Does the source image exists? else there is no idea to spend resources on it.
-			if (!file_exists(dirname(__FILE__) . "/src/" . $mapinfo[$code][$map]['game'] . "/" . $map . ".jpg")) {
-				show::Event("FILE", dirname(__FILE__) . "/src/" . $mapinfo[$code][$map]['game'] . "/" . $map . ".jpg doesn't exists", 3);
-				return false;
-			}
-									
-			// Check that the dir exists, else try to create it.
-			if (!is_dir($path)) {
-				if (!@mkdir($path)) {
-					show::Event("PREPARE", "Couln't create outputfolder: $path", 1);
-				}
-			}
+        // Fix the last part of your path.
+        $path = HLXCE_WEB . "/hlstatsimg/games/" . $mapinfo[$code][$map]['code'] . "/heatmaps";
+        show::Event("PATH", $path, 3);
 
-			// Check if we have cached info, then we should work from that instead.
-			if (is_dir(CACHE_DIR . "/$code")) {
-			if ($handle = opendir(CACHE_DIR. "/$code")) {
-				while (false !== ($file = readdir($handle))) {
-					if ($file != "." && $file != ".." && preg_match(str_replace("\$","\\\$","/${map}_(\d+).png/i"), $file, $matches)) {
-					$cache_file = CACHE_DIR . "/$code/$file";
-					$oldtimestamp = $matches[1];
+        // Does the source image exists? else there is no idea to spend resources on it.
+        if (!file_exists(dirname(__FILE__) . "/src/" . $mapinfo[$code][$map]['game'] . "/" . $map . ".jpg")) {
+	show::Event("FILE", dirname(__FILE__) . "/src/" . $mapinfo[$code][$map]['game'] . "/" . $map . ".jpg doesn't exists", 3);
+	return false;
+        }
+		    
+        // Check that the dir exists, else try to create it.
+        if (!is_dir($path)) {
+	if (!@mkdir($path)) {
+	    show::Event("PREPARE", "Couln't create outputfolder: $path", 1);
+	}
+        }
+            
+        $cache_file = null;
+        $obsolite_cache = false; // Initialize to avoid warning
 
-					// unless it's over 30 days old cache file, then we delete it and go from 0 again.
-					if (floor((time() - $oldtimestamp) / 86400 > 30)) {
-						$obsolite_cache = true;
-						show::Event("CACHE", "Cache file is obsolite, " . floor((time() - $oldtimestamp) / 86400) . " days old. Generating from scratch", 1);
-					}
-					
-					// If we called with --disable-cache we want to clean up and then regen from our start.
-					if ($disable_cache || isset($obsolite_cache)) {
-						$disable_cache = true;
-						if (file_exists($cache_file)) {
-							unlink($cache_file);
-						}
-					} else {
-						show::Event("CACHE","Found cached file ($file), we will use timestamp $oldtimestamp instead", 1);
-						$find = '/.*AND hef.eventTime >= FROM_UNIXTIME\([0-9]+\).*/i';
-						$replace = '			AND hef.eventTime > FROM_UNIXTIME(' . $oldtimestamp . ')';
-						$map_query = preg_replace($find, $replace, $map_query);
-					}
-					}
-				}
-				closedir($handle);
-				}
-			} else {
-				if (!@mkdir(CACHE_DIR . "/$code")) {
-					show::Event("CACHE", "Can't create cache_dir: " . CACHE_DIR . "/$code", 1);
-				}
-			}
+        // Check if we have cached info, then we should work from that instead.
+        if (is_dir(CACHE_DIR . "/$code")) {
+        if ($handle = opendir(CACHE_DIR. "/$code")) {
+	while (false !== ($file = readdir($handle))) {
+            // PHP 8.2 Fix: Use {$map} syntax instead of ${map}
+	    if ($file != "." && $file != ".." && preg_match(str_replace("\$","\\\$","/{$map}_(\d+).png/i"), $file, $matches)) {
+	    $cache_file = CACHE_DIR . "/$code/$file";
+	    $oldtimestamp = $matches[1];
 
-			$result = DB::doQuery($map_query);
-			$num_kills = DB::numRows($result);
+	    // unless it's over 30 days old cache file, then we delete it and go from 0 again.
+	    if (floor((time() - $oldtimestamp) / 86400 > 30)) {
+	    $obsolite_cache = true;
+	    show::Event("CACHE", "Cache file is obsolite, " . floor((time() - $oldtimestamp) / 86400) . " days old. Generating from scratch", 1);
+	    }
+	    
+	    // If we called with --disable-cache we want to clean up and then regen from our start.
+	    if ($disable_cache || $obsolite_cache) {
+	    $disable_cache = true;
+	    if (file_exists($cache_file)) {
+	        unlink($cache_file);
+	    }
+	    } else {
+	    show::Event("CACHE","Found cached file ($file), we will use timestamp $oldtimestamp instead", 1);
+	    $find = '/.*AND hef.eventTime >= FROM_UNIXTIME\([0-9]+\).*/i';
+	    $replace = '			AND hef.eventTime > FROM_UNIXTIME(' . $oldtimestamp . ')';
+	    $map_query = preg_replace($find, $replace, $map_query);
+	    }
+	    }
+	}
+	closedir($handle);
+	}
+        } else {
+	if (!@mkdir(CACHE_DIR . "/$code")) {
+	    show::Event("CACHE", "Can't create cache_dir: " . CACHE_DIR . "/$code", 1);
+	}
+        }
 
-			if (!$num_kills) {
-				show::Event("IGNORE", "Game: $code, Map: $map, Kills: $num_kills, (to few kills)", 1);
-				return false;
-			}
+        $result = DB::doQuery($map_query);
+        $num_kills = DB::numRows($result);
 
-			$firstdata = time();
+        if (!$num_kills) {
+	show::Event("IGNORE", "Game: $code, Map: $map, Kills: $num_kills, (to few kills)", 1);
+	return false;
+        }
 
-			$img = imagecreatefromjpeg("./src/" . $mapinfo[$code][$map]['game'] . "/" . $map . ".jpg");
-			imagealphablending($img, true);
-			imagesavealpha($img, true);
+        $firstdata = time();
 
-			if (isset($cache_file) && !$disable_cache) {
-				$overlay = imagecreatefrompng($cache_file);
-			} else {
-				$overlay = imagecreatetruecolor(imagesx($img), imagesy($img));
-			}
+        $img = imagecreatefromjpeg("./src/" . $mapinfo[$code][$map]['game'] . "/" . $map . ".jpg");
+        imagealphablending($img, true);
+        imagesavealpha($img, true);
 
-			imagealphablending($overlay, true);
-			imagesavealpha($overlay, true);
+        if (isset($cache_file) && $cache_file && !$disable_cache && file_exists($cache_file)) {
+	$overlay = imagecreatefrompng($cache_file);
+        } else {
+	$overlay = imagecreatetruecolor(imagesx($img), imagesy($img));
+        }
 
-			$brush = imagecreatefrompng("./src/brush_" . $mapinfo[$code][$map]['brush'] . ".png");
-			$brushsize = ($mapinfo[$code][$map]['brush'] == "large") ? 33 : 17;
+        imagealphablending($overlay, true);
+        imagesavealpha($overlay, true);
 
-			$white = imagecolorallocate($overlay, 255, 255, 255);
-			$black = imagecolorallocate($overlay, 0, 0, 0);
+        $brush = imagecreatefrompng("./src/brush_" . $mapinfo[$code][$map]['brush'] . ".png");
+        $brushsize = ($mapinfo[$code][$map]['brush'] == "large") ? 33 : 17;
 
-			imagefill($overlay, 0, 0, $black);
-			imagecolortransparent($overlay, $black);
+        $white = imagecolorallocate($overlay, 255, 255, 255);
+        $black = imagecolorallocate($overlay, 0, 0, 0);
 
-			$num_kills = ($num_kills) ? $num_kills : 1;
+        imagefill($overlay, 0, 0, $black);
+        imagecolortransparent($overlay, $black);
 
-			show::Event("CREATE", "Game: $code, Map: $map, Kills: $num_kills", 1);
-			$opacity = intval((500 / $num_kills) * 100);
+        $num_kills = ($num_kills) ? $num_kills : 1;
+
+        show::Event("CREATE", "Game: $code, Map: $map, Kills: $num_kills", 1);
+        $opacity = intval((500 / $num_kills) * 100);
 
       
       if ($opacity > 40) $opacity = 40;
@@ -266,7 +281,8 @@ class Heatmap {
               $x = ($row['pos_x'] + $mapinfo[$code][$map]['xoffset']) / $mapinfo[$code][$map]['scale'];
               $y = ($row['pos_y'] + $mapinfo[$code][$map]['yoffset']) / $mapinfo[$code][$map]['scale'];
 
-              $rgb = imagecolorat($overlay, $x, $y);
+              // PHP 8 Fix: Cast coordinates to int
+              $rgb = imagecolorat($overlay, (int)$x, (int)$y);
               $colors = imagecolorsforindex($overlay, $rgb);
 
               if ($colors['red'] > $max_red) $max_red = $colors['red'];
@@ -274,335 +290,358 @@ class Heatmap {
               if ($colors['red'] <= 200) {
                       // Rotate the image
                       if ($rotate) {
-                              self::printHeatDot($overlay, $brush, $y - ($brushsize / 2), $x - ($brushsize / 2), 0, 0, $brushsize, $brushsize, $opacity);
+                              // PHP 8 Fix: Cast calculations to int
+                              self::printHeatDot($overlay, $brush, (int)($y - ($brushsize / 2)), (int)($x - ($brushsize / 2)), 0, 0, $brushsize, $brushsize, $opacity);
                       } else {
-                              self::printHeatDot($overlay, $brush, $x - ($brushsize / 2), $y - ($brushsize / 2), 0, 0, $brushsize, $brushsize, $opacity);
+                              self::printHeatDot($overlay, $brush, (int)($x - ($brushsize / 2)), (int)($y - ($brushsize / 2)), 0, 0, $brushsize, $brushsize, $opacity);
                       }
               }
       }
 
-			imagedestroy($brush);
+        imagedestroy($brush);
 
-			$colorarr = array();
-			$colors = array(0, 0, 255);
+        $colorarr = array();
+        $colors = array(0, 0, 255);
 
-			for ($line = 0; $line < 128; ++$line) {
-				$colors = array(0, $colors[1] + 2, $colors[2] -2);
-				$colorarr[$line] = $colors;
-			}
+        for ($line = 0; $line < 128; ++$line) {
+	$colors = array(0, $colors[1] + 2, $colors[2] -2);
+	$colorarr[$line] = $colors;
+        }
 
-			for ($line = 128; $line < 255; ++$line) {
-				$colors = array($colors[0] + 2, $colors[1] -2, 0);
-				$colorarr[$line] = $colors;
-			}
+        for ($line = 128; $line < 255; ++$line) {
+	$colors = array($colors[0] + 2, $colors[1] -2, 0);
+	$colorarr[$line] = $colors;
+        }
 
-			for ($x = 0; $x < imagesx($overlay); ++$x) {
-				for ($y = 0; $y < imagesy($overlay); ++$y) {
-					$index = imagecolorat($overlay, $x, $y);
-					$rgb = imagecolorsforindex($overlay, $index);
-					$alpha = ( imagecolorat( $overlay, $x, $y ) >> 24 ) & 0xFF;
+        for ($x = 0; $x < imagesx($overlay); ++$x) {
+	for ($y = 0; $y < imagesy($overlay); ++$y) {
+	    $index = imagecolorat($overlay, $x, $y);
+	    $rgb = imagecolorsforindex($overlay, $index);
+	    // $alpha = ( imagecolorat( $overlay, $x, $y ) >> 24 ) & 0xFF; // Unused variable removed
 
-					$color = imagecolorallocatealpha($img, $colorarr[$rgb['red']][0], $colorarr[$rgb['red']][1], $colorarr[$rgb['red']][2], 127 - ($rgb['red'] / 2));
-				if (!imagesetpixel($img, $x, $y, $color)) echo ".";
-				}
-			}
+            // PHP 8 Fix: Cast to int
+	    $color = imagecolorallocatealpha($img, $colorarr[$rgb['red']][0], $colorarr[$rgb['red']][1], $colorarr[$rgb['red']][2], 127 - (int)($rgb['red'] / 2));
+	if (!imagesetpixel($img, $x, $y, $color)) echo ".";
+	}
+        }
 
-			if ($mapinfo[$code][$map]['cropy2'] > 0 && $mapinfo[$code][$map]['cropy2'] > 0) {
-				$temp = imagecreatetruecolor($mapinfo[$code][$map]['cropx2'], $mapinfo[$code][$map]['cropy2']);
-				imagecopy($temp, $img, 0, 0, $mapinfo[$code][$map]['cropx1'], $mapinfo[$code][$map]['cropy1'], $mapinfo[$code][$map]['cropx2'], $mapinfo[$code][$map]['cropy2']);
-				imagedestroy($img);
+        if ($mapinfo[$code][$map]['cropy2'] > 0 && $mapinfo[$code][$map]['cropy2'] > 0) {
+	$temp = imagecreatetruecolor($mapinfo[$code][$map]['cropx2'], $mapinfo[$code][$map]['cropy2']);
+	imagecopy($temp, $img, 0, 0, $mapinfo[$code][$map]['cropx1'], $mapinfo[$code][$map]['cropy1'], $mapinfo[$code][$map]['cropx2'], $mapinfo[$code][$map]['cropy2']);
+	imagedestroy($img);
 
-				$img = imagecreatetruecolor(imagesx($temp), imagesy($temp));
-				imagecopy($img, $temp, 0, 0, 0, 0, imagesx($temp), imagesy($temp));
-				imagedestroy($temp);
-			}
+	$img = imagecreatetruecolor(imagesx($temp), imagesy($temp));
+	imagecopy($img, $temp, 0, 0, 0, 0, imagesx($temp), imagesy($temp));
+	imagedestroy($temp);
+        }
 
-			if ($mapinfo[$code][$map]['thumbw'] > 0 && $mapinfo[$code][$map]['thumbh'] > 0) {
-				$thumb = imagecreatetruecolor(imagesx($img) * $mapinfo[$code][$map]['thumbw'], imagesy($img) * $mapinfo[$code][$map]['thumbh']);
-				imagecopyresampled($thumb, $img, 0, 0, 0, 0, imagesx($thumb), imagesy($thumb), imagesx($img), imagesy($img));
-				imagejpeg($thumb, $path . "/" . $map . "-" . $mode . "-thumb.jpg", 100);
-				imagedestroy($thumb);
-			}
+        if ($mapinfo[$code][$map]['thumbw'] > 0 && $mapinfo[$code][$map]['thumbh'] > 0) {
+	$thumb = imagecreatetruecolor(imagesx($img) * $mapinfo[$code][$map]['thumbw'], imagesy($img) * $mapinfo[$code][$map]['thumbh']);
+	imagecopyresampled($thumb, $img, 0, 0, 0, 0, imagesx($thumb), imagesy($thumb), imagesx($img), imagesy($img));
+	imagejpeg($thumb, $path . "/" . $map . "-" . $mode . "-thumb.jpg", 100);
+	imagedestroy($thumb);
+        }
 
-			$img = self::drawHud($img, $map,  "HLX:CE", "Total Kills", $num_kills, $firstdata);
-						
-			if (imagejpeg($img, $path . "/" . $map . "-" . $mode . ".jpg", 100)) $return = true;
-			if (imagepng($overlay, CACHE_DIR . "/$code/${map}_${timestamp}.png", 9)) $return = true;
-			imagedestroy($overlay);
+        $img = self::drawHud($img, $map,  "HLX:CE", "Total Kills", $num_kills, $firstdata);
+	    
+        $return = false;
+        if (imagejpeg($img, $path . "/" . $map . "-" . $mode . ".jpg", 100)) $return = true;
+        
+        // PHP 8.2 Fix: Use {$map} syntax
+        if (imagepng($overlay, CACHE_DIR . "/$code/{$map}_{$timestamp}.png", 9)) $return = true;
+        imagedestroy($overlay);
 
-			// Clean upc cache file
-			if (isset($cache_file) && file_exists($cache_file)) {
-				unlink(CACHE_DIR . "/$code/${map}_${oldtimestamp}.png");
-			}
-			
-			
-			imagedestroy($img);
+        // Clean upc cache file
+        if (isset($cache_file) && file_exists($cache_file) && isset($oldtimestamp)) {
+        // PHP 8.2 Fix: Use {$map} syntax
+	unlink(CACHE_DIR . "/$code/{$map}_{$oldtimestamp}.png");
+        }
+        
+        
+        imagedestroy($img);
 
-			return $return;
-		}
-		
-		public static function buildQuery ($code, $map) {
-			$mapinfo = Env::get('mapinfo');
-			Env::set('code', $code);
-			$ignore_infected = Env::get('ignore_infected');
-			$timescope = (time() - 60*60*24*$mapinfo[$code][$map]['days']);
+        return $return;
+    }
+    
+    public static function buildQuery ($code, $map) {
+        // Security Fix: Escape inputs to prevent SQL Injection
+        $safe_map = DB::escape($map);
+        $safe_code = DB::escape($code);
 
-			$map_query = 'SELECT
-							"frag" AS killtype,
-					 hef.id,
-							hef.map,
-							hs.game,
-							hef.eventTime,
-							hef.pos_x,
-							hef.pos_y
-					FROM
-							hlstats_Events_Frags as hef,
-							hlstats_Servers as hs
-					WHERE 1=1
-					AND hef.map = "' . $map . '"
-					AND hs.serverId = hef.serverId
-					AND hs.game = "' . $code. '"
-					AND hef.pos_x IS NOT NULL
-					AND hef.pos_y IS NOT NULL
-					AND hef.eventTime >= FROM_UNIXTIME(' . $timescope . ')
+        $mapinfo = Env::get('mapinfo');
+        Env::set('code', $code);
+        $ignore_infected = Env::get('ignore_infected');
+        $timescope = (time() - 60*60*24*$mapinfo[$code][$map]['days']);
+
+        $map_query = 'SELECT
+	        "frag" AS killtype,
+	     hef.id,
+	        hef.map,
+	        hs.game,
+	        hef.eventTime,
+	        hef.pos_x,
+	        hef.pos_y
+	    FROM
+	        hlstats_Events_Frags as hef,
+	        hlstats_Servers as hs
+	    WHERE 1=1
+	    AND hef.map = "' . $safe_map . '"
+	    AND hs.serverId = hef.serverId
+	    AND hs.game = "' . $safe_code. '"
+	    AND hef.pos_x IS NOT NULL
+	    AND hef.pos_y IS NOT NULL
+	    AND hef.eventTime >= FROM_UNIXTIME(' . $timescope . ')
 ';
-			if ($ignore_infected) {
-					$map_query.= '                      AND hef.victimRole != "infected"
+        if ($ignore_infected) {
+	    $map_query.= '                      AND hef.victimRole != "infected"
 ';
-			}
-					$map_query.= '                      LIMIT ' . KILL_LIMIT . '
+        }
+	    $map_query.= '                      LIMIT ' . KILL_LIMIT . '
 
-					UNION ALL
+	    UNION ALL
 
-					SELECT
-							"teamkill" AS killtype,
-							hef.id,
-							hef.map,
-							hs.game,
-							hef.eventTime,
-							hef.pos_x,
-							hef.pos_y
-					FROM
-							hlstats_Events_Teamkills as hef,
-							hlstats_Servers as hs
-					WHERE 1=1
-					AND hef.map = "' . $map . '"
-					AND hs.serverId = hef.serverId
-					AND hs.game = "' . $code. '"
-					AND hef.pos_x IS NOT NULL
-					AND hef.pos_y IS NOT NULL
-					AND hef.eventTime >= FROM_UNIXTIME(' . $timescope . ')
-					LIMIT ' . KILL_LIMIT . '
-			';
-			
-			Env::set('map_query', $map_query);
-			show::Event("SQL", $map_query, 3);
+	    SELECT
+	        "teamkill" AS killtype,
+	        hef.id,
+	        hef.map,
+	        hs.game,
+	        hef.eventTime,
+	        hef.pos_x,
+	        hef.pos_y
+	    FROM
+	        hlstats_Events_Teamkills as hef,
+	        hlstats_Servers as hs
+	    WHERE 1=1
+	    AND hef.map = "' . $safe_map . '"
+	    AND hs.serverId = hef.serverId
+	    AND hs.game = "' . $safe_code. '"
+	    AND hef.pos_x IS NOT NULL
+	    AND hef.pos_y IS NOT NULL
+	    AND hef.eventTime >= FROM_UNIXTIME(' . $timescope . ')
+	    LIMIT ' . KILL_LIMIT . '
+        ';
+        
+        Env::set('map_query', $map_query);
+        show::Event("SQL", $map_query, 3);
 
-		}
+    }
 
-		private static function drawHud ($img, $map, $heatmapname, $method, $num_kills, $firstdata) {
-			$mapinfo = Env::get('mapinfo');
-			$code = Env::get('code');
-			
-			
-			// Resize the image according to your  settings
-			$img = self::resize($img);
+    private static function drawHud ($img, $map, $heatmapname, $method, $num_kills, $firstdata) {
+        $mapinfo = Env::get('mapinfo');
+        $code = Env::get('code');
+        
+        
+        // Resize the image according to your  settings
+        $img = self::resize($img);
 
-			$hudText = array(
-					strtoupper($map) . " - " . strtoupper($heatmapname) . " HEATMAP - " . strtoupper($method),
-					date("m/d/y", intval(time() - 60*60*24*30)) . " - " . date("m/d/y", time()),
-					"Generated: " . date("Y-m-d H:i:s"),
-					HUD_URL
-				);
-				
-			show::Event("HUD", "Creating Overlay HUD", 2);
+        $hudText = array(
+	    strtoupper($map) . " - " . strtoupper($heatmapname) . " HEATMAP - " . strtoupper($method),
+	    date("m/d/y", intval(time() - 60*60*24*30)) . " - " . date("m/d/y", time()),
+	    "Generated: " . date("Y-m-d H:i:s"),
+	    HUD_URL
+	);
+	
+        show::Event("HUD", "Creating Overlay HUD", 2);
 
-			$hudx = imagesx($img);
-			$hudy = intval(intval($mapinfo[$code][$map]['font'] + 4) * intval(count($hudText) + 1) + 8);
+        $hudx = imagesx($img);
+        $hudy = intval(intval($mapinfo[$code][$map]['font'] + 4) * intval(count($hudText) + 1) + 8);
 
-			$hud = imagecreatetruecolor(imagesx($img), imagesy($img)) or die('Cannot Initialize new GD image stream');
-			imagesavealpha($hud, true);
+        $hud = imagecreatetruecolor(imagesx($img), imagesy($img));
+        if (!$hud) die('Cannot Initialize new GD image stream'); // Check for failure
+        imagesavealpha($hud, true);
 
-			$trans_colour = imagecolorallocatealpha($hud, 0, 0, 0, 127);
-			$black = imagecolorallocatealpha($hud, 0, 0, 0, 90);
+        $trans_colour = imagecolorallocatealpha($hud, 0, 0, 0, 127);
+        $black = imagecolorallocatealpha($hud, 0, 0, 0, 90);
 
-			imagefill($hud, 0, 0, $trans_colour);
-			imagefilledrectangle($hud, 0, 0, imagesx($img) - 1, imagesy($img) - 1, $black);
+        imagefill($hud, 0, 0, $trans_colour);
+        imagefilledrectangle($hud, 0, 0, imagesx($img) - 1, imagesy($img) - 1, $black);
 
-			$font = "./DejaVuSans.ttf";
+        $font = "./DejaVuSans.ttf";
 
-			// Copy the hud to the top of the image.
-			imagecopy($img, $hud, 0, 0, 0, 0, $hudx, $hudy);
+        // Copy the hud to the top of the image.
+        imagecopy($img, $hud, 0, 0, 0, 0, $hudx, $hudy);
 
-			//array imagettftext  ( resource $image  , float $size  , float $angle  , int $x  , int $y  , int $color  , string $fontfile  , string $text  )
-			$i = 1;
-			foreach ($hudText as $text) {
-			imagettftext(	$img, 
-					$mapinfo[$code][$map]['font'], 
-					0, 
-					10, 
-					intval(intval($mapinfo[$code][$map]['font'] + 4) * $i + 8), 
-					imagecolorallocate($img, 255, 255, 255), 
-					$font, 
-					$text
-				);
-			$i++;
-			}
+        //array imagettftext  ( resource $image  , float $size  , float $angle  , int $x  , int $y  , int $color  , string $fontfile  , string $text  )
+        $i = 1;
+        foreach ($hudText as $text) {
+        imagettftext(	$img, 
+	    (float)$mapinfo[$code][$map]['font'], // PHP 8 Fix: Cast to float
+	    0.0, // PHP 8 Fix: Cast to float
+	    10, 
+	    intval(intval($mapinfo[$code][$map]['font'] + 4) * $i + 8), 
+	    imagecolorallocate($img, 255, 255, 255), 
+	    $font, 
+	    $text
+	);
+        $i++;
+        }
 
-			imagedestroy($hud);
+        imagedestroy($hud);
 
-			show::Event("HUD", "Done...", 2);
-			return $img;
-		}
-		
-		private static function resize ($img) {
-			switch (OUTPUT_SIZE) {
-				case "small":
-					$newwidth = 800;
-					$newheight = 600;
-					break;
-				case "medium":
-					$newwidth = 1024;
-					$newheight = 768;
-					break;
-				case "large":
-					$newwidth = 1280;
-					$newheight = 1024;
-					// As for now we don't do anything since this is default size
-					return $img;
-					break;
-				default:
-					$newwidth = 1024;
-					$newheight = 768;
-			}
-			
-			show::Event("RESIZE", "Adjusting Heatmap to current setting: " . OUTPUT_SIZE, 2);
+        show::Event("HUD", "Done...", 2);
+        return $img;
+    }
+    
+    private static function resize ($img) {
+        switch (OUTPUT_SIZE) {
+	case "small":
+	    $newwidth = 800;
+	    $newheight = 600;
+	    break;
+	case "medium":
+	    $newwidth = 1024;
+	    $newheight = 768;
+	    break;
+	case "large":
+	    $newwidth = 1280;
+	    $newheight = 1024;
+	    // As for now we don't do anything since this is default size
+	    return $img;
+	    break;
+	default:
+	    $newwidth = 1024;
+	    $newheight = 768;
+        }
+        
+        show::Event("RESIZE", "Adjusting Heatmap to current setting: " . OUTPUT_SIZE, 2);
 
-			$resized = imagecreatetruecolor($newwidth, $newheight);
-			imagecopyresized($resized, $img, 0, 0, 0, 0, $newwidth, $newheight, imagesx($img), imagesy($img));
+        $resized = imagecreatetruecolor($newwidth, $newheight);
+        imagecopyresized($resized, $img, 0, 0, 0, 0, $newwidth, $newheight, imagesx($img), imagesy($img));
 
-			imagedestroy($img);
+        imagedestroy($img);
 
-			show::Event("RESIZE", "Done...", 2);
-			return $resized;
-		}		
+        show::Event("RESIZE", "Done...", 2);
+        return $resized;
+    }		
 
-		private static function arguments($argv) {
-			$_ARG = array();
-			foreach ($argv as $arg) {
-				if (preg_match('/\-\-[a-zA-Z0-9]*=.*/', $arg)) {
-					$str = explode('=', $arg);
-					$arg = '';
-					$key = preg_replace('/\-\-/', '', $str[0]);
-					for ( $i = 1; $i < count($str); $i++ ) {
-						$arg .= $str[$i];
-					}
-					$_ARG[$key] = $arg;
-				} elseif(preg_match('/\-[a-zA-Z0-9]/', $arg)) {
-					$arg = preg_replace('/\-/', '', $arg);
-					$_ARG[$arg] = 'true';
-				}
-			}
-			return $_ARG;
-		}
-		
-		public static function parseArguments($argv) {
-			$mapinfo = Env::get('mapinfo');
-			$cache = false;
-			$args = self::arguments($argv);
-			
-			if (isset($args['game'])) {
-				if (!isset($mapinfo[$args['game']])) {
-					show::Event("ERROR", "Game: " . $args['game'] . " doesn't exists, escaping", 1);
-					exit;
-				}
-				
-				if (isset($args['map'])) {
-					if (!isset($mapinfo[$args['game']][$args['map']])) {
-						show::Event("ERROR", "Game: " . $args['game'] . " Map: " . $args['map'] . " doesn't exists, escaping", 1);
-						exit;
-					}
-					
-					$tmp[$args['game']][$args['map']] = $mapinfo[$args['game']][$args['map']];
-					show::Event("ARGS", "--game=" . $args['game'], 2);
-					show::Event("ARGS", "--map=" . $args['map'], 2);
-				} else {
-					$tmp[$args['game']] = $mapinfo[$args['game']];
-					show::Event("ARGS", "--game=" . $args['game'], 2);
-				}
-			} else {
-				$visible = '';
-				$query = "SELECT code FROM hlstats_Games WHERE hidden='0'";
-				$result = DB::doQuery($query);
-				if (DB::numRows($result)) {
-					while ($row = DB::getAssoc($result)) {
-						foreach ($row as $key => $val) {
-							if (isset($mapinfo[$val])) {
-								$visible .= "$val, ";	
-								$tmp[$val] = $mapinfo[$val];
-							}
-						}
-					}
-				}
-				show::Event("GAMES", substr($visible, 0, -2), 2);
-			}
-			
-			if (isset($tmp)) { 
-				$mapinfo = $tmp; 
-			}
+    private static function arguments($argv) {
+        $_ARG = array();
+        foreach ($argv as $arg) {
+	if (preg_match('/\-\-[a-zA-Z0-9]*=.*/', $arg)) {
+	    $str = explode('=', $arg);
+	    $arg = '';
+	    $key = preg_replace('/\-\-/', '', $str[0]);
+	    for ( $i = 1; $i < count($str); $i++ ) {
+	    $arg .= $str[$i];
+	    }
+	    $_ARG[$key] = $arg;
+	} elseif(preg_match('/\-[a-zA-Z0-9]/', $arg)) {
+	    $arg = preg_replace('/\-/', '', $arg);
+	    $_ARG[$arg] = 'true';
+	}
+        }
+        return $_ARG;
+    }
+    
+    public static function parseArguments($argv) {
+        $mapinfo = Env::get('mapinfo');
+        $cache = false;
+        $args = self::arguments($argv);
+        $tmp = array(); // Initialize temp array
 
-			if (isset($args['disablecache'])) {
-				$cache = true;
-				show::Event("ARGS", "--disable-cache=true", 2);
-			} else {
-				$cache = false;
-				show::Event("ARGS", "--disable-cache=false", 2);
-			}
-			
-			if (isset($args['ignoreinfected'])) {
-				$ignore_infected = true;
-				show::Event("ARGS", "--ignore-infected=true", 2);
-			} else {
-				$ignore_infected = false;
-				show::Event("ARGS", "--ignore-infected=false", 2);
-			}
+        if (isset($args['game'])) {
+	if (!isset($mapinfo[$args['game']])) {
+	    show::Event("ERROR", "Game: " . $args['game'] . " doesn't exists, escaping", 1);
+	    exit;
+	}
+	
+	if (isset($args['map'])) {
+	    if (!isset($mapinfo[$args['game']][$args['map']])) {
+	    show::Event("ERROR", "Game: " . $args['game'] . " Map: " . $args['map'] . " doesn't exists, escaping", 1);
+	    exit;
+	    }
+	    
+	    $tmp[$args['game']][$args['map']] = $mapinfo[$args['game']][$args['map']];
+	    show::Event("ARGS", "--game=" . $args['game'], 2);
+	    show::Event("ARGS", "--map=" . $args['map'], 2);
+	} else {
+	    $tmp[$args['game']] = $mapinfo[$args['game']];
+	    show::Event("ARGS", "--game=" . $args['game'], 2);
+	}
+        } else {
+	$visible = '';
+	$query = "SELECT code FROM hlstats_Games WHERE hidden='0'";
+	$result = DB::doQuery($query);
+	if ($result && DB::numRows($result)) { // Check $result validity
+	    while ($row = DB::getAssoc($result)) {
+	    foreach ($row as $key => $val) {
+	        if (isset($mapinfo[$val])) {
+		$visible .= "$val, ";	
+		$tmp[$val] = $mapinfo[$val];
+	        }
+	    }
+	    }
+	}
+	show::Event("GAMES", substr($visible, 0, -2), 2);
+        }
+        
+        if (!empty($tmp)) { 
+	$mapinfo = $tmp; 
+        }
 
-			Env::set('mapinfo', $mapinfo);
-			Env::set('disable_cache', $cache);
-			Env::set('ignore_infected', $ignore_infected);
-		}
+        if (isset($args['disablecache'])) {
+	$cache = true;
+	show::Event("ARGS", "--disable-cache=true", 2);
+        } else {
+	$cache = false;
+	show::Event("ARGS", "--disable-cache=false", 2);
+        }
+        
+        if (isset($args['ignoreinfected'])) {
+	$ignore_infected = true;
+	show::Event("ARGS", "--ignore-infected=true", 2);
+        } else {
+	$ignore_infected = false;
+	show::Event("ARGS", "--ignore-infected=false", 2);
+        }
+
+        Env::set('mapinfo', $mapinfo);
+        Env::set('disable_cache', $cache);
+        Env::set('ignore_infected', $ignore_infected);
+    }
 
 // End of Heat Class
 }
 
 class DB {
-	static $connect;
-	public static function connect () {
-		self::$connect = mysqli_connect(DB_HOST, DB_USER, DB_PASS);
-		mysqli_select_db(self::$connect, DB_NAME);
+    public static $connect; // PHP 8 requires explicit public declaration
+    public static function connect () {
+    self::$connect = mysqli_connect(DB_HOST, DB_USER, DB_PASS);
+    mysqli_select_db(self::$connect, DB_NAME);
 
-		show::Event("DB", "Connected to " . DB_NAME . " as " . DB_USER . "@" . DB_HOST, 1);
-	}
+    show::Event("DB", "Connected to " . DB_NAME . " as " . DB_USER . "@" . DB_HOST, 1);
+    }
 
-	public static function doQuery ($query) {
-		return mysqli_query(self::$connect, $query);
-	}
+    // Security Feature: Escape string wrapper
+    public static function escape($str) {
+        return mysqli_real_escape_string(self::$connect, $str);
+    }
 
-	public static function getAssoc ($result) {
-		return mysqli_fetch_assoc($result);
-	}
+    public static function doQuery ($query) {
+    return mysqli_query(self::$connect, $query);
+    }
 
-	public static function numRows ($result) {
-		return mysqli_num_rows($result);
-	}
+    public static function getAssoc ($result) {
+    if ($result instanceof mysqli_result) { // PHP 8 Guard
+        return mysqli_fetch_assoc($result);
+    }
+    return false;
+    }
+
+    public static function numRows ($result) {
+    if ($result instanceof mysqli_result) { // PHP 8 Guard
+        return mysqli_num_rows($result);
+    }
+    return 0;
+    }
 }
 
 class show {
-	public static function Event ($type, $text, $runlevel) {
-		if ($runlevel <= DEBUG) {	
-			print date("Y-m-d H:i:s") . "\t\t$type: $text\n";
-		}     
-	}
+    public static function Event ($type, $text, $runlevel) {
+    if ($runlevel <= DEBUG) {	
+        print date("Y-m-d H:i:s") . "\t\t$type: $text\n";
+    }     
+    }
 }
 
 ?>

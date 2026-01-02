@@ -1,13 +1,24 @@
 <?php
 function iniSet($name, $default) {
-	$value = getenv($name) ? getenv($name) : $default;
-	ini_set($name, $value);
+    // PHP 8 Fix: Check strictly for false to allow '0' values
+    $env = getenv($name);
+    $value = ($env !== false) ? $env : $default;
+    ini_set($name, (string)$value);
 }
+
 function defineVar($name, $default) {
-	$value = getenv($name) ? getenv($name) : $default;
-	$value = gettype($default) == 'boolean' && $value == 'false' ? false : $value; // Fix string 'false' becoming true for boolean when using settype
-	settype($value, gettype($default));
-	define($name, $value);
+    // PHP 8 Fix: Check strictly for false to allow '0' values from env
+    $env = getenv($name);
+    $value = ($env !== false) ? $env : $default;
+    
+    // Fix string 'false' becoming true for boolean when using settype
+    // PHP 8 Safe comparison
+    if (gettype($default) === 'boolean' && is_string($value) && strtolower($value) === 'false') {
+	$value = false;
+    }
+    
+    settype($value, gettype($default));
+    define($name, $value);
 }
 
 error_reporting(E_ALL);
@@ -28,4 +39,4 @@ defineVar('DEBUG', 1);
 
 // No need to change this unless you are on really low disk.
 defineVar('CACHE_DIR',	dirname(__FILE__) . '/cache');
-
+"

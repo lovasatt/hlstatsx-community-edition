@@ -40,47 +40,53 @@ For support and installation notes visit http://www.hlxcommunity.com
         die('Do not access this file directly.');
     }
 
-    if ($auth->userdata['acclevel'] < 80) {
+    global $db, $auth, $gamecode;
+
+    // PHP 8 Fix: Null coalescing check
+    if (($auth->userdata['acclevel'] ?? 0) < 80) {
         die ('Access denied!');
     }
-	
-	$edlist = new EditList('awardId', 'hlstats_Awards', 'award', false);
-	$edlist->columns[] = new EditListColumn('game', 'Game', 0, true, 'hidden', $gamecode);
-	$edlist->columns[] = new EditListColumn('awardType', 'Type', 0, true, 'hidden', 'V');
-	$edlist->columns[] = new EditListColumn('code', 'Action', 0, true, 'select', "hlstats_Actions.description/code/game='$gamecode' AND for_PlayerPlayerActions='1'");
-	$edlist->columns[] = new EditListColumn('name', 'Award Name', 20, true, 'text', '', 128);
-	$edlist->columns[] = new EditListColumn('verb', 'Verb Plural', 20, true, 'text', '', 64);
-	
-	
-	if ($_POST)
-	{
-		if ($edlist->update())
-			message('success', 'Operation successful.');
-		else
-			message('warning', $edlist->error());
-	}
-	
-	
-	$result = $db->query("
-		SELECT
-			awardId,
-			code,
-			name,
-			verb
-		FROM
-			hlstats_Awards
-		WHERE
-			game='$gamecode'
-			AND awardType='V'
-		ORDER BY
-			code ASC
-	");
-	
-	$edlist->draw($result);
+    
+    // Security: Escape gamecode for SQL usage
+    $gamecode_esc = $db->escape($gamecode);
+
+    $edlist = new EditList('awardId', 'hlstats_Awards', 'award', false);
+    $edlist->columns[] = new EditListColumn('game', 'Game', 0, true, 'hidden', $gamecode);
+    $edlist->columns[] = new EditListColumn('awardType', 'Type', 0, true, 'hidden', 'V');
+    $edlist->columns[] = new EditListColumn('code', 'Action', 0, true, 'select', "hlstats_Actions.description/code/game='$gamecode_esc' AND for_PlayerPlayerActions='1'");
+    $edlist->columns[] = new EditListColumn('name', 'Award Name', 20, true, 'text', '', 128);
+    $edlist->columns[] = new EditListColumn('verb', 'Verb Plural', 20, true, 'text', '', 64);
+    
+    
+    if ($_POST)
+    {
+	if ($edlist->update())
+	    message('success', 'Operation successful.');
+	else
+	    message('warning', $edlist->error());
+    }
+    
+    
+    $result = $db->query("
+	SELECT
+	    awardId,
+	    code,
+	    name,
+	    verb
+	FROM
+	    hlstats_Awards
+	WHERE
+	    game='$gamecode_esc'
+	    AND awardType='V'
+	ORDER BY
+	    code ASC
+    ");
+    
+    $edlist->draw($result);
 ?>
 
-<table width="75%" border=0 cellspacing=0 cellpadding=0>
+<table width="75%" border="0" cellspacing="0" cellpadding="0">
 <tr>
-	<td align="center"><input type="submit" value="  Apply  " class="submit"></td>
+    <td align="center"><input type="submit" value="  Apply  " class="submit"></td>
 </tr>
 </table>

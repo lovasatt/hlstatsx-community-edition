@@ -40,129 +40,143 @@ For support and installation notes visit http://www.hlxcommunity.com
         die('Do not access this file directly.');
     }
 
-	flush();
-	$tblMaps = new Table(
-		array
-		(
-			new TableColumn
-			(
-				'map',
-				'Map',
-				'width=22&align=left&link=' . urlencode("mode=mapinfo&amp;map=%k&amp;game=$game")
-			),
-			new TableColumn
-			(
-				'kills',
-				'Kills',
-				'width=7&align=right'
-			),
-			new TableColumn
-			(
-				'kpercent',
-				'%',
-				'width=6&sort=no&align=right&append=' . urlencode('%')
-			),
-			new TableColumn
-			(
-				'kpercent',
-				'Ratio',
-				'width=8&sort=no&type=bargraph'
-			),
-			new TableColumn
-			(
-				'deaths',
-				'Deaths',
-				'width=7&align=right'
-			),
-			new TableColumn
-			(
-				'dpercent',
-				'%',
-				'width=6&sort=no&align=right&append=' . urlencode('%')
-			),
-			new TableColumn
-			(
-				'dpercent',
-				'Ratio',
-				'width=8&sort=no&type=bargraph'
-			),
-			new TableColumn
-			(
-				'kpd',
-				'K:D',
-				'width=5&align=right'
-			),
-			new TableColumn
-			(
-				'headshots',
-				'Headshots',
-				'width=7&align=right'
-			),
-			new TableColumn
-			(
-				'hpercent',
-				'%',
-				'width=6&sort=no&align=right&append=' . urlencode('%')
-			),
-			new TableColumn
-			(
-				'hpercent',
-				'Ratio',
-				'width=8&sort=no&type=bargraph'
-			),
-			new TableColumn
-			(
-				'hpk',
-				'HS:K',
-				'width=5&align=right'
-			)
-		),
+    // Initialize variables to prevent undefined variable warnings
+    $player = isset($player) ? (int)$player : 0;
+    $game = isset($game) ? $game : '';
+    $game_url = urlencode($game); // Safe for URL
+
+    $realkills = isset($realkills) ? (int)$realkills : 0;
+    $realdeaths = isset($realdeaths) ? (int)$realdeaths : 0;
+    $realheadshots = isset($realheadshots) ? (int)$realheadshots : 0;
+
+    // Prevent division by zero in SQL calculation
+    $div_realkills = ($realkills > 0) ? $realkills : 1;
+    $div_realdeaths = ($realdeaths > 0) ? $realdeaths : 1;
+    $div_realheadshots = ($realheadshots > 0) ? $realheadshots : 1;
+
+    flush();
+    $tblMaps = new Table(
+	array
+	(
+	    new TableColumn
+	    (
 		'map',
-		'kpd',
+		'Map',
+		'width=22&align=left&link=' . urlencode("mode=mapinfo&amp;map=%k&amp;game=$game_url")
+	    ),
+	    new TableColumn
+	    (
 		'kills',
-		true,
-		9999,
-		'maps_page',
-		'maps_sort',
-		'maps_sortorder',
-		'tabmaps',
-		'desc',
-		true
-	);
-	$result = $db->query
-	("
-		SELECT
-			IF(hlstats_Events_Frags.map='', '(Unaccounted)', hlstats_Events_Frags.map) AS map,
-			SUM(hlstats_Events_Frags.killerId = $player) AS kills,
-			SUM(hlstats_Events_Frags.victimId = $player) AS deaths,
-			IFNULL(ROUND(SUM(hlstats_Events_Frags.killerId = $player) / IF(SUM(hlstats_Events_Frags.victimId = $player) = 0, 1, SUM(hlstats_Events_Frags.victimId = $player)), 2), '-') AS kpd,
-			ROUND(CONCAT(SUM(hlstats_Events_Frags.killerId = $player)) / $realkills * 100, 2) AS kpercent,
-			ROUND(CONCAT(SUM(hlstats_Events_Frags.victimId = $player)) / $realdeaths * 100, 2) AS dpercent,
-			SUM(hlstats_Events_Frags.killerId = $player AND hlstats_Events_Frags.headshot = 1) AS headshots,
-			IFNULL(ROUND(SUM(hlstats_Events_Frags.killerId = $player AND hlstats_Events_Frags.headshot = 1) / SUM(hlstats_Events_Frags.killerId = $player), 2),'-') AS hpk,
-			ROUND(CONCAT(SUM(hlstats_Events_Frags.killerId = $player AND hlstats_Events_Frags.headshot = 1)) / $realheadshots * 100, 2) AS hpercent
-		FROM
-			hlstats_Events_Frags
-		WHERE
-			hlstats_Events_Frags.killerId = '$player'
-			OR hlstats_Events_Frags.victimId = '$player'
-		GROUP BY
-			hlstats_Events_Frags.map
-		ORDER BY
-			$tblMaps->sort $tblMaps->sortorder,
-			$tblMaps->sort2 $tblMaps->sortorder
-	");
-	$numitems = $db->num_rows($result);
-	if ($numitems > 0)
-	{
+		'Kills',
+		'width=7&align=right'
+	    ),
+	    new TableColumn
+	    (
+		'kpercent',
+		'%',
+		'width=6&sort=no&align=right&append=' . urlencode('%')
+	    ),
+	    new TableColumn
+	    (
+		'kpercent',
+		'Ratio',
+		'width=8&sort=no&type=bargraph'
+	    ),
+	    new TableColumn
+	    (
+		'deaths',
+		'Deaths',
+		'width=7&align=right'
+	    ),
+	    new TableColumn
+	    (
+		'dpercent',
+		'%',
+		'width=6&sort=no&align=right&append=' . urlencode('%')
+	    ),
+	    new TableColumn
+	    (
+		'dpercent',
+		'Ratio',
+		'width=8&sort=no&type=bargraph'
+	    ),
+	    new TableColumn
+	    (
+		'kpd',
+		'K:D',
+		'width=5&align=right'
+	    ),
+	    new TableColumn
+	    (
+		'headshots',
+		'Headshots',
+		'width=7&align=right'
+	    ),
+	    new TableColumn
+	    (
+		'hpercent',
+		'%',
+		'width=6&sort=no&align=right&append=' . urlencode('%')
+	    ),
+	    new TableColumn
+	    (
+		'hpercent',
+		'Ratio',
+		'width=8&sort=no&type=bargraph'
+	    ),
+	    new TableColumn
+	    (
+		'hpk',
+		'HS:K',
+		'width=5&align=right'
+	    )
+	),
+	'map',
+	'kpd',
+	'kills',
+	true,
+	9999,
+	'maps_page',
+	'maps_sort',
+	'maps_sortorder',
+	'tabmaps',
+	'desc',
+	true
+    );
+    $result = $db->query
+    ("
+	SELECT
+	    IF(hlstats_Events_Frags.map='', '(Unaccounted)', hlstats_Events_Frags.map) AS map,
+	    SUM(hlstats_Events_Frags.killerId = $player) AS kills,
+	    SUM(hlstats_Events_Frags.victimId = $player) AS deaths,
+	    IFNULL(ROUND(SUM(hlstats_Events_Frags.killerId = $player) / IF(SUM(hlstats_Events_Frags.victimId = $player) = 0, 1, SUM(hlstats_Events_Frags.victimId = $player)), 2), '-') AS kpd,
+	    ROUND(SUM(hlstats_Events_Frags.killerId = $player) / $div_realkills * 100, 2) AS kpercent,
+	    ROUND(SUM(hlstats_Events_Frags.victimId = $player) / $div_realdeaths * 100, 2) AS dpercent,
+	    SUM(hlstats_Events_Frags.killerId = $player AND hlstats_Events_Frags.headshot = 1) AS headshots,
+	    IFNULL(ROUND(SUM(hlstats_Events_Frags.killerId = $player AND hlstats_Events_Frags.headshot = 1) / SUM(hlstats_Events_Frags.killerId = $player), 2),'-') AS hpk,
+	    ROUND(SUM(hlstats_Events_Frags.killerId = $player AND hlstats_Events_Frags.headshot = 1) / $div_realheadshots * 100, 2) AS hpercent
+	FROM
+	    hlstats_Events_Frags
+	WHERE
+	    hlstats_Events_Frags.killerId = '$player'
+	    OR hlstats_Events_Frags.victimId = '$player'
+	GROUP BY
+	    hlstats_Events_Frags.map
+	ORDER BY
+	    $tblMaps->sort $tblMaps->sortorder,
+	    $tblMaps->sort2 $tblMaps->sortorder
+    ");
+    $numitems = $db->num_rows($result);
+    if ($numitems > 0)
+    {
 ?>
 <div style="clear:both;padding-top:20px;"></div>
 <?php
-		printSectionTitle('Map Performance *');
-		$tblMaps->draw($result, $numitems, 95);
+	printSectionTitle('Map Performance *');
+	$tblMaps->draw($result, $numitems, 95);
 ?>
 <br /><br />
 
 <?php
-	}
+    }
 ?>

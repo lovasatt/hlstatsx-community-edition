@@ -40,13 +40,17 @@ For support and installation notes visit http://www.hlxcommunity.com
         die('Do not access this file directly.');
     }
 
-	if ($auth->userdata['acclevel'] < 80) {
-		die ('Access denied!');
+    global $db, $auth, $g_options;
+
+    // PHP 8 Fix: Null coalescing check
+    if (($auth->userdata['acclevel'] ?? 0) < 80) {
+	die ('Access denied!');
     }
 
     function setdefaults($key)
     {
         global $db;
+        $key = (int)$key; // Ensure integer
         // get default values
         $db->query("DELETE FROM hlstats_Servers_Config WHERE serverId=$key;");
         $db->query("INSERT INTO hlstats_Servers_Config (serverId, parameter, value) SELECT $key,parameter,value FROM hlstats_Servers_Config_Default");
@@ -54,37 +58,29 @@ For support and installation notes visit http://www.hlxcommunity.com
         $db->query("SELECT CONCAT(address, ':', port) AS addr FROM hlstats_Servers WHERE serverId=$key;");
         $r = $db->fetch_array();
     }
-	
-	if (isset($_GET['key'])) {
-		$key = valid_request(intval($_GET['key']),true);
-	} else {
-		if (isset($_POST['key'])) {
-			$key = valid_request(intval($_POST['key']),true);
-		} else {
-			$key = 0;
-		}
-	}
-	
-	if ($key==0)
-		die('Server ID not set!');
-	
-	if (isset($_POST['sourceId'])) {
-		$sourceId = valid_request(intval($_POST['sourceId']),true);
-	} else {
-		$sourceId = 0;
-	}
-	
+    
+    // PHP 8 Fix: Simplified input handling
+    $key_input = $_GET['key'] ?? ($_POST['key'] ?? 0);
+    $key = valid_request((int)$key_input, true);
+    
+    if ($key == 0) {
+	die('Server ID not set!');
+    }
+    
+    $sourceId_input = $_POST['sourceId'] ?? 0;
+    $sourceId = valid_request((int)$sourceId_input, true);
+    
 ?>
-	
-	<table id="startsettings" width="60%" align="center" border=0 cellspacing=0 cellpadding=0 class="border">
+    
+    <table id="startsettings" width="60%" align="center" border="0" cellspacing="0" cellpadding="0" class="border">
 <tr>
     <td>
-        <table width="100%" border=0 cellspacing=1 cellpadding=10>
+        <table width="100%" border="0" cellspacing="1" cellpadding="10">
         
         <tr bgcolor="#FF0000">
             <td class="fNormal" style="color: #FFF; font-weight: bold; font-size: medium;" align="center">
-				Note: For changes on this page to take effect, you <strong>must</strong> <a href="<?php echo $g_options['scripturl'] . "?mode=admin&amp;task=tools_perlcontrol"; ?>">reload</a> or restart the HLX:CE daemon.
-			</td>
+		Note: For changes on this page to take effect, you <strong>must</strong> <a href="<?php echo htmlspecialchars($g_options['scripturl']) . "?mode=admin&amp;task=tools_perlcontrol"; ?>">reload</a> or restart the HLX:CE daemon.
+	    </td>
         </tr>
         
         </table></td>
@@ -92,90 +88,96 @@ For support and installation notes visit http://www.hlxcommunity.com
 </table>
 <br>
 <?php
-	// get available help texts
-	$db->query("SELECT parameter,description FROM hlstats_Servers_Config_Default");
-	$helptexts = array();
-	while ($r = $db->fetch_array())
-		$helptexts[strtolower($r['parameter'])] = $r['description'];
-	
-	$edlist = new EditList('serverConfigId', 'hlstats_Servers_Config','', false);
-	
-	$footerscript = $edlist->setHelp('helpdiv','parameter',$helptexts);
+    // get available help texts
+    $db->query("SELECT parameter,description FROM hlstats_Servers_Config_Default");
+    $helptexts = array();
+    while ($r = $db->fetch_array()) {
+        // PHP 8 Fix: Cast to string for strtolower
+	$helptexts[strtolower((string)$r['parameter'])] = $r['description'];
+    }
+    
+    $edlist = new EditList('serverConfigId', 'hlstats_Servers_Config','', false);
+    
+    $footerscript = $edlist->setHelp('helpdiv','parameter',$helptexts);
 
-	$edlist->columns[] = new EditListColumn('serverId', 'Server ID', 0, true, 'hidden', $key);
-	$edlist->columns[] = new EditListColumn('parameter', 'Server parameter name', 30, true, 'readonly', '', 50);
-	$edlist->columns[] = new EditListColumn('value', 'Parameter value', 60, false, 'text', '', 128);
-	
-	if ($_POST)
-	if ($_POST['setdefaults']=='defaults') {
-		setdefaults($key);
-	} else 
-		if ($_POST['sourceId']!='0') {
-			// copy server settings from another server
-			$db->query("DELETE FROM hlstats_Servers_Config WHERE serverId=$key");
-			$db->query("INSERT INTO hlstats_Servers_Config (serverId, parameter, value) SELECT $key,parameter,value FROM hlstats_Servers_Config WHERE serverId=$sourceId");
-			// get server ip and port
-			$db->query("SELECT CONCAT(address, ':', port) AS addr FROM hlstats_Servers WHERE serverId=$key;");
-			$r = $db->fetch_array();
-		} else {
-			if ($edlist->update())
-				message('success', 'Operation successful.');
-			else
-				message('warning', $edlist->error());
-		}
-	
+    $edlist->columns[] = new EditListColumn('serverId', 'Server ID', 0, true, 'hidden', $key);
+    $edlist->columns[] = new EditListColumn('parameter', 'Server parameter name', 30, true, 'readonly', '', 50);
+    $edlist->columns[] = new EditListColumn('value', 'Parameter value', 60, false, 'text', '', 128);
+    
+    if (!empty($_POST)) {
+        // PHP 8 Fix: Check isset before comparison
+	if (isset($_POST['setdefaults']) && $_POST['setdefaults'] == 'defaults') {
+	    setdefaults($key);
+	} else {
+	    if ($sourceId != 0) {
+		// copy server settings from another server
+		$db->query("DELETE FROM hlstats_Servers_Config WHERE serverId=$key");
+		$db->query("INSERT INTO hlstats_Servers_Config (serverId, parameter, value) SELECT $key,parameter,value FROM hlstats_Servers_Config WHERE serverId=$sourceId");
+		// get server ip and port
+		$db->query("SELECT CONCAT(address, ':', port) AS addr FROM hlstats_Servers WHERE serverId=$key;");
+		$r = $db->fetch_array();
+	    } else {
+		if ($edlist->update())
+		    message('success', 'Operation successful.');
+		else
+		    message('warning', $edlist->error());
+	    }
+        }
+    }
+    
 ?>
 These are the actual server parameters used by the hlstats.pl script.<br>
 
 <?php
 
+    $result = $db->query("
+	SELECT
+	    *
+	FROM
+	    hlstats_Servers_Config
+	WHERE
+	    serverId=$key
+	ORDER BY
+	    parameter ASC
+    ");
+    if ($db->num_rows($result) == 0) {
+	setdefaults($key);
 	$result = $db->query("
-		SELECT
-			*
-		FROM
-			hlstats_Servers_Config
-		WHERE
-			serverId=$key
-		ORDER BY
-			parameter ASC
+	    SELECT
+		*
+	    FROM
+		hlstats_Servers_Config
+	    WHERE
+		serverId=$key
+	    ORDER BY
+		parameter ASC
 	");
-	if ($db->num_rows($result) == 0) {
-		setdefaults($key);
-		$result = $db->query("
-			SELECT
-				*
-			FROM
-				hlstats_Servers_Config
-			WHERE
-				serverId=$key
-			ORDER BY
-				parameter ASC
-		");
-	}
-	
-	$edlist->draw($result);
+    }
+    
+    $edlist->draw($result);
 
-	// get all other server id's
-	$sourceIds = '';
-	$db->query("SELECT CONCAT(name,' (',address,':',port,')') AS name, serverId FROM hlstats_Servers WHERE serverId<>$key ORDER BY name, address, port");
-	while ($r = $db->fetch_array())
-		$sourceIds .= '<OPTION VALUE="'.$r['serverId'].'">'.$r['name'];
+    // get all other server id's
+    $sourceIds = '';
+    $db->query("SELECT CONCAT(name,' (',address,':',port,')') AS name, serverId FROM hlstats_Servers WHERE serverId<>$key ORDER BY name, address, port");
+    while ($r = $db->fetch_array()) {
+        // PHP 8 Fix: Escape output
+	$sourceIds .= '<OPTION VALUE="' . $r['serverId'] . '">' . htmlspecialchars($r['name']);
+    }
    
 ?>
 
 <INPUT TYPE="hidden" NAME="key" VALUE="<?php echo $key ?>">
 
-<table width="75%" border=0 cellspacing=0 cellpadding=0>
+<table width="75%" border="0" cellspacing="0" cellpadding="0">
 <tr>
-	<td align="center">
-	<INPUT TYPE="checkbox" NAME="setdefaults" VALUE="defaults"> Reset all settings to default!<br>
-	Set all options like existing server configuration: 
+    <td align="center">
+    <INPUT TYPE="checkbox" NAME="setdefaults" VALUE="defaults"> Reset all settings to default!<br>
+    Set all options like existing server configuration: 
   <SELECT NAME="sourceId">
-	 <OPTION VALUE="0">Select a server
-	 <?php echo $sourceIds; ?>
-	</SELECT><br> 
-	 
+     <OPTION VALUE="0">Select a server
+     <?php echo $sourceIds; ?>
+    </SELECT><br> 
+     
   <input type="submit" value="  Apply  " class="submit"></td>
 </tr>
 </table>
-

@@ -40,22 +40,25 @@ For support and installation notes visit http://www.hlxcommunity.com
         die('Do not access this file directly.');
     }
 
-	if ($auth->userdata["acclevel"] < 100) {
+    global $db, $auth;
+
+    // PHP 8 Fix: Null coalescing check
+    if (($auth->userdata["acclevel"] ?? 0) < 100) {
         die ("Access denied!");
-	}
-	
-	$edlist = new EditList("id", "hlstats_HostGroups", "server", false);
-	$edlist->columns[] = new EditListColumn("pattern", "Host Pattern", 30, true, "text", "", 128);
-	$edlist->columns[] = new EditListColumn("name", "Group Name", 30, true, "text", "", 128);
-	
-	if ($_POST)
-	{
-		if ($edlist->update())
-			message("success", "Operation successful.");
-		else
-			message("warning", $edlist->error());
-	}
-	
+    }
+    
+    $edlist = new EditList("id", "hlstats_HostGroups", "server", false);
+    $edlist->columns[] = new EditListColumn("pattern", "Host Pattern", 30, true, "text", "", 128);
+    $edlist->columns[] = new EditListColumn("name", "Group Name", 30, true, "text", "", 128);
+    
+    if (!empty($_POST))
+    {
+	if ($edlist->update())
+	    message("success", "Operation successful.");
+	else
+	    message("warning", $edlist->error());
+    }
+    
 ?>
 Host Groups allow you to group, for example, all players from "...adsl.someisp.net" as "SomeISP ADSL", in the Host Statistics admin tool.<p>
 
@@ -65,24 +68,23 @@ The patterns are sorted below in the order they will be applied. A more specific
 
 <b>Note</b> Run <b>hlstats-resolve.pl --regroup</b> to apply grouping changes to existing data.<p>
 <?php $result = $db->query("
-		SELECT
-			id,
-			pattern,
-			name,
-			LENGTH(pattern) AS patternlength
-		FROM
-			hlstats_HostGroups
-		ORDER BY
-			patternlength DESC,
-			pattern ASC
-	");
-	
-	$edlist->draw($result);
+	SELECT
+	    id,
+	    pattern,
+	    name,
+	    LENGTH(pattern) AS patternlength
+	FROM
+	    hlstats_HostGroups
+	ORDER BY
+	    patternlength DESC,
+	    pattern ASC
+    ");
+    
+    $edlist->draw($result);
 ?>
 
-<table width="75%" border=0 cellspacing=0 cellpadding=0>
+<table width="75%" border="0" cellspacing="0" cellpadding="0">
 <tr>
-	<td align="center"><input type="submit" value="  Apply  " class="submit"></td>
+    <td align="center"><input type="submit" value="  Apply  " class="submit"></td>
 </tr>
 </table>
-

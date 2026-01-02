@@ -39,42 +39,46 @@ For support and installation notes visit http://www.hlxcommunity.com
 define('IN_HLSTATS', true);
 
 foreach ($_SERVER as $key => $entry) {
-	if ($key !== 'HTTP_COOKIE') {
-		$search_pattern  = array('/<script>/', '/<\/script>/', '/[^A-Za-z0-9.\-\/=:;_?#&~]/');
-		$replace_pattern = array('', '', '');
-		$entry = preg_replace($search_pattern, $replace_pattern, $entry);
+    // PHP 8 Fix: Ensure entry is string
+    if ($key !== 'HTTP_COOKIE' && is_string($entry)) {
+	$search_pattern  = array('/<script>/', '/<\/script>/', '/[^A-Za-z0-9.\-\/=:;_?#&~]/');
+	$replace_pattern = array('', '', '');
+	$entry = preg_replace($search_pattern, $replace_pattern, $entry);
 
-		if ($key == 'PHP_SELF') {
-			if ((strrchr($entry, '/') !== '/hlstats.php') &&
-				(strrchr($entry, '/') !== '/show_graph.php') &&
-				(strrchr($entry, '/') !== '/sig.php') &&
-				(strrchr($entry, '/') !== '/sig2.php') &&
-				(strrchr($entry, '/') !== '/index.php') &&
-				(strrchr($entry, '/') !== '/status.php') &&
-				(strrchr($entry, '/') !== '/top10.php') &&
-				(strrchr($entry, '/') !== '/config.php') &&
-				(strrchr($entry, '/') !== '/') &&
-				($entry !== '')) {
-				header('Location: http://'.$_SERVER['HTTP_HOST'].'/hlstats.php');    
-				exit;
-			} 
+	if ($key == 'PHP_SELF') {
+            $last_segment = strrchr($entry, '/');
+            if ($last_segment !== false) {
+		if (($last_segment !== '/hlstats.php') &&
+		    ($last_segment !== '/show_graph.php') &&
+		    ($last_segment !== '/sig.php') &&
+		    ($last_segment !== '/sig2.php') &&
+		    ($last_segment !== '/index.php') &&
+		    ($last_segment !== '/status.php') &&
+		    ($last_segment !== '/top10.php') &&
+		    ($last_segment !== '/config.php') &&
+		    ($last_segment !== '/') &&
+		    ($entry !== '')) {
+                    $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+		    header('Location: http://'.$host.'/hlstats.php');    
+		    exit;
 		}
-		$_SERVER[$key] = $entry;
+            }
 	}
+	$_SERVER[$key] = $entry;
+    }
 }
  
 require('config.php');
 header('Content-Type: text/html; charset=utf-8');
 
 // Check PHP configuration
-
 if (version_compare(phpversion(), "4.1.0", "<"))
 {
-	error("HLstats requires PHP version 4.1.0 or newer (you are running PHP version " . phpversion() . ").");
+    error("HLstats requires PHP version 4.1.0 or newer (you are running PHP version " . phpversion() . ").");
 }
 
 // do not report NOTICE warnings
-error_reporting(E_ALL ^ E_NOTICE);
+error_reporting(E_ALL ^ E_NOTICE ^ E_DEPRECATED);
 
 ///
 /// Classes
@@ -91,20 +95,21 @@ require(INCLUDE_PATH . "/functions.php");
 $db_classname = 'DB_' . DB_TYPE;
 if ( class_exists($db_classname) )
 {
-	$db = new $db_classname(DB_ADDR, DB_USER, DB_PASS, DB_NAME, DB_PCONNECT);
+    $db = new $db_classname(DB_ADDR, DB_USER, DB_PASS, DB_NAME, DB_PCONNECT);
 }
 else
 {
-	error('Database class does not exist.  Please check your config.php file for DB_TYPE');
+    error('Database class does not exist.  Please check your config.php file for DB_TYPE');
 }
 
 $g_options = getOptions();
 
 if (!isset($g_options['scripturl'])) {
-	$g_options['scripturl'] = isset($_SERVER['PHP_SELF']) ? $_SERVER['PHP_SELF'] : getenv('PHP_SELF');
+    $php_self = $_SERVER['PHP_SELF'] ?? '';
+    $g_options['scripturl'] = $php_self ?: getenv('PHP_SELF');
 }
 
-$g_options['scriptbase'] = str_replace('/status.php', '', $g_options['scripturl']);
+$g_options['scriptbase'] = str_replace('/status.php', '', (string)$g_options['scripturl']);
 
 ////
 //// Main Config
@@ -112,530 +117,548 @@ $g_options['scriptbase'] = str_replace('/status.php', '', $g_options['scripturl'
 
 $game = 'css';  
 if (isset($_GET['game']) && is_string($_GET['game'])) {
-	$game = valid_request($_GET['game'], false);
+    $game = valid_request((string)$_GET['game'], false);
 }
 
 $game_escaped = $db->escape($game);
 
-$server_id = '1';
+$server_id = 1;
 if (isset($_GET['server_id']) && is_numeric($_GET['server_id'])) {
-	$server_id = valid_request($_GET['server_id'], true);
+    $server_id = valid_request((int)$_GET['server_id'], true);
 }
 
-$width = '218';
+$width = 218;
 if (isset($_GET['width']) && is_numeric($_GET['width'])) {
-	$width = valid_request($_GET['width'], true);
+    $width = valid_request((int)$_GET['width'], true);
 }
 
 $body_color = 'ECF8FF';
-if (isset($_GET['body_color']) && is_string($_GET['body_color'])) {
-	$body_color = valid_request($_GET['body_color'], false);
+if (isset($_GET['body_color'])) {
+    $body_color = valid_request((string)$_GET['body_color'], false);
 }
 
 $background_color = 'ABCCD6';
 if (isset($_GET['bg_color'])) {
-	$background_color = valid_request($_GET['bg_color'], false);
+    $background_color = valid_request((string)$_GET['bg_color'], false);
 }
 
 $color = '000000';
-if (isset($_GET['color']) && is_string($_GET['color'])) {
-	$color = valid_request($_GET['color'], false);
+if (isset($_GET['color'])) {
+    $color = valid_request((string)$_GET['color'], false);
 }
 
-$border_width = '1';
+$border_width = 1;
 if (isset($_GET['border_width'])) {
-	$border_width = valid_request($_GET['border_width'], true);
+    $border_width = valid_request((int)$_GET['border_width'], true);
 }
 
 $border_color = 'ABCCD6';
 if (isset($_GET['border_color'])) {
-	$border_color = valid_request($_GET['border_color'], false);
+    $border_color = valid_request((string)$_GET['border_color'], false);
 }
 
 $show_logo = '1';
-if (isset($_GET['show_logo']) && is_string($_GET['show_logo'])) {
-	$show_logo = valid_request($_GET['show_logo'], true);
+if (isset($_GET['show_logo'])) {
+    $show_logo = valid_request((string)$_GET['show_logo'], true);
 }
 
-$small_fonts = '1';
-if (isset($_GET['small_fonts']) && is_numeric($_GET['small_fonts'])) {
-	$small_fonts = valid_request($_GET['small_fonts'], true);
+$small_fonts = 1;
+if (isset($_GET['small_fonts'])) {
+    $small_fonts = valid_request((int)$_GET['small_fonts'], true);
 }
 
 $server_name = '1';
-if (isset($_GET['server_name']) && is_string($_GET['server_name'])) {
-	$server_name = valid_request($_GET['server_name'], true);
+if (isset($_GET['server_name'])) {
+    $server_name = valid_request((string)$_GET['server_name'], true);
 }
 
 $server_url = '1';
-if (isset($_GET['server_url']) && is_string($_GET['server_url'])) {
-	$server_url = valid_request($_GET['server_url'], true);
+if (isset($_GET['server_url'])) {
+    $server_url = valid_request((string)$_GET['server_url'], true);
 }
 
-$map_image = '1';
-if (isset($_GET['map_image']) && is_numeric($_GET['map_image'])) {
-	$map_image = valid_request($_GET['map_image'], true);
+$map_image = 1;
+if (isset($_GET['map_image'])) {
+    $map_image = valid_request((int)$_GET['map_image'], true);
 }
 
-$show_summary = '1';
-if (isset($_GET['show_summary']) && is_numeric($_GET['show_summary'])) {
-	$show_summary = valid_request($_GET['show_summary'], true);
+$show_summary = 1;
+if (isset($_GET['show_summary'])) {
+    $show_summary = valid_request((int)$_GET['show_summary'], true);
 }
 
-$map_name = '1';
-if (isset($_GET['map_name']) && is_numeric($_GET['map_name'])) {
-	$map_name = valid_request($_GET['map_name'], true);
+$map_name = 1;
+if (isset($_GET['map_name'])) {
+    $map_name = valid_request((int)$_GET['map_name'], true);
 }
 
-$show_flags = '1';  
-if (isset($_GET['show_flags']) && is_numeric($_GET['show_flags'])) {
-	$show_flags = valid_request($_GET['show_flags'], true);
+$show_flags = 1;  
+if (isset($_GET['show_flags'])) {
+    $show_flags = valid_request((int)$_GET['show_flags'], true);
 }
 
-$show_players = '1';
-if (isset($_GET['show_players']) && is_numeric($_GET['show_players'])) {
-	$show_players = valid_request($_GET['show_players'], true);
+$show_players = 1;
+if (isset($_GET['show_players'])) {
+    $show_players = valid_request((int)$_GET['show_players'], true);
 }
 
-$show_teams = '1';
-if (isset($_GET['show_teams']) && is_numeric($_GET['show_teams'])) {
-	$show_teams = valid_request($_GET['show_teams'], true);
+$show_teams = 1;
+if (isset($_GET['show_teams'])) {
+    $show_teams = valid_request((int)$_GET['show_teams'], true);
 }
 
-$show_team_wins = '1';
-if (isset($_GET['show_team_wins']) && is_numeric($_GET['show_team_wins'])) {
-	$show_team_wins = valid_request($_GET['show_team_wins'], true);
+$show_team_wins = 1;
+if (isset($_GET['show_team_wins'])) {
+    $show_team_wins = valid_request((int)$_GET['show_team_wins'], true);
 }
 
-$show_map_wins = '1';
-if (isset($_GET['show_map_wins']) && is_numeric($_GET['show_map_wins'])) {
-	$show_map_wins = valid_request($_GET['show_map_wins'], true);
+$show_map_wins = 1;
+if (isset($_GET['show_map_wins'])) {
+    $show_map_wins = valid_request((int)$_GET['show_map_wins'], true);
 }
 
-$top_players = '10';
-if (isset($_GET['top_players']) && is_numeric($_GET['top_players'])) {
-	$top_players = valid_request($_GET['top_players'], true);
+$top_players = 10;
+if (isset($_GET['top_players'])) {
+    $top_players = valid_request((int)$_GET['top_players'], true);
 }
 
-$players_images = '1';
-if (isset($_GET['players_images']) && is_numeric($_GET['players_images'])) {
-	$players_images = valid_request($_GET['players_images'], true);
+$players_images = 1;
+if (isset($_GET['players_images'])) {
+    $players_images = valid_request((int)$_GET['players_images'], true);
 }
 
 $show_password = '';
-if (isset($_GET['show_password']) && is_string($_GET['show_password'])) {
-	$show_password = valid_request($_GET['show_password'], true);
+if (isset($_GET['show_password'])) {
+    $show_password = valid_request((string)$_GET['show_password'], true);
 }
 
 //// Entries
 $result = $db->query("
-	SELECT
-		IF(publicaddress != '', publicaddress, concat(address, ':', port)) AS addr,
-		name, 
-		publicaddress, 
-		act_map, 
-		players, 
-		kills, 
-		headshots, 
-		map_started, 
-		act_players, 
-		max_players, 
-		map_ct_wins, 
-		map_ts_wins
-	FROM 
-		hlstats_Servers
-	WHERE 
-		serverId=$server_id");
+    SELECT
+	IF(publicaddress != '', publicaddress, concat(address, ':', port)) AS addr,
+	name, 
+	publicaddress, 
+	act_map, 
+	players, 
+	kills, 
+	headshots, 
+	map_started, 
+	act_players, 
+	max_players, 
+	map_ct_wins, 
+	map_ts_wins
+    FROM 
+	hlstats_Servers
+    WHERE 
+	serverId=$server_id");
 
 $server_data = $db->fetch_array($result);
 
 if ($small_fonts == 1)
 {
-	$fsize = 'fSmall';
+    $fsize = 'fSmall';
 }
 else
 {
-	$fsize = 'fNormal';
+    $fsize = 'fNormal';
 }
 
-if ($server_data['addr'] != '')  {
-	echo '<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">';
-	echo '<html>';
-	echo '<head>';
-	echo '<title>'.$g_options["sitename"].'</title>';
-	echo '<style type="text/css">{margin:0px;padding:0px;}</style>';
-	echo '<link rel="stylesheet" type="text/css" href="hlstats.css">';
-	echo '<link rel="stylesheet" type="text/css" href="styles/'.$g_options['style'].'">';
-	echo '</head>';
-	echo '<body style="background:#'.$body_color.';color:#'.$color.';"  class="'.$fsize.'">';
-	echo '<table border="0" cellpadding="0" cellspacing="0" style="border:'.$border_width.'px solid #'.$border_color.';background:#'.$background_color.';color:#'.$color.';width:'.$width.'px;">';
+if ($server_data && isset($server_data['addr']) && $server_data['addr'] != '')  {
+    echo '<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">';
+    echo '<html>';
+    echo '<head>';
+    echo '<title>'.htmlspecialchars((string)$g_options["sitename"]).'</title>';
+    echo '<style type="text/css">{margin:0px;padding:0px;}</style>';
+    echo '<link rel="stylesheet" type="text/css" href="hlstats.css">';
+    echo '<link rel="stylesheet" type="text/css" href="styles/'.htmlspecialchars((string)$g_options['style']).'">';
+    echo '</head>';
+    echo '<body style="background:#'.$body_color.';color:#'.$color.';"  class="'.$fsize.'">';
+    echo '<table border="0" cellpadding="0" cellspacing="0" style="border:'.$border_width.'px solid #'.$border_color.';background:#'.$background_color.';color:#'.$color.';width:'.$width.'px;">';
 
-	if ($show_logo == 1)
+    if ($show_logo == 1)
+    {
+	echo '<tr style="background-image:url('.IMAGE_PATH.'/icons/title-background.gif);"><td align="center" colspan="2" class="'.$fsize.'">';
+	$logo_path = IMAGE_PATH.'/icons/shorttitle-'.$game.'.png';
+	if (file_exists($logo_path)) {
+	    if ($server_name == 1)
+	    {
+		echo '<a target="_blank" href="'.htmlspecialchars((string)$g_options["siteurl"]).'"><img src="'.$logo_path.'" style="width:'.$width.'px;border:0px;" alt="'.htmlspecialchars((string)$g_options['sitename']).'" title="'.htmlspecialchars((string)$g_options['sitename']).'" /></a>';
+	    }
+	    else
+	    {
+		echo '<a target="_blank" href="'.htmlspecialchars((string)$g_options["siteurl"]).'"><img src="'.$logo_path.'" style="width:'.$width.'px;border:0px;" alt="'.htmlspecialchars((string)$server_data['name']).'" title="'.htmlspecialchars((string)$server_data['name']).'" /></a>';
+	    }
+	}
+	else
 	{
-		echo '<tr style="background-image:url('.IMAGE_PATH.'/icons/title-background.gif);"><td align="center" colspan="2" class="'.$fsize.'">';
-		$logo = file_exists(IMAGE_PATH.'/icons/shorttitle-'.$game.'.png');
-		if ($logo) {
-			if ($server_name == 1)
-			{
-				echo '<a target="_blank" href="'.$g_options["siteurl"].'"><img src="'.IMAGE_PATH.'/icons/shorttitle-'.$game.'.png" style="width:'.$width.'px;border:0px;" alt="'.$g_options['sitename'].'" title="'.$g_options['sitename'].'" /></a>';
-			}
-			else
-			{
-				echo '<a target="_blank" href="'.$g_options["siteurl"].'"><img src="'.IMAGE_PATH.'/icons/shorttitle-'.$game.'.png" style="width:'.$width.'px;border:0px;" alt="'.$server_data['name'].'" title="'.$server_data['name'].'" /></a>';
-			}
+	    echo '<a target="_blank" href="http://www.hlxcommunity.com" style="display:block;"><img src="'.IMAGE_PATH.'/icons/title-short.png" style="width:'.$width.'px;border:0px;" alt="Realtime player statistics for Halflife2 Source Engine" title="Realtime player statistics for Halflife2 Source Engine" /></a>';
+	}
+    echo '</td></tr>';
+    }
+
+    if ($server_name == 1)
+    {
+	echo '<tr><td align="center" colspan="2" class="'.$fsize.'">';
+	echo '<a target="_blank" href="'.htmlspecialchars((string)$g_options['scriptbase']).'" title="View statistics"><b>'.htmlspecialchars((string)$server_data['name']).'</b></a>';
+	echo '</td></tr>';
+    }
+
+    if ($server_url == 1)
+    {
+	echo '<tr><td align="center" colspan="2" class="'.$fsize.'">';
+	echo '<a href="steam://connect/'.htmlspecialchars((string)$server_data['addr']).'" title="Connent to Server"><b>'.htmlspecialchars((string)$server_data['addr']).'</b></a>';
+	echo '</td></tr>';
+    }
+
+    if ($show_password != '')
+    {
+	echo '<tr><td align="center" colspan="2" class="'.$fsize.'">';
+	echo '<b>Password:&nbsp;'.htmlspecialchars($show_password).'</b>';
+	echo '</td></tr>';
+    }    
+
+    if ($map_image == 1)
+    {
+	$mapimg = getImage("/games/{$game}/maps/{$server_data['act_map']}");
+	if ($mapimg && !file_exists($mapimg['path'])) {
+	    $mapimg = getImage("/games/{$game}/maps/default");
+	    if (!file_exists($mapimg['path'])) {
+		$mapimg = getImage("/nomap");
+	    }
+	} elseif (!$mapimg) {
+            $mapimg = getImage("/nomap");
+        }
+	
+	echo '<tr><td align="center" colspan="2">';
+        $map_url = isset($mapimg['url']) ? $mapimg['url'] : '';
+	echo '<a target="_blank" href="'.htmlspecialchars((string)$g_options['scriptbase']).'/hlstats.php?mode=mapinfo&amp;map='.urlencode((string)$server_data['act_map']).'&amp;game='.$game.'"><img src="' . htmlspecialchars($map_url) . '" style="width:'.$width.'px;border:0px" alt="'.htmlspecialchars((string)$server_data['act_map']).'" title="'.htmlspecialchars((string)$server_data['act_map']).'" /></a>'; 
+	echo '</td></tr>';
+    }
+
+    if ($show_summary == 1)
+    {
+	echo '<tr><td align="left" style="padding-left:2px" class="'.$fsize.'">';
+	echo 'Players:'; 
+	echo '</td><td align="right" style="padding-right:2px;" class="'.$fsize.'">';
+	echo number_format((int)$server_data['players']); 
+	echo '</td></tr>';
+
+	echo '<tr><td align="left" style="padding-left:2px" class="'.$fsize.'">';
+	echo 'Kills:'; 
+	echo '</td><td align="right" style="padding-right:2px;" class="'.$fsize.'">';
+	echo number_format((int)$server_data['kills']); 
+	echo '</td></tr>';
+
+	if ($server_data['headshots'] > 0)
+	{
+	    echo '<tr><td align="left" style="padding-left:2px" class="'.$fsize.'">';
+	    echo 'Headshots:'; 
+	    echo '</td><td align="right" style="padding-right:2px;" class="'.$fsize.'">';
+	    echo number_format((int)$server_data['headshots']); 
+	    echo '</td></tr>';
+	}
+    }
+
+    if ($map_name == 1) {
+	echo '<tr><td align="left" style="padding-left:2px" class="'.$fsize.'">';
+	echo 'Map:'; 
+	echo '</td><td align="right" style="padding-right:2px;" class="'.$fsize.'">';
+	echo htmlspecialchars((string)$server_data['act_map']); 
+	echo '</td></tr>';
+    }
+    
+    $map_started = (int)$server_data['map_started'];
+    $stamp = $map_started==0?0:time() - $map_started;
+    $hours = sprintf("%02d", floor($stamp / 3600));
+    $min   = sprintf("%02d", floor(($stamp % 3600) / 60));
+    $sec   = sprintf("%02d", floor($stamp % 60)); 
+    echo '<tr><td align="left" style="padding-left:2px" class="'.$fsize.'">';
+    echo 'Map Time:'; 
+    echo '</td><td align="right" style="padding-right:2px;" class="'.$fsize.'">';
+    echo $hours.':'.$min.':'.$sec; 
+    echo '</td></tr>';
+    echo '<tr><td align="left" style="padding-left:2px;border-bottom:1px solid #000000;" class="'.$fsize.'">';
+    echo 'Online:'; 
+    echo '</td><td align="right" style="padding-right:2px;border-bottom:1px solid #000000;" class="'.$fsize.'">';
+    echo $server_data['act_players'].'/'.$server_data['max_players']; 
+    echo '</td></tr>';
+
+    if ($show_players == 1)
+    {
+	echo '<tr><td colspan="2"><table width="100%" border="0" cellpadding="0" cellspacing="0">';
+
+	unset($team_colors);
+	$statsdata = $db->query("
+	    SELECT 
+		team, 
+		name, 
+		teamkills, 
+		teamdeaths, 
+		teamheadshots, 
+		teamping, 
+		teamskill, 
+		teamshots, 
+		teamhits, 
+		teamjointime, 
+		IFNULL(playerlist_bgcolor,'#D5D5D5') as playerlist_bgcolor, 
+		IFNULL(playerlist_color,'#050505') AS playerlist_color, 
+		IFNULL(playerlist_index, 99 ) AS playerlist_index
+	    FROM 
+		hlstats_Teams
+	    RIGHT JOIN
+		(SELECT 
+		    team, 
+		    sum( kills ) AS teamkills, 
+		    sum( deaths ) AS teamdeaths, 
+		    sum( headshots ) AS teamheadshots, 
+		    avg( ping /2 ) AS teamping, 
+		    avg( skill ) AS teamskill, 
+		    sum( shots ) AS teamshots, 
+		    sum( hits ) AS teamhits, 
+		    sum( unix_timestamp( NOW( ) ) - connected ) AS teamjointime
+		FROM 
+		    hlstats_Livestats
+		WHERE 
+		    server_id = $server_id
+		    AND connected >0
+		GROUP BY 
+		    team
+		ORDER BY 
+		    teamkills
+		) teaminfo
+	    ON
+		code = team
+	    AND
+		hlstats_Teams.game = '{$game_escaped}'
+	    ORDER BY 
+		playerlist_index
+	    LIMIT 0 , 30
+	    ");
+
+	$teamdata = array();
+	$playerdata = array();
+	$teamno = 0;
+
+	while ($thisteam = $db->fetch_array($statsdata))
+	{
+	    $teamdata[$teamno] = $thisteam;
+	    $thisteam_escaped = $db->escape($thisteam['team']);
+	    $pldata = $db->query("
+		SELECT
+		    player_id, 
+		    name, 
+		    kills, 
+		    deaths, 
+		    headshots, 
+		    ping, 
+		    skill, 
+		    shots, 
+		    hits, 
+		    connected, 
+		    skill_change, 
+		    cli_flag,
+                    cli_country
+		FROM 
+		    hlstats_Livestats 
+		WHERE 
+		    server_id = $server_id 
+		    AND team = '{$thisteam_escaped}'
+		ORDER BY 
+		    kills DESC
+	    ");
+
+	    while ($thisplayer = $db->fetch_array($pldata))
+	    {
+		$playerdata[$teamno][] = $thisplayer;
+	    }
+	    $teamno++;
+	}
+	$curteam = 0;
+
+	while (isset($teamdata[$curteam]))
+	{
+	    $j=0;
+	    $thisteam = $teamdata[$curteam];
+	    $teamcolor = 'background:'.$thisteam['playerlist_bgcolor'].';color:'.$thisteam['playerlist_color'];
+	    $bordercolor = 'background:'. $thisteam['playerlist_bgcolor'].';color:'.$thisteam['playerlist_color'].';border-top:1px '.$thisteam['playerlist_color'].' solid';
+	    $team_display_name  = htmlspecialchars((string)$thisteam['name']);
+            
+            // PHP 8 Fix: Initialize variables if not set
+            $map_teama_wins = isset($server_data['map_ct_wins']) ? (int)$server_data['map_ct_wins'] : 0;
+            $map_teamb_wins = isset($server_data['map_ts_wins']) ? (int)$server_data['map_ts_wins'] : 0;
+
+	    while (isset($playerdata[$curteam][$j]))
+	    {
+		$thisplayer = $playerdata[$curteam][$j];
+	    echo '<tr style="'.$teamcolor.'">';
+	    echo '<td align="left" width="85%" style="'.$teamcolor.';padding-left:3px;" class="'.$fsize.'">';
+		if (isset($thisplayer))
+		{
+		    if (strlen($thisplayer['name'])>50)
+		    {
+			$thisplayer['name'] = substr($thisplayer['name'], 0, 50);
+		    }
+		    echo '<a target="_blank" style="color:'.$thisteam['playerlist_color'].';" href="'.htmlspecialchars((string)$g_options['scriptbase']).'/hlstats.php?mode=playerinfo&amp;player='.$thisplayer['player_id'].'" title="Player Details">';
+		    if ($show_flags == 1)
+		    {
+                        // PHP 8 Fix: Ensure country is string
+                        $country_name = isset($thisplayer['cli_country']) ? strtolower((string)$thisplayer['cli_country']) : 'unknown';
+		        echo '<img src="'.getFlag($thisplayer['cli_flag']).'" alt="'.ucfirst($country_name).'" title="'.ucfirst($country_name).'">&nbsp;';
+		    }
+		    echo '<span style="vertical-align:middle;">'.htmlspecialchars((string)$thisplayer['name'], ENT_COMPAT).'</span></a>';
 		}
 		else
 		{
-			echo '<a target="_blank" href="http://www.hlxcommunity.com" style="display:block;"><img src="'.IMAGE_PATH.'/icons/title-short.png" style="width:'.$width.'px;border:0px;" alt="Realtime player statistics for Halflife2 Source Engine" title="Realtime player statistics for Halflife2 Source Engine" /></a>';
+		    echo '&nbsp;';
 		}
-	echo '</td></tr>';
-	}
-
-	if ($server_name == 1)
-	{
-		echo '<tr><td align="center" colspan="2" class="'.$fsize.'">';
-		echo '<a target="_blank" href="'.$g_options['scriptbase'].'" title="View statistics"><b>'.$server_data['name'].'</b></a>';
-		echo '</td></tr>';
-	}
-
-	if ($server_url == 1)
-	{
-		echo '<tr><td align="center" colspan="2" class="'.$fsize.'">';
-		echo '<a href="steam://connect/'.$server_data['addr'].'" title="Connent to Server"><b>'.$server_data['addr'].'</b></a>';
-		echo '</td></tr>';
-	}
-
-	if ($show_password != '')
-	{
-		echo '<tr><td align="center" colspan="2" class="'.$fsize.'">';
-		echo '<b>Password:&nbsp;'.$show_password.'</b>';
-		echo '</td></tr>';
-	}    
-
-	if ($map_image == 1)
-	{
-		$mapimg = getImage("/games/{$game}/maps/{$server_data['act_map']}");
-		if ($mapimg && !file_exists($mapimg['path'])) {
-			$mapimg = getImage("/games/{$game}/maps/default");
-			if (!file_exists($mapimg['path'])) {
-				$mapimg = getImage("/nomap");
-			}
-		} else {
-			$mapimg = getImage("/nomap");
-		}
-		
-		echo '<tr><td align="center" colspan="2">';
-		echo '<a target="_blank" href="'.$g_options['scriptbase'].'/hlstats.php?mode=mapinfo&amp;map='.$server_data['act_map'].'&amp;game='.$game.'"><img src="' . ($mapimg['url'] ?? '') . '" style="width:'.$width.'px;border:0px" alt="'.$server_data['act_map'].'" title="'.$server_data['act_map'].'" /></a>'; 
-		echo '</td></tr>';
-	}
-
-	if ($show_summary == 1)
-	{
-		echo '<tr><td align="left" style="padding-left:2px" class="'.$fsize.'">';
-		echo 'Players:'; 
-		echo '</td><td align="right" style="padding-right:2px;" class="'.$fsize.'">';
-		echo number_format($server_data['players']); 
-		echo '</td></tr>';
-
-		echo '<tr><td align="left" style="padding-left:2px" class="'.$fsize.'">';
-		echo 'Kills:'; 
-		echo '</td><td align="right" style="padding-right:2px;" class="'.$fsize.'">';
-		echo number_format($server_data['kills']); 
-		echo '</td></tr>';
-
-		if ($server_data['headshots'] > 0)
+	    echo '</td>';
+	    echo '<td align="right" width="15%" style="'.$teamcolor.';padding-right:3px" class="'.$fsize.'">';
+		if (isset($thisplayer))
 		{
-			echo '<tr><td align="left" style="padding-left:2px" class="'.$fsize.'">';
-			echo 'Headshots:'; 
-			echo '</td><td align="right" style="padding-right:2px;" class="'.$fsize.'">';
-			echo number_format($server_data['headshots']); 
-			echo '</td></tr>';
+		    echo $thisplayer['kills'];
 		}
-	}
-
-	if ($map_name == 1) {
-		echo '<tr><td align="left" style="padding-left:2px" class="'.$fsize.'">';
-		echo 'Map:'; 
-		echo '</td><td align="right" style="padding-right:2px;" class="'.$fsize.'">';
-		echo $server_data['act_map']; 
-		echo '</td></tr>';
-	}
-	$stamp = $server_data['map_started']==0?0:time() - $server_data['map_started'];
-	$hours = sprintf("%02d", floor($stamp / 3600));
-	$min   = sprintf("%02d", floor(($stamp % 3600) / 60));
-	$sec   = sprintf("%02d", floor($stamp % 60)); 
-	echo '<tr><td align="left" style="padding-left:2px" class="'.$fsize.'">';
-	echo 'Map Time:'; 
-	echo '</td><td align="right" style="padding-right:2px;" class="'.$fsize.'">';
-	echo $hours.':'.$min.':'.$sec; 
-	echo '</td></tr>';
-	echo '<tr><td align="left" style="padding-left:2px;border-bottom:1px solid #000000;" class="'.$fsize.'">';
-	echo 'Online:'; 
-	echo '</td><td align="right" style="padding-right:2px;border-bottom:1px solid #000000;" class="'.$fsize.'">';
-	echo $server_data['act_players'].'/'.$server_data['max_players']; 
-	echo '</td></tr>';
-
-	if ($show_players == 1)
-	{
-		echo '<tr><td colspan="2"><table width="100%" border="0" cellpadding="0" cellspacing="0">';
-
-		unset($team_colors);
-		$statsdata = $db->query("
-			SELECT 
-				team, 
-				name, 
-				teamkills, 
-				teamdeaths, 
-				teamheadshots, 
-				teamping, 
-				teamskill, 
-				teamshots, 
-				teamhits, 
-				teamjointime, 
-				IFNULL(playerlist_bgcolor,'#D5D5D5') as playerlist_bgcolor, 
-				IFNULL(playerlist_color,'#050505') AS playerlist_color, 
-				IFNULL(playerlist_index, 99 ) AS playerlist_index
-			FROM 
-				hlstats_Teams
-			RIGHT JOIN
-				(SELECT 
-					team, 
-					sum( kills ) AS teamkills, 
-					sum( deaths ) AS teamdeaths, 
-					sum( headshots ) AS teamheadshots, 
-					avg( ping /2 ) AS teamping, 
-					avg( skill ) AS teamskill, 
-					sum( shots ) AS teamshots, 
-					sum( hits ) AS teamhits, 
-					sum( unix_timestamp( NOW( ) ) - connected ) AS teamjointime
-				FROM 
-					hlstats_Livestats
-				WHERE 
-					server_id = $server_id
-					AND connected >0
-				GROUP BY 
-					team
-				ORDER BY 
-					teamkills
-				) teaminfo
-			ON
-				code = team
-			AND
-				hlstats_Teams.game = '{$game_escaped}'
-			ORDER BY 
-				playerlist_index
-			LIMIT 0 , 30
-			");
-
-		$teamdata = array();
-		$playerdata = array();
-		$teamno = 0;
-
-		while ($thisteam = $db->fetch_array($statsdata))
+		else
 		{
-			$teamdata[$teamno] = $thisteam;
-			$thisteam_escaped = $db->escape($thisteam['team']);
-			$pldata = $db->query("
-				SELECT
-					player_id, 
-					name, 
-					kills, 
-					deaths, 
-					headshots, 
-					ping, 
-					skill, 
-					shots, 
-					hits, 
-					connected, 
-					skill_change, 
-					cli_flag
-				FROM 
-					hlstats_Livestats 
-				WHERE 
-					server_id = $server_id 
-					AND team = '{$thisteam_escaped}'
-				ORDER BY 
-					kills DESC
-			");
+		    echo '&nbsp;';
+		}
+	    echo '&nbsp;:&nbsp;';
+		if (isset($thisplayer))
+		{
+		    echo $thisplayer['deaths'];
+		}
+		else
+		{
+		    echo '&nbsp;';
+		}
+	    echo '</td>';
+	    echo '</tr>';
+	    $j++;	
+	    }
 
-			while ($thisplayer = $db->fetch_array($pldata))
+	    if ($show_teams == 1)
+	    {
+		if ($team_display_name)
+		{
+		    echo '<tr style="'.$teamcolor.'">';
+		    echo '<td align="left" width="85%" style="'.$bordercolor.';'.$teamcolor.';padding-left:3px;" class="'.$fsize.'">';
+		    echo '&nbsp;<b>'.$team_display_name.'</b>';
+		    if ($show_team_wins == 1) {
+			if (($map_teama_wins > 0) || ($map_teamb_wins > 0))
 			{
-				$playerdata[$teamno][] = $thisplayer;
+			    echo '&nbsp;('.$map_teama_wins.' wins)';
 			}
-			$teamno++;
+		    }
+		    echo '</td>';
+		    echo '<td align="right" width="15%" style="'.$bordercolor.';'.$teamcolor.';padding-right:3px" class="'.$fsize.'">';
+		    if (count($teamdata[$curteam]) > 0)
+		    {
+			echo $teamdata[$curteam]['teamkills'];
+		    }
+		    else
+		    {
+			echo '&nbsp;';
+		    }
+		    echo '&nbsp;:&nbsp;';
+		    if (count($teamdata[$curteam]) > 0)
+		    {
+			echo $teamdata[$curteam]['teamdeaths'];
+		    }
+		    else
+		    {
+			echo '&nbsp;';
+		    }
+		    echo '</td>';
+		    echo '</tr>';
 		}
-		$curteam = 0;
-
-		while (isset($teamdata[$curteam]))
-		{
-			$j=0;
-			$thisteam = $teamdata[$curteam];
-			$teamcolor = 'background:'.$thisteam['playerlist_bgcolor'].';color:'.$thisteam['playerlist_color'];
-			$bordercolor = 'background:'.$$thisteam['playerlist_bgcolor'].';color:'.$thisteam['playerlist_color'].';border-top:1px '.$thisteam['playerlist_color'].' solid';
-			$team_display_name  = htmlspecialchars($thisteam['name']);
-
-			while (isset($playerdata[$curteam][$j]))
-			{
-				$thisplayer = $playerdata[$curteam][$j];
-			echo '<tr style="'.$teamcolor.'">';
-			echo '<td align="left" width="85%" style="'.$teamcolor.';padding-left:3px;" class="'.$fsize.'">';
-				if (isset($thisplayer))
-				{
-					if (strlen($thisplayer['name'])>50)
-					{
-						$thisplayer['name'] = substr($thisplayer['name'], 0, 50);
-					}
-					echo '<a target="_blank" style="color:'.$thisteam['playerlist_color'].';" href="'.$g_options['scriptbase'].'/hlstats.php?mode=playerinfo&amp;player='.$thisplayer['player_id'].'" title="Player Details">';
-					if ($show_flags == 1)
-					{
-					echo '<img src="'.getFlag($thisplayer['cli_flag']).'" alt="'.ucfirst(strtolower($thisplayer['cli_country'])).'" title="'.ucfirst(strtolower($thisplayer['cli_country'])).'">&nbsp;';
-					}
-					echo '<span style="vertical-align:middle;">'.htmlspecialchars($thisplayer['name'], ENT_COMPAT).'</span></a>';
-				}
-				else
-				{
-					echo '&nbsp;';
-				}
-			echo '</td>';
-			echo '<td align="right" width="15%" style="'.$teamcolor.';padding-right:3px" class="'.$fsize.'">';
-				if (isset($thisplayer))
-				{
-					echo $thisplayer['kills'];
-				}
-				else
-				{
-					echo '&nbsp;';
-				}
-			echo '&nbsp;:&nbsp;';
-				if (isset($thisplayer))
-				{
-					echo $thisplayer['deaths'];
-				}
-				else
-				{
-					echo '&nbsp;';
-				}
-			echo '</td>';
-			echo '</tr>';
-			$j++;	
-			}
-
-			if ($show_teams == 1)
-			{
-				if ($team_display_name)
-				{
-					echo '<tr style="'.$teamcolor.'">';
-					echo '<td align="left" width="85%" style="'.$bordercolor.';'.$teamcolor.';padding-left:3px;" class="'.$fsize.'">';
-					echo '&nbsp;<b>'.$team_display_name.'</b>';
-					if ($show_team_wins == 1) {
-						if (($map_teama_wins > 0) || ($map_teamb_wins > 0))
-						{
-							echo '&nbsp;('.$map_teama_wins.' wins)';
-						}
-					}
-					echo '</td>';
-					echo '<td align="right" width="15%" style="'.$bordercolor.';'.$teamcolor.';padding-right:3px" class="'.$fsize.'">';
-					if (count($teamdata[$curteam]) > 0)
-					{
-						echo $teamdata[$curteam]['teamkills'];
-					}
-					else
-					{
-						echo '&nbsp;';
-					}
-					echo '&nbsp;:&nbsp;';
-					if (count($teamdata[$curteam]) > 0)
-					{
-						echo $teamdata[$curteam]['teamdeaths'];
-					}
-					else
-					{
-						echo '&nbsp;';
-					}
-					echo '</td>';
-					echo '</tr>';
-				}
-			}
-		$curteam++;
-		}
-// these variables are not set - so removing it
-/*
-		if ((count($teama_players) > 0) || (count($teamb_players) > 0))
-		{
-			if ($show_map_wins == 1) {
-				echo '<tr><td align="center" colspan="2" class="'.$fsize.'">';
-				echo '<span style="color:'.$teamcolor.';font-weight:bold;">'.$teama_display_name.'&nbsp;'.$server_data['map_ct_wins'].'&nbsp;</span><span style="color:black;">:&nbsp;</span><span style="color:'.$teamcolor.';font-weight:bold;">'.$server_data['map_ts_wins'].'&nbsp;'.$teamb_display_name.'</span>';
-				echo '</td></tr>';
-			}
-		}
-*/
-		if (count($teamdata) == 0)
-		{
-			echo '<tr><td colspan="2" align="left" style="background:#EFEFEF;color:black" class="'.$fsize.'">';
-			echo '&nbsp;No Players';
-			echo '</td></tr>';
-		}
-	echo '</table></td></tr>';
+	    }
+	$curteam++;
+	}
+        
+        // JAVÍTOTT, BEKAPCSOLT Map Wins rész (PHP 8 kompatibilis módon)
+	if ($show_map_wins == 1 && isset($server_data['map_ct_wins']) && isset($server_data['map_ts_wins']))
+	{
+            $ct_val = (int)$server_data['map_ct_wins'];
+            $ts_val = (int)$server_data['map_ts_wins'];
+            
+            // Kiírjuk, ha támogatott a játék (van adat)
+            if ($ct_val > 0 || $ts_val > 0) {
+		echo '<tr><td align="center" colspan="2" class="'.$fsize.'">';
+		echo '<span style="font-weight:bold;">CT Wins: '.$ct_val.'</span>';
+                echo '&nbsp;<span style="color:black;">:</span>&nbsp;';
+                echo '<span style="font-weight:bold;">T Wins: '.$ts_val.'</span>';
+		echo '</td></tr>';
+            }
 	}
 
-	if ($top_players > 0)
+	if (count($teamdata) == 0)
 	{
-		$db->query("
-			SELECT 
-				playerId, 
+	    echo '<tr><td colspan="2" align="left" style="background:#EFEFEF;color:black" class="'.$fsize.'">';
+	    echo '&nbsp;No Players';
+	    echo '</td></tr>';
+	}
+    echo '</table></td></tr>';
+    }
+
+    if ($top_players > 0)
+    {
+	$db->query("
+	    SELECT 
+		playerId, 
                                 unhex(replace(hex(lastName), 'E280AE', '')) as lastName,
-				flag, 
-				country, 
-				skill, 
-				IFNULL(kills/deaths, '-') AS kpd, 
-				IFNULL(ROUND((hits / shots * 100), 1), 0.0) AS acc
-			FROM 
-				hlstats_Players 
-			WHERE 
-				game='{$game_escaped}'
-				AND hideranking=0
-			ORDER BY
-				skill DESC, 
-				kpd DESC 
-			LIMIT 0,$top_players
-		");
-		echo '<tr><td colspan="2"><table border="0" cellpadding="0" cellspacing="0" style="width:100%">';
-		echo '<tr><td align="center" colspan="2" style="border:1px solid #000000;" class="'.$fsize.'">';
-		echo '<b>TOP '.$top_players.' Players</b>';
-		echo '</td></tr>';
+		flag, 
+		country, 
+		skill, 
+		IFNULL(kills/deaths, '-') AS kpd, 
+		IFNULL(ROUND((hits / shots * 100), 1), 0.0) AS acc
+	    FROM 
+		hlstats_Players 
+	    WHERE 
+		game='{$game_escaped}'
+		AND hideranking=0
+	    ORDER BY
+		skill DESC, 
+		kpd DESC 
+	    LIMIT 0,$top_players
+	");
+	echo '<tr><td colspan="2"><table border="0" cellpadding="0" cellspacing="0" style="width:100%">';
+	echo '<tr><td align="center" colspan="2" style="border:1px solid #000000;" class="'.$fsize.'">';
+	echo '<b>TOP '.$top_players.' Players</b>';
+	echo '</td></tr>';
 
-		while ($player = $db->fetch_array())
+	while ($player = $db->fetch_array())
+	{
+	    echo '<tr><td align="left" width="85%" style="padding-left:2px" class="'.$fsize.'">';
+	    $cut_pos = 15;
+	    if ($small_fonts == 1)
+		$cut_pos += 10;
+	    $display_name = $player['lastName'];
+	    if (strlen((string)$player['lastName']) > $cut_pos)
+		$display_name = substr((string)$player['lastName'], 0, $cut_pos);
+	    echo '<a target="_blank" href="'.htmlspecialchars((string)$g_options["scriptbase"]).'/hlstats.php?mode=playerinfo&amp;player='.$player['playerId'].'" title="Player Details">';
+	    if ($show_flags == 1)
+	    {
+                // PHP 8 Fix: Ensure string
+		if (empty($player['country']))
+		    $player['country'] = 'Unknown Country';
+                $country = ucfirst((string)$player['country']);
+		echo '<img src="'.getFlag($player['flag']).'" alt="'.$country.'" title="'.$country.'">&nbsp;';
+	    }
+	    else
+	    {
+		if ($players_images == 1)
 		{
-			echo '<tr><td align="left" width="85%" style="padding-left:2px" class="'.$fsize.'">';
-			$cut_pos = 15;
-			if ($small_fonts == 1)
-				$cut_pos += 10;
-			$display_name = $player['lastName'];
-			if (strlen($player['lastName']) > $cut_pos)
-				$display_name = substr($player['lastName'], 0, $cut_pos);
-			echo '<a target="_blank" href="'.$g_options["scriptbase"].'/hlstats.php?mode=playerinfo&amp;player='.$player['playerId'].'" title="Player Details">';
-			if ($show_flags == 1)
-			{
-				if ($player['country'] == '')
-					$player['country'] = 'Unknown Country';
-				echo '<img src="'.getFlag($player['flag']).'" alt="'.ucfirst($player['country']).'" title="'.ucfirst($player['country']).'">&nbsp;';
-			}
-			else
-			{
-				if ($players_images == 1)
-				{
-					echo '<img src="'.IMAGE_PATH.'/player.gif" />&nbsp;';
-				}
-			}
-			echo '<span style="vertical-align:middle;">'.htmlspecialchars($display_name, ENT_COMPAT).'</span></a>';
-			echo '</td><td align="right" width="15%" style="padding-right:2px;" class="'.$fsize.'">';
-			echo $player['skill'];
-			echo '</td></tr>'; 
+		    echo '<img src="'.IMAGE_PATH.'/player.gif" />&nbsp;';
 		}
-		echo '</table></td></tr>';
+	    }
+	    echo '<span style="vertical-align:middle;">'.htmlspecialchars((string)$display_name, ENT_COMPAT).'</span></a>';
+	    echo '</td><td align="right" width="15%" style="padding-right:2px;" class="'.$fsize.'">';
+	    echo $player['skill'];
+	    echo '</td></tr>'; 
 	}
-	echo '</table>';
-	echo '</body>';
-	echo '</html>';
-} 
+	echo '</table></td></tr>';
+    }
+    echo '</table>';
+    echo '</body>';
+    echo '</html>';
+}
 ?>

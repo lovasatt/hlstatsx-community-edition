@@ -1,10 +1,12 @@
 window.addEvent('domready', function() {
- 
-	/**
-	 * You can run this code as first code to set default options
-	 * SqueezeBox.initialize({ ... });
-	 */
- 
- 
+    'use strict';
+
+    /**
+     * You can run this code as first code to set default options
+     * SqueezeBox.initialize({ ... });
+     */
+
+    if (typeof SqueezeBox !== 'undefined') {
 	SqueezeBox.assign($$('a[rel=boxed]'));
+    }
 });

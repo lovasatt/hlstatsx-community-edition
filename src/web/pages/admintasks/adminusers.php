@@ -40,23 +40,26 @@ For support and installation notes visit http://www.hlxcommunity.com
         die('Do not access this file directly.');
     }
 
-	if ($auth->userdata["acclevel"] < 100) {
+    global $db, $auth;
+
+    // PHP 8 Fix: Null coalescing for array access
+    if (($auth->userdata["acclevel"] ?? 0) < 100) {
         die ("Access denied!");
-	}
+    }
 
-	$edlist = new EditList("username", "hlstats_Users", "user", false);
-	$edlist->columns[] = new EditListColumn("username", "Username", 15, true, "text", "", 16);
-	$edlist->columns[] = new EditListColumn("password", "Password", 15, true, "password", "", 16);
-	$edlist->columns[] = new EditListColumn("acclevel", "Access Level", 25, true, "select", "0/No Access;80/Restricted;100/Administrator");
+    $edlist = new EditList("username", "hlstats_Users", "user", false);
+    $edlist->columns[] = new EditListColumn("username", "Username", 15, true, "text", "", 16);
+    $edlist->columns[] = new EditListColumn("password", "Password", 15, true, "password", "", 16);
+    $edlist->columns[] = new EditListColumn("acclevel", "Access Level", 25, true, "select", "0/No Access;80/Restricted;100/Administrator");
 
-	if ($_POST)
-	{
-		if ($edlist->update())
-			message("success", "Operation successful.");
-		else
-			message("warning", $edlist->error());
-	}
-	
+    if ($_POST)
+    {
+	if ($edlist->update())
+	    message("success", "Operation successful.");
+	else
+	    message("warning", $edlist->error());
+    }
+    
 ?>
 
 Usernames and passwords can be set up for access to this HLstats Admin area. For most sites you will only want one admin user - yourself. Some sites may however need to give administration access to several people.<p>
@@ -69,24 +72,23 @@ Usernames and passwords can be set up for access to this HLstats Admin area. For
 &#149; <i>Administrator</i> users have full, unrestricted access.<p>
 
 <?php
-	
-	$result = $db->query("
-		SELECT
-			username,
-			IF(password='','','(encrypted)') AS password,
-			acclevel
-		FROM
-			hlstats_Users
-		ORDER BY
-			username
-	");
-	
-	$edlist->draw($result);
+    
+    $result = $db->query("
+	SELECT
+	    username,
+	    IF(password='','','(encrypted)') AS password,
+	    acclevel
+	FROM
+	    hlstats_Users
+	ORDER BY
+	    username
+    ");
+    
+    $edlist->draw($result);
 ?>
 
-<table width="75%" border=0 cellspacing=0 cellpadding=0>
+<table width="75%" border="0" cellspacing="0" cellpadding="0">
 <tr>
-	<td align="center"><input type="submit" value="  Apply  " class="submit"></td>
+    <td align="center"><input type="submit" value="  Apply  " class="submit"></td>
 </tr>
 </table>
-

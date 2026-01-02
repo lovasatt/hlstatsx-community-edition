@@ -40,104 +40,115 @@ For support and installation notes visit http://www.hlxcommunity.com
         die('Do not access this file directly.');
     }
 
+    global $db, $game, $g_options;
+
 // Action Statistics
 // Addon Created by Rufus (rufus@nonstuff.de)
-	$db->query
-	("
-		SELECT
-			hlstats_Games.name
-		FROM
-			hlstats_Games
-		WHERE
-			hlstats_Games.code = '$game'
-	");
 
-	if ($db->num_rows() < 1) {
+    // Security: Escape game variable
+    $game_esc = $db->escape($game);
+
+    $db->query
+    ("
+	SELECT
+	    hlstats_Games.name
+	FROM
+	    hlstats_Games
+	WHERE
+	    hlstats_Games.code = '$game_esc'
+    ");
+
+    if ($db->num_rows() < 1) {
         error("No such game '$game'.");
-	}
+    }
 
-	list($gamename) = $db->fetch_row();
-	$db->free_result();
+    // PHP 8 Fix: Replace list()
+    $row = $db->fetch_row();
+    $gamename = ($row) ? $row[0] : '';
+    $db->free_result();
 
-	pageHeader
+    pageHeader
+    (
+	array ($gamename, 'Action Statistics'),
+	array ($gamename=>"%s?game=$game", 'Action Statistics'=>'')
+    );
+
+    $tblPlayerActions = new Table
+    (
+	array
 	(
-		array ($gamename, 'Action Statistics'),
-		array ($gamename=>"%s?game=$game", 'Action Statistics'=>'')
-	);
-
-	$tblPlayerActions = new Table
-	(
-		array
-		(
-			new TableColumn
-			(
-				'description',
-				'Action',
-				'width=45&link=' . urlencode('mode=actioninfo&amp;action=%k&amp;game='.$game)
-			),
-			new TableColumn
-			(
-				'obj_count',
-				'Earned',
-				'width=25&align=right&append=+times'
-			),
-			new TableColumn
-			(
-				'obj_bonus',
-				'Reward',
-				'width=25&align=right'
-			)
-		),
-		'code',
-		'obj_count',
+	    new TableColumn
+	    (
 		'description',
-		true,
-		9999,
-		'obj_page',
-		'obj_sort',
-		'obj_sortorder'
-	);
+		'Action',
+		'width=45&link=' . urlencode('mode=actioninfo&amp;action=%k&amp;game='.$game)
+	    ),
+	    new TableColumn
+	    (
+		'obj_count',
+		'Earned',
+		'width=25&align=right&append=+times'
+	    ),
+	    new TableColumn
+	    (
+		'obj_bonus',
+		'Reward',
+		'width=25&align=right'
+	    )
+	),
+	'code',
+	'obj_count',
+	'description',
+	true,
+	9999,
+	'obj_page',
+	'obj_sort',
+	'obj_sortorder'
+    );
 
-	$result = $db->query("
-		SELECT
-			hlstats_Actions.code,
-			hlstats_Actions.description,
-			hlstats_Actions.count AS obj_count,
-			hlstats_Actions.reward_player AS obj_bonus
-		FROM
-			hlstats_Actions
-		WHERE
-			hlstats_Actions.game = '$game'
-			AND hlstats_Actions.count > 0
-		GROUP BY
-			hlstats_Actions.id
-		ORDER BY
-			$tblPlayerActions->sort $tblPlayerActions->sortorder,
-			$tblPlayerActions->sort2 $tblPlayerActions->sortorder
-	");
+    // Fetch total actions count before rendering HTML
+    $db->query
+    ("
+        SELECT
+            SUM(count)
+        FROM
+            hlstats_Actions
+        WHERE
+            hlstats_Actions.game = '$game_esc'
+    ");
+    // PHP 8 Fix: Replace list()
+    $row = $db->fetch_row();
+    $totalactions = ($row) ? (int)$row[0] : 0;
+
+    $result = $db->query("
+	SELECT
+	    hlstats_Actions.code,
+	    hlstats_Actions.description,
+	    hlstats_Actions.count AS obj_count,
+	    hlstats_Actions.reward_player AS obj_bonus
+	FROM
+	    hlstats_Actions
+	WHERE
+	    hlstats_Actions.game = '$game_esc'
+	    AND hlstats_Actions.count > 0
+	GROUP BY
+	    hlstats_Actions.id
+	ORDER BY
+	    $tblPlayerActions->sort $tblPlayerActions->sortorder,
+	    $tblPlayerActions->sort2 $tblPlayerActions->sortorder
+    ");
 ?>
 <div class="block">
-	<?php printSectionTitle('Action Statistics'); ?>
-	<div class="subblock">
-		<?php
-			$db->query
-			("
-				SELECT
-					SUM(count)
-				FROM
-					hlstats_Actions
-				WHERE
-					hlstats_Actions.game = '$game'
-			");
-			list($totalactions) = $db->fetch_row();
-			?>From a total of <strong><?php echo number_format($totalactions); ?></strong> earned actions
-	</div><br /><br />
-	<?php
-		$tblPlayerActions->draw($result, $db->num_rows($result), 95);
-	?><br /><br />
-	<div class="subblock">
-		<div style="float:right;">
-			Go to: <a href="<?php echo $g_options['scripturl'] . "?game=$game"; ?>"><?php echo $gamename; ?></a>
-		</div>
+    <?php printSectionTitle('Action Statistics'); ?>
+    <div class="subblock">
+	From a total of <strong><?php echo number_format($totalactions); ?></strong> earned actions
+    </div><br /><br />
+    <?php
+	$tblPlayerActions->draw($result, $db->num_rows($result), 95);
+    ?><br /><br />
+    <div class="subblock">
+	<div style="float:right;">
+	    Go to: <a href="<?php echo htmlspecialchars($g_options['scripturl']); ?>?game=<?php echo htmlspecialchars($game); ?>"><?php echo htmlspecialchars($gamename); ?></a>
 	</div>
+    </div>
 </div>

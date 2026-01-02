@@ -40,12 +40,15 @@ For support and installation notes visit http://www.hlxcommunity.com
         die('Do not access this file directly.');
     }
 
-	if ($auth->userdata["acclevel"] < 100) {
+    global $db, $auth, $task;
+
+    // PHP 8 Fix: Null coalescing check
+    if (($auth->userdata["acclevel"] ?? 0) < 100) {
         die ("Access denied!");
-	}
+    }
 ?>
 
-&nbsp;&nbsp;&nbsp;&nbsp;<img src="<?php echo IMAGE_PATH; ?>/downarrow.gif" width="9" height="6" class="imageformat"><b>&nbsp;<?php echo $task->title; ?></b><p>
+&nbsp;&nbsp;&nbsp;&nbsp;<img src="<?php echo IMAGE_PATH; ?>/downarrow.gif" width="9" height="6" class="imageformat" alt=""><b>&nbsp;<?php echo htmlspecialchars($task->title); ?></b><p>
 
 
 <span style="padding-left:35px;">Optimizing tables...</span></td>
@@ -53,95 +56,101 @@ For support and installation notes visit http://www.hlxcommunity.com
 </table><br /><br />
 
 <?php
-		flush();
+	flush();
 
-		$dbtables = null;
-		$result = $db->query("SHOW TABLES");
+	$dbtables_arr = array();
+	$result = $db->query("SHOW TABLES");
 
-		while (list($table) = $db->fetch_row($result))
-		{
-			if ($dbtables) {
-				$dbtables .= ", ";
-			}
+        // PHP 8 Fix: Replace list() loop which fails on false return
+	while ($row = $db->fetch_row($result))
+	{
+            if (isset($row[0])) {
+	        $dbtables_arr[] = "`" . $row[0] . "`";
+            }
+	}
 
-			$dbtables .= $table;
-		}
+        $dbtables = implode(", ", $dbtables_arr);
 
-		$tableOptimize = new Table(
-			array(
-				new TableColumn(
-					"Table",
-					"Table",
-					"width=30&sort=no"
-				),
-				new TableColumn(
-					"Op",
-					"Operation",
-					"width=12&sort=no"
-				),
-				new TableColumn(
-					"Msg_type",
-					"Msg. Type",
-					"width=12&sort=no"
-				),
-				new TableColumn(
-					"Msg_text",
-					"Message",
-					"width=46&sort=no"
-				)
-			),
+        if (!empty($dbtables)) {
+
+	    $tableOptimize = new Table(
+		array(
+		    new TableColumn(
 			"Table",
 			"Table",
+			"width=30&sort=no"
+		    ),
+		    new TableColumn(
+			"Op",
+			"Operation",
+			"width=12&sort=no"
+		    ),
+		    new TableColumn(
 			"Msg_type",
-			false,
-			9999
-		);
-		
-		$result = $db->query("OPTIMIZE TABLE $dbtables");
-
-		$tableOptimize->draw($result, mysqli_num_rows($result), 80);
+			"Msg. Type",
+			"width=12&sort=no"
+		    ),
+		    new TableColumn(
+			"Msg_text",
+			"Message",
+			"width=46&sort=no"
+		    )
+		),
+		"Table",
+		"Table",
+		"Msg_type",
+		false,
+		9999
+	    );
+	    
+	    $result = $db->query("OPTIMIZE TABLE $dbtables");
+    
+	    $tableOptimize->draw($result, $db->num_rows($result), 80);
 ?>
 <br /><br />
 
-<table style="width:90%;text-align:center;border:0" cellspacing="0" cellpadding="2">
+<table style="width:90%;text-align:center;border:0;" cellspacing="0" cellpadding="2">
 
 <tr>
-	<td class="fNormal">Analyzing tables...</td>
+    <td class="fNormal">Analyzing tables...</td>
 </tr>
 </table><br /><br />
-	
+    
 <?php
-		$tableAnalyze = new Table(
-			array(
-				new TableColumn(
-					"Table",
-					"Table",
-					"width=30&sort=no"
-				),
-				new TableColumn(
-					"Op",
-					"Operation",
-					"width=12&sort=no"
-				),
-				new TableColumn(
-					"Msg_type",
-					"Msg. Type",
-					"width=12&sort=no"
-				),
-				new TableColumn(
-					"Msg_text",
-					"Message",
-					"width=46&sort=no"
-				)
-			),
+	    $tableAnalyze = new Table(
+		array(
+		    new TableColumn(
 			"Table",
 			"Table",
+			"width=30&sort=no"
+		    ),
+		    new TableColumn(
+			"Op",
+			"Operation",
+			"width=12&sort=no"
+		    ),
+		    new TableColumn(
 			"Msg_type",
-			false,
-			9999
-		);
-		
-		$result = $db->query("ANALYZE TABLE $dbtables");
-
-		$tableAnalyze->draw($result, mysqli_num_rows($result), 80);
+			"Msg. Type",
+			"width=12&sort=no"
+		    ),
+		    new TableColumn(
+			"Msg_text",
+			"Message",
+			"width=46&sort=no"
+		    )
+		),
+		"Table",
+		"Table",
+		"Msg_type",
+		false,
+		9999
+	    );
+	    
+	    $result = $db->query("ANALYZE TABLE $dbtables");
+    
+	    $tableAnalyze->draw($result, $db->num_rows($result), 80);
+        } else {
+            echo "No tables found to optimize.";
+        }
 ?>

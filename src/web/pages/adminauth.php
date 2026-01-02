@@ -40,43 +40,42 @@ For support and installation notes visit http://www.hlxcommunity.com
         die('Do not access this file directly.');
     }
 
-	pageHeader(array('Admin'), array('Admin' => ''));
+    pageHeader(array('Admin'), array('Admin' => ''));
 ?>
 <div class="block">
-	<?php printSectionTitle('Authorization Required'); ?>
-	<div class="subblock">
-	<?php
-	if ($this->error)
-	{
+    <?php printSectionTitle('Authorization Required'); ?>
+    <div class="subblock">
+    <?php
+    if ($this->error)
+    {
 ?>
-	<img src="<?php echo IMAGE_PATH; ?>/warning.gif" style="padding-right:5px;">
-	<?php
-		echo "<span class=\"fTitle\" style=\"font-weight:bold;\">$this->error</span><br /><br />";
-	}
+    <img src="<?php echo htmlspecialchars(IMAGE_PATH); ?>/warning.gif" style="padding-right:5px;" alt="Warning" />
+    <?php
+	echo "<span class=\"fTitle\" style=\"font-weight:bold;\">" . htmlspecialchars((string)$this->error) . "</span><br /><br />";
+    }
 ?>
-		<div style="float:left;margin-left:40px;">
-		<form method="post" name="auth">
-	
-			<table class="data-table">
-				<tr style="vertical-align:middle;">
-					<td class="bg1" style="width:45%;border:0;">Username:</td>
-					<td class="bg1" style="width:55%;border:0;"><input type="text" name="authusername" size="20" maxlength="16" value="<?php echo $this->username; ?>" class="textbox"></td>
-				</tr>
-				<tr style="vertical-align:middle;">
-					<td class="bg1" style="width:45%;border:0;">Password:</td>
-					<td class="bg1" style="width:55%;border:0;"><input type="password" name="authpassword" size="20" maxlength="16" value="<?php echo $this->password; ?>" class="textbox"></td>
-				</tr>
-				<tr>
-					<td class="bg1" style="border:0;">&nbsp;</td>
-					<td class="bg1" style="border:0;"><input type="submit" value=" Login " id="authsubmit" class="submit"></td>
-				</tr>
-			
-			</table><br />
-				
-			Please ensure cookies are enabled in your browser security options.<br />
-			<!-- <strong>Note</strong> Do not select "Save my password" if other people will use this computer.</span>	<br /><br /> -->
-		</form>
-		</div>
+	<div style="float:left;margin-left:40px;">
+	<form method="post" name="auth" action="">
+    
+	    <table class="data-table">
+		<tr style="vertical-align:middle;">
+		    <td class="bg1" style="width:45%;border:0;">Username:</td>
+		    <td class="bg1" style="width:55%;border:0;"><input type="text" name="authusername" size="20" maxlength="16" value="<?php echo htmlspecialchars((string)$this->username); ?>" class="textbox" /></td>
+		</tr>
+		<tr style="vertical-align:middle;">
+		    <td class="bg1" style="width:45%;border:0;">Password:</td>
+		    <td class="bg1" style="width:55%;border:0;"><input type="password" name="authpassword" size="20" maxlength="16" value="<?php echo htmlspecialchars((string)$this->password); ?>" class="textbox" /></td>
+		</tr>
+		<tr>
+		    <td class="bg1" style="border:0;">&nbsp;</td>
+		    <td class="bg1" style="border:0;"><input type="submit" value=" Login " id="authsubmit" class="submit" /></td>
+		</tr>
+	    
+	    </table><br />
+		
+	    Please ensure cookies are enabled in your browser security options.<br />
+	    <!-- <strong>Note</strong> Do not select "Save my password" if other people will use this computer.</span>	<br /><br /> -->
+	</form>
 	</div>
+    </div>
 </div>
-

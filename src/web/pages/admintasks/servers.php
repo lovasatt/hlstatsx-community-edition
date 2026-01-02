@@ -40,65 +40,73 @@ For support and installation notes visit http://www.hlxcommunity.com
         die('Do not access this file directly.');
     }
 
-	if ($auth->userdata["acclevel"] < 80) {
+    global $db, $auth, $gamecode;
+
+    // PHP 8 Fix: Null coalescing check
+    if (($auth->userdata["acclevel"] ?? 0) < 80) {
         die ("Access denied!");
-	}
-	
+    }
+    
     function delete_server($server)
     {
-    	global $db;
-		$db->query("DELETE FROM `hlstats_Servers_Config` WHERE `serverId` = '" . $db->escape($server) . "';");
-		$db->query("DELETE FROM `hlstats_server_load` WHERE `server_id`  = '" . $db->escape($server) . "'");
+	global $db;
+        $server_esc = $db->escape($server);
+	$db->query("DELETE FROM `hlstats_Servers_Config` WHERE `serverId` = '$server_esc'");
+	$db->query("DELETE FROM `hlstats_server_load` WHERE `server_id`  = '$server_esc'");
     }
-	
-	$edlist = new EditList("serverId", "hlstats_Servers", "server",true,true,"serversettings", 'delete_server');
-	$edlist->columns[] = new EditListColumn("address", "IP Address", 15, true, "ipaddress", "", 15);
-	$edlist->columns[] = new EditListColumn("port", "Port", 5, true, "text", "27015", 5);
-	$edlist->columns[] = new EditListColumn("name", "Server Name", 35, true, "text", "", 255);
-	$edlist->columns[] = new EditListColumn("rcon_password", "Rcon Password", 10, false, "password", "", 128);
-	$edlist->columns[] = new EditListColumn("publicaddress", "Public Address", 20, false, "text", "", 128);
-	$edlist->columns[] = new EditListColumn("game", "Game", 20, true, "select", "hlstats_Games.name/code/realgame='".getRealGame($gamecode)."'");
-	$edlist->columns[] = new EditListColumn("sortorder", "Sort Order", 2, true, "text", "", 255);
-	
-	if ($_POST)
-	{
-		if ($edlist->update())
-			message("success", "Operation successful.");
-		else
-			message("warning", $edlist->error());
-	}
-	
+    
+    // Prepare variables for EditList
+    $gamecode_esc = $db->escape($gamecode);
+    $realgame = getRealGame($gamecode);
+    $realgame_esc = $db->escape($realgame);
+
+    $edlist = new EditList("serverId", "hlstats_Servers", "server",true,true,"serversettings", 'delete_server');
+    $edlist->columns[] = new EditListColumn("address", "IP Address", 15, true, "ipaddress", "", 15);
+    $edlist->columns[] = new EditListColumn("port", "Port", 5, true, "text", "27015", 5);
+    $edlist->columns[] = new EditListColumn("name", "Server Name", 35, true, "text", "", 255);
+    $edlist->columns[] = new EditListColumn("rcon_password", "Rcon Password", 10, false, "password", "", 128);
+    $edlist->columns[] = new EditListColumn("publicaddress", "Public Address", 20, false, "text", "", 128);
+    $edlist->columns[] = new EditListColumn("game", "Game", 20, true, "select", "hlstats_Games.name/code/realgame='$realgame_esc'");
+    $edlist->columns[] = new EditListColumn("sortorder", "Sort Order", 2, true, "text", "", 255);
+    
+    if (!empty($_POST))
+    {
+	if ($edlist->update())
+	    message("success", "Operation successful.");
+	else
+	    message("warning", $edlist->error());
+    }
+    
 ?>
 <br /><br />
 
 <?php
 
-	$result = $db->query("
-		SELECT
-			serverId,
-			address,
-			port,
-			name,
-			sortorder,
-			publicaddress,
-			game,
-			IF(rcon_password='','','(encrypted)') AS rcon_password
-		FROM
-			hlstats_Servers
-		WHERE
-			game='$gamecode'
-		ORDER BY
-			address ASC,
-			port ASC
-	");
-	
-	$edlist->draw($result, false);
+    $result = $db->query("
+	SELECT
+	    serverId,
+	    address,
+	    port,
+	    name,
+	    sortorder,
+	    publicaddress,
+	    game,
+	    IF(rcon_password='','','(encrypted)') AS rcon_password
+	FROM
+	    hlstats_Servers
+	WHERE
+	    game='$gamecode_esc'
+	ORDER BY
+	    address ASC,
+	    port ASC
+    ");
+    
+    $edlist->draw($result, false);
 
 ?>
 
 <table width="75%" border="0" cellspacing="0" cellpadding="0">
 <tr>
-	<td align="center"><input type="submit" value="  Apply  " class="submit"></td>
+    <td align="center"><input type="submit" value="  Apply  " class="submit"></td>
 </tr>
 </table>
-

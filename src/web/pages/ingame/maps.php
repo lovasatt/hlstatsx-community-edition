@@ -36,196 +36,231 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 For support and installation notes visit http://www.hlxcommunity.com
 */
 
-	if (!defined('IN_HLSTATS')) {
-		die('Do not access this file directly.');
-	}
+    if (!defined('IN_HLSTATS')) {
+	die('Do not access this file directly.');
+    }
 
-	// Player Details
-	
-	$player = valid_request(intval($_GET['player']), true);
-	$uniqueid  = valid_request(strval($_GET['uniqueid']), false);
-	$game = valid_request(strval($_GET['game']), false);
-	
-	if (!$player && $uniqueid) {
-		if (!$game) {
-			header('Location: ' . $g_options['scripturl'] . "&mode=search&st=uniqueid&q=$uniqueid");
-			exit;
-		}
-		
-		$db->query("
-			SELECT
-				playerId
-			FROM
-				hlstats_PlayerUniqueIds
-			WHERE
-				uniqueId='$uniqueid'
-				AND game='$game'
-		");
-		
-		if ($db->num_rows() > 1) {
-			header('Location: ' . $g_options['scripturl'] . "&mode=search&st=uniqueid&q=$uniqueid&game=$game");
-			exit;
-		} elseif ($db->num_rows() < 1) {
-			error("No players found matching uniqueId '$uniqueid'");
-		} else {
-			list($player) = $db->fetch_row();
-			$player = intval($player);
-		}
-	} elseif (!$player && !$uniqueid) {
-		error('No player ID specified.');
-	}
-	
-	$db->query("
-		SELECT
-			hlstats_Players.playerId,
-			hlstats_Players.lastName,
-			hlstats_Players.game
-		FROM
-			hlstats_Players
-		WHERE
-			playerId='$player'
-	");
-
-	if ($db->num_rows() != 1) {
-		error("No such player '$player'.");
-	}
-
-	$playerdata = $db->fetch_array();
-	$db->free_result();
-	
-	$pl_name = $playerdata['lastName'];
-	if (strlen($pl_name) > 10) {
-		$pl_shortname = substr($pl_name, 0, 8) . '...';
-	} else {
-		$pl_shortname = $pl_name;
-	}
-
-	$pl_name = htmlspecialchars($pl_name, ENT_COMPAT);
-	$pl_shortname = htmlspecialchars($pl_shortname, ENT_COMPAT);
-	$pl_urlname = urlencode($playerdata['lastName']);
-
-	$game = $playerdata['game'];
-	$db->query("SELECT name FROM hlstats_Games WHERE code='$game'");
-
-	if ($db->num_rows() != 1) {
-		$gamename = ucfirst($game);
-	} else {
-		list($gamename) = $db->fetch_row();
-	}
-
-	$tblMaps = new Table(
-		array(
-			new TableColumn(
-				'map',
-				'Map Name',
-				'width=18&align=left&link=' . urlencode("mode=mapinfo&map=%k&game=$game")
-			),
-			new TableColumn(
-				'kills',
-				'Kills',
-				'width=7&align=right'
-			),
-			new TableColumn(
-				'kpercent',
-				'Perc. Kills',
-				'width=10&sort=no&type=bargraph'
-			),
-			new TableColumn(
-				'kpercent',
-				'%',
-				'width=6&sort=no&align=right&append=' . urlencode('%')
-			),
-			new TableColumn(
-				'deaths',
-				'Deaths',
-				'width=7&align=right'
-			),
-			new TableColumn(
-				'kpd',
-				'Kpd',
-				'width=13&align=right'
-			),
-			new TableColumn(
-				'headshots',
-				'Headshots',
-				'width=10&align=right'
-			),
-			new TableColumn(
-				'hpercent',
-				'Perc. Headshots',
-				'width=12&sort=no&type=bargraph'
-			),
-			new TableColumn(
-				'hpercent',
-				'%',
-				'width=6&sort=no&align=right&append=' . urlencode('%')
-			),
-			new TableColumn(
-				'hpk',
-				'Hpk',
-				'width=6&align=right'
-			)
-			
-		),
-		'map',
-		'kpd',
-		'kills',
-		true,
-		9999,
-		'maps_page',
-		'maps_sort',
-		'maps_sortorder',
-		'maps'
-	);
+    // Player Details
     
+    // PHP 8 Fix: Null coalescing and type casting
+    $player_in = isset($_GET['player']) ? $_GET['player'] : 0;
+    $player = valid_request((int)$player_in, true);
+    
+    $uniqueid_in = isset($_GET['uniqueid']) ? $_GET['uniqueid'] : '';
+    $uniqueid = valid_request((string)$uniqueid_in, false);
+    
+    $game_in = isset($_GET['game']) ? $_GET['game'] : '';
+    $game = valid_request((string)$game_in, false);
+    
+    // Security: Escape variables
+    $game_esc = $db->escape($game);
+    $uniqueid_esc = $db->escape($uniqueid);
+    
+    if (!$player && $uniqueid) {
+	if (!$game) {
+            $redirect_url = $g_options['scripturl'] . "&mode=search&st=uniqueid&q=" . urlencode($uniqueid);
+	    header("Location: $redirect_url");
+	    exit;
+	}
+	
 	$db->query("
-		SELECT
-			COUNT(*)
-		FROM
-			hlstats_Events_Frags
-		LEFT JOIN hlstats_Servers ON
-			hlstats_Servers.serverId=hlstats_Events_Frags.serverId
-		WHERE
-			hlstats_Servers.game='$game' AND killerId='$player'
+	    SELECT
+		playerId
+	    FROM
+		hlstats_PlayerUniqueIds
+	    WHERE
+		uniqueId='$uniqueid_esc'
+		AND game='$game_esc'
 	");
-	list($realkills) = $db->fetch_row();
+	
+	if ($db->num_rows() > 1) {
+            $redirect_url = $g_options['scripturl'] . "&mode=search&st=uniqueid&q=" . urlencode($uniqueid) . "&game=" . urlencode($game);
+	    header("Location: $redirect_url");
+	    exit;
+	} elseif ($db->num_rows() < 1) {
+	    error("No players found matching uniqueId '$uniqueid'");
+	} else {
+            // PHP 8 Fix: Replace list()
+            $row = $db->fetch_row();
+	    $player = (int)$row[0];
+	}
+    } elseif (!$player && !$uniqueid) {
+	error('No player ID specified.');
+    }
+    
+    $db->query("
+	SELECT
+	    hlstats_Players.playerId,
+	    hlstats_Players.lastName,
+	    hlstats_Players.game
+	FROM
+	    hlstats_Players
+	WHERE
+	    playerId='$player'
+    ");
 
-	$db->query("
-		SELECT
-			COUNT(*)
-		FROM
-			hlstats_Events_Frags
-		LEFT JOIN hlstats_Servers ON
-			hlstats_Servers.serverId=hlstats_Events_Frags.serverId
-		WHERE
-			hlstats_Servers.game='$game' AND killerId='$player'
-			AND headshot=1      
-	");
-	list($realheadshots) = $db->fetch_row();
+    if ($db->num_rows() != 1) {
+	error("No such player '$player'.");
+    }
 
-	$result = $db->query("
-		SELECT
-			IF(map='', '(Unaccounted)', map) AS map,
-			SUM(killerId=$player) AS kills,
-			SUM(victimId=$player) AS deaths,
-			IFNULL(SUM(killerId=$player) / SUM(victimId=$player), '-') AS kpd,
-			ROUND(CONCAT(SUM(killerId=$player)) / $realkills * 100, 2) AS kpercent,
-			SUM(killerID=$player AND headshot=1) as headshots,
-			IFNULL(SUM(killerID=$player AND headshot=1) / SUM(killerId=$player), '-') AS hpk,
-			ROUND(CONCAT(SUM(killerId=$player AND headshot=1)) / $realheadshots * 100, 2) AS hpercent
-		FROM
-			hlstats_Events_Frags
-		LEFT JOIN hlstats_Servers ON
-			hlstats_Servers.serverId=hlstats_Events_Frags.serverId
-		WHERE
-			hlstats_Servers.game='$game' AND killerId='$player'
-			OR victimId='$player'
-		GROUP BY
-			map
-		ORDER BY
-			$tblMaps->sort $tblMaps->sortorder,
-			$tblMaps->sort2 $tblMaps->sortorder
-	");
+    $playerdata = $db->fetch_array();
+    $db->free_result();
+    
+    // PHP 8 Fix: Handle null name
+    $pl_name = isset($playerdata['lastName']) ? $playerdata['lastName'] : '';
+    
+    if (strlen((string)$pl_name) > 10) {
+	$pl_shortname = substr($pl_name, 0, 8) . '...';
+    } else {
+	$pl_shortname = $pl_name;
+    }
 
-	$tblMaps->draw($result, $db->num_rows($result), 100);
+    $pl_name = htmlspecialchars((string)$pl_name, ENT_COMPAT);
+    $pl_shortname = htmlspecialchars((string)$pl_shortname, ENT_COMPAT);
+    $pl_urlname = urlencode(isset($playerdata['lastName']) ? $playerdata['lastName'] : '');
+
+    $game = isset($playerdata['game']) ? $playerdata['game'] : '';
+    $game_esc = $db->escape($game);
+    
+    $db->query("SELECT name FROM hlstats_Games WHERE code='$game_esc'");
+
+    if ($db->num_rows() != 1) {
+	$gamename = ucfirst($game);
+    } else {
+        // PHP 8 Fix: Replace list()
+        $row = $db->fetch_row();
+	$gamename = $row[0];
+    }
+    
+    // Added: Page Header for proper layout
+    pageHeader(
+	array ($gamename, 'Map Performance', $pl_name),
+	array ($gamename=>"%s?game=$game", 'Map Performance'=>'')
+    );
+
+    $tblMaps = new Table(
+	array(
+	    new TableColumn(
+		'map',
+		'Map Name',
+		'width=18&align=left&link=' . urlencode("mode=mapinfo&map=%k&game=$game")
+	    ),
+	    new TableColumn(
+		'kills',
+		'Kills',
+		'width=7&align=right'
+	    ),
+	    new TableColumn(
+		'kpercent',
+		'Perc. Kills',
+		'width=10&sort=no&type=bargraph'
+	    ),
+	    new TableColumn(
+		'kpercent',
+		'%',
+		'width=6&sort=no&align=right&append=' . urlencode('%')
+	    ),
+	    new TableColumn(
+		'deaths',
+		'Deaths',
+		'width=7&align=right'
+	    ),
+	    new TableColumn(
+		'kpd',
+		'Kpd',
+		'width=13&align=right'
+	    ),
+	    new TableColumn(
+		'headshots',
+		'Headshots',
+		'width=10&align=right'
+	    ),
+	    new TableColumn(
+		'hpercent',
+		'Perc. Headshots',
+		'width=12&sort=no&type=bargraph'
+	    ),
+	    new TableColumn(
+		'hpercent',
+		'%',
+		'width=6&sort=no&align=right&append=' . urlencode('%')
+	    ),
+	    new TableColumn(
+		'hpk',
+		'Hpk',
+		'width=6&align=right'
+	    )
+	    
+	),
+	'map',
+	'kpd',
+	'kills',
+	true,
+	9999,
+	'maps_page',
+	'maps_sort',
+	'maps_sortorder',
+	'maps'
+    );
+    
+    $db->query("
+	SELECT
+	    COUNT(*)
+	FROM
+	    hlstats_Events_Frags
+	LEFT JOIN hlstats_Servers ON
+	    hlstats_Servers.serverId=hlstats_Events_Frags.serverId
+	WHERE
+	    hlstats_Servers.game='$game_esc' AND killerId='$player'
+    ");
+    
+    // PHP 8 Fix: Replace list()
+    $row = $db->fetch_row();
+    $realkills = ($row) ? (int)$row[0] : 0;
+
+    $db->query("
+	SELECT
+	    COUNT(*)
+	FROM
+	    hlstats_Events_Frags
+	LEFT JOIN hlstats_Servers ON
+	    hlstats_Servers.serverId=hlstats_Events_Frags.serverId
+	WHERE
+	    hlstats_Servers.game='$game_esc' AND killerId='$player'
+	    AND headshot=1      
+    ");
+    
+    // PHP 8 Fix: Replace list()
+    $row = $db->fetch_row();
+    $realheadshots = ($row) ? (int)$row[0] : 0;
+    
+    // Prevent division by zero
+    $realkills_sql = ($realkills > 0) ? $realkills : 1;
+    $realheadshots_sql = ($realheadshots > 0) ? $realheadshots : 1;
+
+    $result = $db->query("
+	SELECT
+	    IF(map='', '(Unaccounted)', map) AS map,
+	    SUM(killerId=$player) AS kills,
+	    SUM(victimId=$player) AS deaths,
+	    IFNULL(SUM(killerId=$player) / SUM(victimId=$player), '-') AS kpd,
+	    ROUND(SUM(killerId=$player) / $realkills_sql * 100, 2) AS kpercent,
+	    SUM(killerID=$player AND headshot=1) as headshots,
+	    IFNULL(SUM(killerID=$player AND headshot=1) / SUM(killerId=$player), '-') AS hpk,
+	    ROUND(SUM(killerId=$player AND headshot=1) / $realheadshots_sql * 100, 2) AS hpercent
+	FROM
+	    hlstats_Events_Frags
+	LEFT JOIN hlstats_Servers ON
+	    hlstats_Servers.serverId=hlstats_Events_Frags.serverId
+	WHERE
+	    hlstats_Servers.game='$game_esc' AND (killerId='$player'
+	    OR victimId='$player')
+	GROUP BY
+	    map
+	ORDER BY
+	    $tblMaps->sort $tblMaps->sortorder,
+	    $tblMaps->sort2 $tblMaps->sortorder
+    ");
+
+    $tblMaps->draw($result, $db->num_rows($result), 100);
 ?>

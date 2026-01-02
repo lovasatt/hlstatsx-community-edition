@@ -1,0 +1,8 @@
+{
+  "DatabaseHost": "127.0.0.1",
+  "DatabasePort": 3306,
+  "DatabaseUser": "hlxuser",
+  "DatabasePassword": "password",
+  "DatabaseName": "hlstatsx",
+  "ConfigVersion": 1
+}

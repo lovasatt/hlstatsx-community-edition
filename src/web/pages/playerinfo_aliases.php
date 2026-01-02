@@ -40,132 +40,137 @@ For support and installation notes visit http://www.hlxcommunity.com
         die('Do not access this file directly.');
     }
 
-	flush();
-	$tblAliases = new Table
+    $player = isset($player) ? (int)$player : 0;
+
+    flush();
+    $tblAliases = new Table
+    (
+	array
 	(
-		array
-		(
-			new TableColumn
-			(
-				'name',
-				'Name',
-				'width=21'
-			),
-			new TableColumn
-			(
-				'connection_time',
-				'Time',
-				'width=8&align=right&type=timestamp'
-			),
-			new TableColumn
-			(
-				'lastuse',
-				'Last Use',
-				'width=15'
-			),
-			new TableColumn
-			(
-				'kills',
-				'Kills',
-				'width=7&align=right'
-			),
-			new TableColumn
-			(
-				'deaths',
-				'Deaths',
-				'width=7&align=right'
-			),
-			new TableColumn
-			(
-				'kpd',
-				'K:D',
-				'width=11&align=right'
-			),
-			new TableColumn
-			(
-				'headshots',
-				'Headshots',
-				'width=8&align=right'
-			),
-			new TableColumn
-			(
-				'hpk',
-				'HS:K',
-				'width=6&align=right'
-			),
-			new TableColumn
-			(
-				'suicides',
-				'Suicides',
-				'width=6&align=right'
-			),
-			new TableColumn
-			(
-				'acc',
-				'Accuracy',
-				'width=6&align=right&append=' . urlencode('%')
-			)
-		),
+	    new TableColumn
+	    (
 		'name',
+		'Name',
+		'width=21'
+	    ),
+	    new TableColumn
+	    (
+		'connection_time',
+		'Time',
+		'width=8&align=right&type=timestamp'
+	    ),
+	    new TableColumn
+	    (
 		'lastuse',
-		'name',
-		true,
-		20,
-		'aliases_page',
-		'aliases_sort',
-		'aliases_sortorder',
-		'tabteams',
-		'desc',
-		true
-	);
-	$result = $db->query
-	("
-		SELECT
-			hlstats_PlayerNames.name,
-			hlstats_PlayerNames.connection_time,
-			hlstats_PlayerNames.lastuse,
-			hlstats_PlayerNames.numuses,
-			hlstats_PlayerNames.kills,
-			hlstats_PlayerNames.deaths,
-			IFNULL(ROUND(hlstats_PlayerNames.kills / IF(hlstats_PlayerNames.deaths = 0, 1, hlstats_PlayerNames.deaths), 2), '-') AS kpd,
-			hlstats_PlayerNames.headshots,
-			IFNULL(ROUND(hlstats_PlayerNames.headshots / hlstats_PlayerNames.kills, 2), '-') AS hpk,
-			hlstats_PlayerNames.suicides,
-			IFNULL(ROUND(hlstats_PlayerNames.hits / hlstats_PlayerNames.shots * 100, 1), 0.0) AS acc
-		FROM
-			hlstats_PlayerNames
-		WHERE
-			hlstats_PlayerNames.playerId = $player
-		ORDER BY
-			$tblAliases->sort $tblAliases->sortorder
-		LIMIT
-			$tblAliases->startitem,
-			$tblAliases->numperpage
-	");
-	$resultCount = $db->query
-	("
-		SELECT
-			COUNT(*)
-		FROM
-			hlstats_PlayerNames
-		WHERE
-			hlstats_PlayerNames.playerId = $player
-	");
-	list($numitems) = $db->fetch_row($resultCount);
-	if ($numitems > 1)
-	{
+		'Last Use',
+		'width=15'
+	    ),
+	    new TableColumn
+	    (
+		'kills',
+		'Kills',
+		'width=7&align=right'
+	    ),
+	    new TableColumn
+	    (
+		'deaths',
+		'Deaths',
+		'width=7&align=right'
+	    ),
+	    new TableColumn
+	    (
+		'kpd',
+		'K:D',
+		'width=11&align=right'
+	    ),
+	    new TableColumn
+	    (
+		'headshots',
+		'Headshots',
+		'width=8&align=right'
+	    ),
+	    new TableColumn
+	    (
+		'hpk',
+		'HS:K',
+		'width=6&align=right'
+	    ),
+	    new TableColumn
+	    (
+		'suicides',
+		'Suicides',
+		'width=6&align=right'
+	    ),
+	    new TableColumn
+	    (
+		'acc',
+		'Accuracy',
+		'width=6&align=right&append=' . urlencode('%')
+	    )
+	),
+	'name',
+	'lastuse',
+	'name',
+	true,
+	20,
+	'aliases_page',
+	'aliases_sort',
+	'aliases_sortorder',
+	'tabteams',
+	'desc',
+	true
+    );
+    $result = $db->query
+    ("
+	SELECT
+	    hlstats_PlayerNames.name,
+	    hlstats_PlayerNames.connection_time,
+	    hlstats_PlayerNames.lastuse,
+	    hlstats_PlayerNames.numuses,
+	    hlstats_PlayerNames.kills,
+	    hlstats_PlayerNames.deaths,
+	    IFNULL(ROUND(hlstats_PlayerNames.kills / IF(hlstats_PlayerNames.deaths = 0, 1, hlstats_PlayerNames.deaths), 2), '-') AS kpd,
+	    hlstats_PlayerNames.headshots,
+	    IFNULL(ROUND(hlstats_PlayerNames.headshots / hlstats_PlayerNames.kills, 2), '-') AS hpk,
+	    hlstats_PlayerNames.suicides,
+	    IFNULL(ROUND(hlstats_PlayerNames.hits / hlstats_PlayerNames.shots * 100, 1), 0.0) AS acc
+	FROM
+	    hlstats_PlayerNames
+	WHERE
+	    hlstats_PlayerNames.playerId = $player
+	ORDER BY
+	    $tblAliases->sort $tblAliases->sortorder
+	LIMIT
+	    $tblAliases->startitem,
+	    $tblAliases->numperpage
+    ");
+    $resultCount = $db->query
+    ("
+	SELECT
+	    COUNT(*)
+	FROM
+	    hlstats_PlayerNames
+	WHERE
+	    hlstats_PlayerNames.playerId = $player
+    ");
+    
+    $row = $db->fetch_row($resultCount);
+    $numitems = ($row) ? (int)$row[0] : 0;
+
+    if ($numitems > 1)
+    {
 ?>
 
 <div style="clear:both;padding-top:24px;"></div>
 <?php
-		printSectionTitle('Aliases');
-		if ($numitems > 0)
-		{
-			$tblAliases->draw($result, $numitems, 95);
-		}
+	printSectionTitle('Aliases');
+	if ($numitems > 0)
+	{
+	    $tblAliases->draw($result, $numitems, 95);
+	}
 ?>
 <br /><br />
 
 <?php
-	}
+    }
 ?>

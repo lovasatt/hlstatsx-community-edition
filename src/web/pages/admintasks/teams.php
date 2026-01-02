@@ -40,50 +40,57 @@ For support and installation notes visit http://www.hlxcommunity.com
         die('Do not access this file directly.');
     }
 
-	if ($auth->userdata["acclevel"] < 80) {
+    global $db, $auth, $gamecode;
+
+    // PHP 8 Fix: Null coalescing check
+    if (($auth->userdata["acclevel"] ?? 0) < 80) {
         die ("Access denied!");
-	}
+    }
 
-	$edlist = new EditList("teamId", "hlstats_Teams", "team", false);
-	$edlist->columns[] = new EditListColumn("game", "Game", 0, true, "hidden", $gamecode);
-	$edlist->columns[] = new EditListColumn("code", "Team Code", 20, true, "text", "", 32);
-	$edlist->columns[] = new EditListColumn("name", "Team Name", 20, true, "text", "", 64);
-	$edlist->columns[] = new EditListColumn("playerlist_color", "Color Code", 20, false, "text", "", 64);
-	$edlist->columns[] = new EditListColumn("playerlist_bgcolor", "Bg Color Code", 20, false, "text", "", 64);
-	$edlist->columns[] = new EditListColumn("hidden", "<center>Hide Team</center>", 0, false, "checkbox");
+    $edlist = new EditList("teamId", "hlstats_Teams", "team", false);
+    $edlist->columns[] = new EditListColumn("game", "Game", 0, true, "hidden", $gamecode);
+    $edlist->columns[] = new EditListColumn("code", "Team Code", 20, true, "text", "", 32);
+    $edlist->columns[] = new EditListColumn("name", "Team Name", 20, true, "text", "", 64);
+    $edlist->columns[] = new EditListColumn("playerlist_color", "Color Code", 20, false, "text", "", 64);
+    $edlist->columns[] = new EditListColumn("playerlist_bgcolor", "Bg Color Code", 20, false, "text", "", 64);
+    $edlist->columns[] = new EditListColumn("hidden", "<center>Hide Team</center>", 0, false, "checkbox");
 
-	if ($_POST) {
-		if ($edlist->update())
-			message("success", "Operation successful.");
-		else
-			message("warning", $edlist->error());
-	}
+    if (!empty($_POST)) {
+	if ($edlist->update())
+	    message("success", "Operation successful.");
+	else
+	    message("warning", $edlist->error());
+    }
 ?>
 
 You can specify descriptive names for each game's team codes.<p>
 
-<?php $result = $db->query("
-		SELECT
-			teamId,
-			code,
-			name,
-			hidden,
-			playerlist_color,
-			playerlist_bgcolor
-		FROM
-			hlstats_Teams
-		WHERE
-			game='$gamecode'
-		ORDER BY
-			code ASC
-	");
-	
-	$edlist->draw($result);
+<?php 
+    
+    // Security: Escape gamecode
+    $gamecode_esc = $db->escape($gamecode);
+
+    $result = $db->query("
+	SELECT
+	    teamId,
+	    code,
+	    name,
+	    hidden,
+	    playerlist_color,
+	    playerlist_bgcolor
+	FROM
+	    hlstats_Teams
+	WHERE
+	    game='$gamecode_esc'
+	ORDER BY
+	    code ASC
+    ");
+    
+    $edlist->draw($result);
 ?>
 
-<table width="75%" border=0 cellspacing=0 cellpadding=0>
+<table width="75%" border="0" cellspacing="0" cellpadding="0">
 <tr>
-	<td align="center"><input type="submit" value="  Apply  " class="submit"></td>
+    <td align="center"><input type="submit" value="  Apply  " class="submit"></td>
 </tr>
 </table>
-

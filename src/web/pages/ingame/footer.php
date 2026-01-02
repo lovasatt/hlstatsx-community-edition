@@ -40,17 +40,18 @@ For support and installation notes visit http://www.hlxcommunity.com
         die('Do not access this file directly.');
     }
 
+    global $g_options;
 ?>
 <div style="clear:both;"></div>
 <div id="footer">
-	<a href="http://www.hlxce.com" target="_blank"><img src="<?php echo IMAGE_PATH; ?>/footer-small.png" alt="HLstatsX Community Edition" border="0" /></a>
+    <a href="http://www.hlxce.com" target="_blank"><img src="<?php echo htmlspecialchars(IMAGE_PATH); ?>/footer-small.png" alt="HLstatsX Community Edition" border="0" /></a>
 </div>
 <br />
 <div class="fSmall" style="text-align:center;">
-	Generated in real-time by <a href="http://www.hlxce.com" target="_blank">HLstatsX Community Edition <?php echo $g_options['version']; ?></a>
-	<br />
-	All images are copyrighted by their respective owners.
-	
+    Generated in real-time by <a href="http://www.hlxce.com" target="_blank">HLstatsX Community Edition <?php echo htmlspecialchars($g_options['version'] ?? ''); ?></a>
+    <br />
+    All images are copyrighted by their respective owners.
+    
 </div>
 </body>
 </html>

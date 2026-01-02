@@ -39,55 +39,60 @@ For support and installation notes visit http://www.hlxcommunity.com
     if (!defined('IN_HLSTATS')) {
         die('Do not access this file directly.');
     }
-	 
-	if ($auth->userdata["acclevel"] < 80) {
-        die ("Access denied!");
-	}
 
-	$edlist = new EditList("rankId", "hlstats_Ranks", "", false);
-	$edlist->columns[] = new EditListColumn("game", "Game", 0, true, "hidden", $gamecode);
-	$edlist->columns[] = new EditListColumn("image", "Image file", 45, true, "text", "", 64);
-	$edlist->columns[] = new EditListColumn("minKills", "Minimum kills", 15, true, "text", "", 64);
-	$edlist->columns[] = new EditListColumn("maxKills", "Maximum kills", 15, true, "text", "", 64);
-	$edlist->columns[] = new EditListColumn("rankName", "Rank Name", 45, true, "text", "", 64);
-	
-	if ($_POST)
-	{
-		if ($edlist->update())
-			message("success", "Operation successful.");
-		else
-			message("warning", $edlist->error());
-	}
-	
+    global $db, $auth, $gamecode;
+     
+    // PHP 8 Fix: Null coalescing check
+    if (($auth->userdata["acclevel"] ?? 0) < 80) {
+        die ("Access denied!");
+    }
+
+    $edlist = new EditList("rankId", "hlstats_Ranks", "", false);
+    $edlist->columns[] = new EditListColumn("game", "Game", 0, true, "hidden", $gamecode);
+    $edlist->columns[] = new EditListColumn("image", "Image file", 45, true, "text", "", 64);
+    $edlist->columns[] = new EditListColumn("minKills", "Minimum kills", 15, true, "text", "", 64);
+    $edlist->columns[] = new EditListColumn("maxKills", "Maximum kills", 15, true, "text", "", 64);
+    $edlist->columns[] = new EditListColumn("rankName", "Rank Name", 45, true, "text", "", 64);
+    
+    if (!empty($_POST))
+    {
+	if ($edlist->update())
+	    message("success", "Operation successful.");
+	else
+	    message("warning", $edlist->error());
+    }
+    
 ?>
 
 Note: be sure to set the minKills/maxKills values correctly (no gap).<br>
 Images have to be given without ".gif" and "_small" extension!<p>
 
 <?php
-	
-	$result = $db->query("
-		SELECT
-			rankId,
-			game,
-			image,
-			minKills,
-			maxKills,
-			rankName
-		FROM
-			hlstats_Ranks
-		WHERE
-      game='$gamecode'	
-		ORDER BY
-			minKills ASC
-	");
-	
-	$edlist->draw($result);
+    
+    // Security: Escape gamecode
+    $gamecode_esc = $db->escape($gamecode);
+
+    $result = $db->query("
+	SELECT
+	    rankId,
+	    game,
+	    image,
+	    minKills,
+	    maxKills,
+	    rankName
+	FROM
+	    hlstats_Ranks
+	WHERE
+      game='$gamecode_esc'	
+	ORDER BY
+	    minKills ASC
+    ");
+    
+    $edlist->draw($result);
 ?>
 
-<table width="75%" border=0 cellspacing=0 cellpadding=0>
+<table width="75%" border="0" cellspacing="0" cellpadding="0">
 <tr>
-	<td align="center"><input type="submit" value="  Apply  " class="submit"></td>
+    <td align="center"><input type="submit" value="  Apply  " class="submit"></td>
 </tr>
 </table>
-

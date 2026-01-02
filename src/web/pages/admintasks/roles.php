@@ -40,47 +40,54 @@ For support and installation notes visit http://www.hlxcommunity.com
         die('Do not access this file directly.');
     }
 
-	if ($auth->userdata["acclevel"] < 80) {
+    global $db, $auth, $gamecode;
+
+    // PHP 8 Fix: Null coalescing check
+    if (($auth->userdata["acclevel"] ?? 0) < 80) {
         die ("Access denied!");
-	}
+    }
 
-	$edlist = new EditList("roleId", "hlstats_Roles", "role", false);
-	$edlist->columns[] = new EditListColumn("game", "Game", 0, true, "hidden", $gamecode);
-	$edlist->columns[] = new EditListColumn("code", "Role Code", 20, true, "text", "", 32);
-	$edlist->columns[] = new EditListColumn("name", "Role Name", 20, true, "text", "", 64);
-	$edlist->columns[] = new EditListColumn("hidden", "<center>Hide Role</center>", 0, false, "checkbox");
+    $edlist = new EditList("roleId", "hlstats_Roles", "role", false);
+    $edlist->columns[] = new EditListColumn("game", "Game", 0, true, "hidden", $gamecode);
+    $edlist->columns[] = new EditListColumn("code", "Role Code", 20, true, "text", "", 32);
+    $edlist->columns[] = new EditListColumn("name", "Role Name", 20, true, "text", "", 64);
+    $edlist->columns[] = new EditListColumn("hidden", "<center>Hide Role</center>", 0, false, "checkbox");
 
-	if ($_POST)
-	{
-		if ($edlist->update())
-			message("success", "Operation successful.");
-		else
-			message("warning", $edlist->error());
-	}
+    if (!empty($_POST))
+    {
+	if ($edlist->update())
+	    message("success", "Operation successful.");
+	else
+	    message("warning", $edlist->error());
+    }
 ?>
 
 You can specify descriptive names for each game's role codes.<p>
 
-<?php $result = $db->query("
-		SELECT
-			roleId,
-			code,
-			name,
-			hidden
-		FROM
-			hlstats_Roles
-		WHERE
-			game='$gamecode'
-		ORDER BY
-			code ASC
-	");
-	
-	$edlist->draw($result);
+<?php 
+    
+    // Security: Escape gamecode
+    $gamecode_esc = $db->escape($gamecode);
+
+    $result = $db->query("
+	SELECT
+	    roleId,
+	    code,
+	    name,
+	    hidden
+	FROM
+	    hlstats_Roles
+	WHERE
+	    game='$gamecode_esc'
+	ORDER BY
+	    code ASC
+    ");
+    
+    $edlist->draw($result);
 ?>
 
-<table width="75%" border=0 cellspacing=0 cellpadding=0>
+<table width="75%" border="0" cellspacing="0" cellpadding="0">
 <tr>
-	<td align="center"><input type="submit" value="  Apply  " class="submit"></td>
+    <td align="center"><input type="submit" value="  Apply  " class="submit"></td>
 </tr>
 </table>
-
