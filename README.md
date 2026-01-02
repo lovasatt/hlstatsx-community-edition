@@ -16,10 +16,15 @@ Counter-Strike 2 is supported (mostly), via [`source-udp-forwarder`](https://git
 
 ## :loudspeaker: Important changes
 
-| Date  | Description | Additional information |
-| ------------- | ------------- | ------------- |
-| 07.01.2020  | [#45](https://github.com/NomisCZ/hlstatsx-community-edition/issues/45) GeoIP2 Linux script updated, GeoLite2 MaxMind database (GDPR and CCPA) | https://blog.maxmind.com/2019/12/18/significant-changes-to-accessing-and-using-geolite2-databases/ |
-
+| Date | Description / Feature | Support Status / Additional Information |
+| :--- | :--- | :--- |
+| **2026-01-02** | **Modernized Build** | **PHP 8.4 and Counter-Strike 2 Support 🚀** |
+| | PHP Version | Full PHP 8.4 compatibility (Zero deprecated warnings) |
+| | Security | Silent Migration (Legacy MD5 auto-upgrade to `password_hash`) |
+| | CS2 Support | Updated Daemon (Correct CT/T fire/inferno differentiation) |
+| | Calculations | EloRank System & SuperLogs plugin integration |
+| | Architecture | Modernized `/src` directory structure |
+| 07.01.2020 | #45 GeoIP2 Update | Linux script updated, GeoLite2 MaxMind database (GDPR) [Ref](https://blog.maxmind.com/2019/12/18/significant-changes-to-accessing-and-using-geolite2-databases/) |
 > Date format: DD.MM.YYYY
 
 ---
@@ -166,3 +171,4 @@ git commit -m "Chore: Release 1.2.3"
 ### Q: `Xdebug: [Step Debug] Could not connect to debugging client. Tried: host.docker.internal:9000 (through xdebug.client_host/xdebug.client_port)` appears in PHP logs on `docker-compose up`
 
 A: If you are seeing this in development, the PHP debugger is not running. Press `F5` in `vscode` to start the PHP debugger. If you don't need debugging, set `XDEBUG_MODE=off` in `docker-compose.yml` to disable XDebug.
+
