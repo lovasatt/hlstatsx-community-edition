@@ -6,6 +6,7 @@ using CounterStrikeSharp.API.Modules.Menu;
 using CounterStrikeSharp.API.Modules.Utils;
 using MySqlConnector;
 using System;
+using System.Collections.Generic;
 using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 
@@ -18,16 +19,18 @@ public class ElorankConfig : BasePluginConfig
     [JsonPropertyName("DatabaseUser")] public string DatabaseUser { get; set; } = "hlxuser";
     [JsonPropertyName("DatabasePassword")] public string DatabasePassword { get; set; } = "password";
     [JsonPropertyName("DatabaseName")] public string DatabaseName { get; set; } = "hlstatsx";
+    [JsonPropertyName("CooldownSeconds")] public int CooldownSeconds { get; set; } = 30;
 }
 
 public class Elorank_cs2 : BasePlugin, IPluginConfig<ElorankConfig>
 {
     public override string ModuleName => "[CS2] Elorank for HLstatsX";
-    public override string ModuleVersion => "1.1";
+    public override string ModuleVersion => "1.2";
     public override string ModuleAuthor => "lovasatt";
     public override string ModuleDescription => "Allows players to set their Competitive rank in HLstatsX manually.";
 
     public ElorankConfig Config { get; set; } = new();
+    private Dictionary<int, DateTime> _lastCommandUsage = new Dictionary<int, DateTime>();
 
     public void OnConfigParsed(ElorankConfig config)
     {
@@ -36,6 +39,12 @@ public class Elorank_cs2 : BasePlugin, IPluginConfig<ElorankConfig>
 
     public override void Load(bool hotReload)
     {
+        RegisterEventHandler<EventPlayerDisconnect>((@event, info) =>
+        {
+            if (@event.Userid != null) _lastCommandUsage.Remove(@event.Userid.Slot);
+            return HookResult.Continue;
+        });
+
         Console.WriteLine("[Elorank-cs2] Plugin loaded successfully.");
     }
 
@@ -45,7 +54,18 @@ public class Elorank_cs2 : BasePlugin, IPluginConfig<ElorankConfig>
     {
         if (player == null || !player.IsValid || player.IsBot) return;
 
-        var menu = new ChatMenu("Válaszd ki a Competitive Rangod:");
+        if (_lastCommandUsage.TryGetValue(player.Slot, out var lastUsed))
+        {
+            var diff = DateTime.Now - lastUsed;
+            if (diff.TotalSeconds < Config.CooldownSeconds)
+            {
+                int remaining = Config.CooldownSeconds - (int)diff.TotalSeconds;
+                player.PrintToChat(Localizer["error.cooldown", remaining]);
+                return;
+            }
+        }
+
+        var menu = new ChatMenu(Localizer["menu.title"]);
 
         menu.AddMenuOption("No Rank", (p, opt) => SetRank(p, 0, "No Rank"));
         menu.AddMenuOption("Silver I", (p, opt) => SetRank(p, 1, "Silver I"));
@@ -68,6 +88,7 @@ public class Elorank_cs2 : BasePlugin, IPluginConfig<ElorankConfig>
         menu.AddMenuOption("The Global Elite", (p, opt) => SetRank(p, 18, "Global Elite"));
 
         MenuManager.OpenChatMenu(player, menu);
+        _lastCommandUsage[player.Slot] = DateTime.Now;
     }
 
     private void SetRank(CCSPlayerController player, int rankId, string rankName)
@@ -76,7 +97,7 @@ public class Elorank_cs2 : BasePlugin, IPluginConfig<ElorankConfig>
 
         string uniqueId = GetSteam2ID(player.SteamID);
 
-        // Aszinkron adatbázis művelet
+        // Async database operation
         Task.Run(async () =>
         {
             try
@@ -106,19 +127,19 @@ public class Elorank_cs2 : BasePlugin, IPluginConfig<ElorankConfig>
 
                 int rowsAffected = await cmd.ExecuteNonQueryAsync();
 
-                // Visszatérés a főszálra
+                // Return to the main thread
                 Server.NextFrame(() =>
                 {
                     if (player.IsValid)
                     {
                         if (rowsAffected > 0)
                         {
-                            player.PrintToChat($" {ChatColors.Green}[HLStatsX] {ChatColors.Default}Your rank is now: {ChatColors.Yellow}{rankName}");
+                            player.PrintToChat(Localizer["rank.set.success", rankName]);
                         }
                         else
                         {
-                            player.PrintToChat($" {ChatColors.Red}[HLStatsX] {ChatColors.Default}Error: Your profile was not found in HLStatsX yet.");
-                            player.PrintToChat($" {ChatColors.Default}Please wait until your stats are tracked (kill someone first).");
+                            player.PrintToChat(Localizer["error.profile.not.found"]);
+                            player.PrintToChat(Localizer["error.wait.for.stats"]);
                         }
                     }
                 });

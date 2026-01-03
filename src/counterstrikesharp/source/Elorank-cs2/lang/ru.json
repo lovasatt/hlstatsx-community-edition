@@ -1,0 +1,7 @@
+{
+  "menu.title": "Выбери свой соревновательный ранг:",
+  "rank.set.success": " {Green}[HLStatsX] {Default}Твой ранг теперь: {Yellow}{0}{Default}",
+  "error.profile.not.found": " {Red}[HLStatsX] {Default}Ошибка: Твой профиль еще не найден в HLStatsX.{Default}",
+  "error.wait.for.stats": " {Default}Пожалуйста, подожди, пока твоя статистика будет зафиксирована.{Default}",
+  "error.cooldown": " {Red}[HLStatsX] {Default}Подожди {Yellow}{0} {Default}сек. перед повторным использованием.{Default}"
+}

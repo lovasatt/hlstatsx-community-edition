@@ -1,0 +1,7 @@
+{
+  "menu.title": "Vyber si svůj kompetitivní rank:",
+  "rank.set.success": " {Green}[HLStatsX] {Default}Tvůj rank je nyní: {Yellow}{0}{Default}",
+  "error.profile.not.found": " {Red}[HLStatsX] {Default}Chyba: Tvůj profil nebyl v HLStatsX nalezen.{Default}",
+  "error.wait.for.stats": " {Default}Počkej prosím, dokud se tvé statistiky nezaznamenají.{Default}",
+  "error.cooldown": " {Red}[HLStatsX] {Default}Počkej prosím {Yellow}{0} {Default}sek. před dalším použitím.{Default}"
+}

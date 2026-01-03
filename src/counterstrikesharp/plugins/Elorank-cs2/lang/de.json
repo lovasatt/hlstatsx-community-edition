@@ -1,0 +1,7 @@
+{
+  "menu.title": "Wähle deinen Wettkampf-Rang:",
+  "rank.set.success": " {Green}[HLStatsX] {Default}Dein Rang ist jetzt: {Yellow}{0}{Default}",
+  "error.profile.not.found": " {Red}[HLStatsX] {Default}Fehler: Dein Profil wurde in HLStatsX noch nicht gefunden.{Default}",
+  "error.wait.for.stats": " {Default}Bitte warte, bis deine Statistiken erfasst werden.{Default}",
+  "error.cooldown": " {Red}[HLStatsX] {Default}Bitte warte {Yellow}{0} {Default}Sek. bevor du diesen Befehl erneut nutzt.{Default}"
+}

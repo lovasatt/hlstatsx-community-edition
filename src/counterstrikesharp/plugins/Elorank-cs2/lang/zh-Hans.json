@@ -1,0 +1,7 @@
+{
+  "menu.title": "选择你的竞技模式段位：",
+  "rank.set.success": " {Green}[HLStatsX] {Default}你的段位现已设置为：{Yellow}{0}{Default}",
+  "error.profile.not.found": " {Red}[HLStatsX] {Default}错误：HLStatsX 尚未找到你的个人资料。{Default}",
+  "error.wait.for.stats": " {Default}请等待系统记录你的数据（请先拿到一个击杀）。{Default}",
+  "error.cooldown": " {Red}[HLStatsX] {Default}请等待 {Yellow}{0} {Default}秒后再使用此命令。{Default}"
+}

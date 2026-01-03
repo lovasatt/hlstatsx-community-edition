@@ -1,0 +1,7 @@
+{
+  "menu.title": "경쟁전 랭크를 선택하세요:",
+  "rank.set.success": " {Green}[HLStatsX] {Default}당신의 랭크가 이제 {Yellow}{0}{Default}(으)로 설정되었습니다.{Default}",
+  "error.profile.not.found": " {Red}[HLStatsX] {Default}오류: HLStatsX에서 프로필을 찾을 수 없습니다.{Default}",
+  "error.wait.for.stats": " {Default}통계가 기록될 때까지 기다려 주세요.{Default}",
+  "error.cooldown": " {Red}[HLStatsX] {Default}이 명령어를 다시 사용하려면 {Yellow}{0} {Default}초만 더 기다려 주세요.{Default}"
+}

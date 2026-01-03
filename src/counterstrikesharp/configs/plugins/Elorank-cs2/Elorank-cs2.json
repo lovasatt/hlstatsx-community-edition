@@ -4,5 +4,6 @@
   "DatabaseUser": "hlxuser",
   "DatabasePassword": "password",
   "DatabaseName": "hlstatsx",
+  "CooldownSeconds": 30,
   "ConfigVersion": 1
 }

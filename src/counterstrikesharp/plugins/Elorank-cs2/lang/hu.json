@@ -1,0 +1,7 @@
+{
+  "menu.title": "Válaszd ki a Competitive Rangod:",
+  "rank.set.success": " {Green}[HLStatsX] {Default}A rangod mostantól: {Yellow}{0}{Default}",
+  "error.profile.not.found": " {Red}[HLStatsX] {Default}Hiba: A profilod még nem szerepel a HLStatsX-ben.{Default}",
+  "error.wait.for.stats": " {Default}Kérlek várj, amíg a rendszer rögzíti az első öléseidet.{Default}",
+  "error.cooldown": " {Red}[HLStatsX] {Default}Kérlek várj {Yellow}{0} {Default}mp-et a következő használatig.{Default}"
+}
