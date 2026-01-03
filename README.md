@@ -1,9 +1,9 @@
 # HLstatsX : Community Edition
 
-[![github-actions](https://github.com/startersclan/hlstatsx-community-edition/workflows/ci-master-pr/badge.svg)](https://github.com/startersclan/hlstatsx-community-edition/actions)
-[![github-release](https://img.shields.io/github/v/release/startersclan/hlstatsx-community-edition?style=flat-square)](https://github.com/startersclan/hlstatsx-community-edition/releases/)
-[![docker-image-size](https://img.shields.io/docker/image-size/startersclan/hlstatsx-community-edition/master-web?label=web)](https://hub.docker.com/r/startersclan/hlstatsx-community-edition)
-[![docker-image-size](https://img.shields.io/docker/image-size/startersclan/hlstatsx-community-edition/master-daemon?label=daemon)](https://hub.docker.com/r/startersclan/hlstatsx-community-edition)
+![PHP Version](https://img.shields.io/badge/PHP-8.4-777bb4.svg?style=flat-square&logo=php)
+[![github-release](https://img.shields.io/github/v/release/lovasatt/hlstatsx-community-edition?style=flat-square)](https://github.com/lovasatt/hlstatsx-community-edition/releases/)
+![Game](https://img.shields.io/badge/Games-CS2%20Support-orange.svg?style=flat-square)
+![GitHub repo size](https://img.shields.io/github/repo-size/lovasatt/hlstatsx-community-edition?style=flat-square&label=Web%20Size&color=blue)
 
 HLstatsX Community Edition is an open-source project licensed
 under GNU General Public License v2 and is a real-time stats
@@ -12,7 +12,7 @@ Edition uses a Perl daemon to parse the log streamed from the
 game server. The data is stored in a MySQL Database and has
 a PHP frontend.
 
-Counter-Strike 2 is supported (mostly), via [`source-udp-forwarder`](https://github.com/startersclan/source-udp-forwarder).
+Counter-Strike 2 is supported, via [`source-udp-forwarder`](https://github.com/startersclan/source-udp-forwarder).
 
 ## :loudspeaker: Important changes
 
@@ -25,8 +25,37 @@ Counter-Strike 2 is supported (mostly), via [`source-udp-forwarder`](https://git
 | | Calculations | EloRank System & SuperLogs plugin integration |
 | | Architecture | Modernized `/src` directory structure |
 | 07.01.2020 | #45 GeoIP2 Update | Linux script updated, GeoLite2 MaxMind database (GDPR) [Ref](https://blog.maxmind.com/2019/12/18/significant-changes-to-accessing-and-using-geolite2-databases/) |
-> Date format: DD.MM.YYYY
 
+---
+### Standalone Installation Guide
+
+All required files are located within the **`/src`** directory.
+
+### 1. Database Setup
+1. Create a MySQL/MariaDB database.
+2. Import the initial schema: `./src/sql/install.sql`
+3. *Note: For upgrades, the system handles the silent password migration automatically.*
+
+### 2. Web Frontend (PHP 8.4)
+1. **Upload:** Transfer `/src/web/` contents to your web server's directory.
+2. **Document Root:** Point your webserver's Document Root specifically to the `/web` folder.
+3. **Configuration:** Edit database credentials in: `./src/web/config.php`
+4. **Linux Permissions:** Ensure the web server user (e.g., `www-data`) has proper ownership:
+   ```bash
+   # Example for Ubuntu/Debian:
+   chown -R www-data:www-data /path/to/src/web
+   chmod -R 755 /path/to/src/web
+5. **Log Streaming:** To ensure the game server streams logs correctly to your daemon, add the following parameters to your CS2 server startup script (launch options):
+   ```bash
+   +log on +logaddress_add_http "http://your_ip:26999" (to source-udp-forwarder)
+6. **CS2 Dedicated Server Integration:**
+To enable real-time tracking for Counter-Strike 2:<br>
+    Deploy Plugins: Copy the pre-compiled plugins from `./src/plugins/` to your server's directory:<br>
+    `game/csgo/addons/counterstrikesharp/plugins/`<br>
+    Configuration: Update the .json configuration files for plugins with your database credentials.<br>
+    Warmup Control: The included Warmup plugin automatically disables logging during warmup periods to prevent erroneous data collection and ensure statistical integrity.<br>
+    
+Detailed installation instructions below on the wikipedia page
 ---
 
 ## :book: Documentation
@@ -171,4 +200,5 @@ git commit -m "Chore: Release 1.2.3"
 ### Q: `Xdebug: [Step Debug] Could not connect to debugging client. Tried: host.docker.internal:9000 (through xdebug.client_host/xdebug.client_port)` appears in PHP logs on `docker-compose up`
 
 A: If you are seeing this in development, the PHP debugger is not running. Press `F5` in `vscode` to start the PHP debugger. If you don't need debugging, set `XDEBUG_MODE=off` in `docker-compose.yml` to disable XDebug.
+
 
