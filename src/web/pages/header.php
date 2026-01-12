@@ -105,9 +105,22 @@ For support and installation notes visit http://www.hlxcommunity.com
 ?>
 <!DOCTYPE html>
 <head>
+    <!-- Mobile Optimization Layer  -->
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: *.akamaihd.net *.steamstatic.com *.steamcommunity.com; script-src 'self' 'unsafe-inline' 'unsafe-eval';" />
+    <!-- PWA and App Integration -->
+    <link rel="manifest" href="manifest.json" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="theme-color" content="#1a1a1a" />
+
     <link rel="stylesheet" type="text/css" href="hlstats.css" />
     <link rel="stylesheet" type="text/css" href="styles/<?php echo htmlspecialchars($selectedStyle); ?>" />
     <link rel="stylesheet" type="text/css" href="css/SqueezeBox.css" />
+
+    <!-- Modern Responsive Adapter -->
+    <link rel="stylesheet" type="text/css" href="styles/modern-responsive.css?v=1.0" />
     <!-- U R A SMACKHEAD -->
 <?php
     if ($mode == 'players')

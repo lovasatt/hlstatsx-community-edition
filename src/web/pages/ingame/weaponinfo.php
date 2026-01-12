@@ -89,7 +89,7 @@ For support and installation notes visit http://www.hlxcommunity.com
 	    new TableColumn(
 		'killerName',
 		'Player',
-		'width=60&align=left&flag=1&link=' . urlencode('mode=statsme&amp;player=%k') 
+		'width=60&align=left&flag=1&link=' . urlencode('mode=playerinfo&amp;player=%k') 
 	    ),
 	    new TableColumn(
 		'frags',

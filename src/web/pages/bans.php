@@ -85,7 +85,7 @@ For support and installation notes visit http://www.hlxcommunity.com
 	    new TableColumn(
 		'lastName',
 		'Player',
-		'width=26&flag=1&link=' . urlencode('mode=statsme&amp;player=%k')
+		'width=26&flag=1&link=' . urlencode('mode=playerinfo&amp;player=%k')
 	    ),
 	    new TableColumn(
 		'ban_date',

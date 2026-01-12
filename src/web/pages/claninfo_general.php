@@ -323,7 +323,7 @@ printSectionTitle('Clan Information');
 	    new TableColumn(
 		'lastName',
 		'Name',
-		'width=28&flag=1&link=' . urlencode('mode=statsme&amp;player=%k')
+		'width=28&flag=1&link=' . urlencode('mode=playerinfo&amp;player=%k')
 	    ),
                         new TableColumn(
                                 'mmrank',

@@ -1,0 +1,542 @@
+/*
+   HLstatsX Modernized Edition - Responsive Adapter Layer
+   Version: 1.0
+   Project: https://github.com/lovasatt/hlstatsx-community-edition
+   Author:  lovasatt (2026)
+*/
+
+    /* --- CSS NORMAL VARIABLES  --- */
+    :root {
+        --bg-primary: #ffffff;
+        --bg-block: rgba(0,0,0,0.05);
+        --bg-active: #dddddd;
+        --text-primary: #1f1f1f;
+        --text-muted: #3f3f3f;
+        --border-main: #8a8a8a;
+        --border-soft: #b5b5b5;
+        --accent-red: #b00020;
+        --accent-blue: #0b3cff;
+        --shadow-indicator: rgba(0,0,0,0.1);
+        --touch-height: 44px; /* 2026 professional touch target */
+    }
+
+    /* --- UNIVERSAL BOX RESET --- */
+    *, *:before, *:after {
+    box-sizing: border-box !important;
+    }
+
+    /* --- SUB-NAVIGATION BUTTON POSITIONING & COLORS --- */
+    #main ul.subsection_tabs li {
+        margin-top: -2px !important;
+        position: relative !important;
+        z-index: 5 !important;
+    }
+
+    #main ul.subsection_tabs {
+        border-bottom: 1px solid var(--border-soft) !important;
+        display: flex !important;
+        flex-wrap: wrap !important;
+        overflow: visible !important;
+        margin-bottom: 10px !important;
+    }
+
+    #main ul.subsection_tabs li a {
+        background-color: transparent !important;
+        border: none !important;
+        color: var(--text-muted) !important;
+    }
+
+    /* Active button: Grey line and grey background instead of black */
+    #main ul.subsection_tabs li a.active {
+        background-color: var(--bg-active) !important;
+        color: var(--text-primary) !important;
+        border-bottom: 2px solid var(--bg-active) !important;
+    }
+
+@media screen and (max-width: 992px) {
+
+    /* --- BUTTONS AND TOUCH INTERFACE IMPROVEMENTS --- */
+    input[type="text"], input[type="password"], select, input[type="submit"], button {
+        height: var(--touch-height) !important;
+        width: 50% !important;
+        min-width: 180px !important;
+        font-size: 16px !important;
+        border: 1px solid #ccc !important;
+        border-radius: 4px !important;
+        margin-bottom: 10px !important;
+    }
+
+    /* --- HAPTIC FEEDBACK (Button Shrink Effect) --- */
+    .fancyNav a:active, .headertabs a:active, input[type="submit"]:active, button:active, .fSmall a:active {
+        transform: scale(0.96) !important;
+        transition: transform 0.05s ease-out;
+        opacity: 0.8;
+    }
+
+    /* --- NATIVE APP POLISH --- */
+    * { -webkit-tap-highlight-color: transparent !important; }
+
+    html, body {
+        width: 100% !important; /* Force true width */
+        max-width: 100% !important;
+        padding-left: env(safe-area-inset-left) !important;
+        padding-right: env(safe-area-inset-right) !important;
+        padding-top: env(safe-area-inset-top) !important;
+        overscroll-behavior-y: contain;
+        box-sizing: border-box;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
+        -webkit-font-smoothing: antialiased !important;
+        -moz-osx-font-smoothing: grayscale !important;
+        text-rendering: optimizeLegibility !important;
+        font-variant-numeric: tabular-nums !important;
+        transition: background-color 0.3s ease !important;
+        touch-action: manipulation !important;
+        overflow-x: hidden !important;
+    }
+
+    /* --- TABLES: SCROLL INDICATORS --- */
+    div[align="center"], .block, .content .fNormal {
+        width: 100% !important; /* <--- ADD THIS (or increase to 100% for fewer margins) */
+        margin-left: auto !important;
+        margin-right: auto !important;
+        overflow-x: auto !important;
+        -webkit-overflow-scrolling: touch;
+        padding-bottom: 25px !important;
+        max-width: 100% !important;
+        /* Subtle internal shadow indicating more content to the right */
+        background-image: linear-gradient(to right, var(--bg-primary), var(--bg-primary)),
+                          linear-gradient(to right, var(--bg-primary), var(--bg-primary)),
+                          linear-gradient(to right, var(--shadow-indicator), transparent),
+                          linear-gradient(to left, var(--shadow-indicator), transparent) !important;
+        background-position: left center, right center, left center, right center;
+        background-repeat: no-repeat;
+        background-color: var(--bg-primary) !important;
+        background-size: 20px 100%, 20px 100%, 10px 100%, 10px 100%;
+        background-attachment: local, local, scroll, scroll;
+    }
+
+    /* --- BREADCRUMB (LOCATION) REFINEMENT --- */
+    .location {
+        display: flex !important;
+        justify-content: flex-start !important;
+        align-items: center;
+        padding: 5px 10px !important;
+        text-align: left !important;
+    }
+
+    .location li {
+        font-size: 11px !important;
+        text-transform: none !important;
+        letter-spacing: normal !important;
+        list-style: none !important;
+        margin-right: 5px !important;
+    }
+
+    /* --- FANCYNAV RESTORATION --- */
+    .fancyNav {
+        display: flex !important;
+        flex-wrap: wrap !important;
+        justify-content: center !important;
+        list-style: none !important;
+        padding: 5px 0 !important;
+        width: 100% !important;
+    }
+
+    .fancyNav li {
+        flex: 1 1 45%;
+        margin: 0px !important;
+    }
+
+    .fancyNav a {
+        display: block !important;
+        padding: 10px 5px !important;
+        background: var(--bg-block) !important;
+        border-radius: 1px !important;
+        text-align: center !important;
+        font-weight: bold !important;
+        text-decoration: none !important;
+    }
+
+    /* --- INTERFACE SELECTION LOCK: NATIVE APP FEEL --- */
+    /* Stops UI text selection on buttons, tabs and labels while keeping data copyable */
+    .fancyNav, .headertabs, .location, .headerblock, .subsection_tabs, button, input[type="submit"] {
+        -webkit-user-select: none !important;
+        -moz-user-select: none !important;
+        -ms-user-select: none !important;
+        user-select: none !important;
+        touch-action: manipulation !important;
+    }
+
+    /* Allows only the specific statistics data (player names, values) to be selectable */
+    .data-table td, .main-table td, .contents td, .fNormal {
+        -webkit-user-select: text !important;
+        user-select: text !important;
+    }
+
+    /* --- PLAYER ASSETS (TREND & SIGNATURE) SCALING --- */
+    /* Targetting trend and signature images to force them to stack vertically and prevent overlap */
+    img[src*="trend"], img[alt*="Player Trend"],
+    img[src*="sig"], img[alt*="Signature"],
+    img[src*="graph"] {
+        width: 100% !important;
+        max-width: 100% !important;
+        height: auto !important;
+        display: block !important;
+        margin: 10px auto !important;
+        padding: 0 !important;
+    }
+
+    /* --- PLAYER PROFILE & DATA COLUMN STACKING --- */
+    /* Targetting the inline-styled divs used in playerinfo_general.php */
+    /* This forces the 48.5% wide side-by-side columns to stack vertically on mobile */
+    .subblock > div[style*="width:48.5%"],
+    .subblock > div[style*="width:68.5%"],
+    .subblock > div[style*="width:28.5%"],
+    .subblock > div {
+        width: 100% !important;
+        float: none !important;
+        display: block !important;
+        margin-left: 0 !important;
+        margin-right: 0 !important;
+        margin-bottom: 20px !important;
+        box-sizing: border-box;
+    }
+
+    /* Ensuring the tables inside these divs also fill the new width */
+    .subblock table.data-table {
+        width: 100% !important;
+    }
+
+    /* --- FIXED TEXT OVERFLOW & PLAYER ASSET PROTECTION --- */
+    /* Target only player name links for "..." truncation WITHOUT affecting icons */
+    td a[href*="mode=playerinfo"],
+    td a[href*="mode=dailyawardinfo"],
+    .fNormal strong {
+        display: inline-block !important;
+        max-width: 160px !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+        vertical-align: middle !important;
+    }
+
+    /* FIX for Player Info Ribbons & Awards: Allow icons to wrap into multiple rows */
+    .subblock table.data-table td {
+        white-space: normal !important;
+        overflow: visible !important;
+        max-width: none !important;
+    }
+
+    /* Ensures the actual icons are not compressed */
+    .subblock td img {
+        display: inline-block !important;
+        max-width: none !important;
+    }
+
+    /* --- LOGO AREA: DYNAMIC MOBILE SCALE --- */
+    /* Reducing only the main logo image size to 80% on mobile to prevent overlap */
+    .headerblock .title img {
+        max-height: 48px !important;
+        max-width: 63% !important;
+        width: auto !important;
+        height: auto !important;
+        object-fit: contain;
+    }
+
+    /* Ensures all rank icons and ribbons stay sharp and consistent */
+    img[src*="ranks/"], 
+    img[src*="mmranks/"],
+    img[src*="ribbons/"],
+    img[src*="awards/"],
+    img[src*="gawards/"] {
+        max-height: 32px !important;
+        width: auto !important;
+        vertical-align: middle !important;
+        display: inline-block !important;
+        margin: 2px 0 !important;
+        image-rendering: -webkit-optimize-contrast !important;
+        image-rendering: crisp-edges !important;
+        image-rendering: pixelated !important;
+        transition: filter 0.2s ease !important;
+    }
+
+    /* Ensures weapons icons stay sharp and consistent */
+    img[src*="weapons/"] {
+        max-height: 24px !important;
+        width: auto !important;
+        vertical-align: middle !important;
+        display: inline-block !important;
+        margin: 2px 0 !important;
+        image-rendering: -webkit-optimize-contrast !important;
+        image-rendering: crisp-edges !important;
+        image-rendering: pixelated !important;
+        transition: filter 0.2s ease !important;
+    }
+
+    /* --- COMPACT FOOTER BUTTONS (Admin / Logout) --- */
+    /* Targetting links inside fSmall to create compact UI elements */
+    .fSmall a[href*="mode=admin"], 
+    .fSmall a[href*="logout=1"] {
+        display: inline-block !important;
+        padding: 1px 8px !important; /* Minimal vertical padding to keep original height */
+        margin: 0 2px !important;
+        background-color: var(--bg-block) !important;
+        border: 1px solid var(--shadow-indicator) !important;
+        border-radius: 4px !important;
+        text-decoration: none !important;
+        font-weight: bold !important;
+        vertical-align: middle !important;
+        /* Matches the text height to prevent line breaking */
+        line-height: 1.4 !important;
+    }
+}
+    /* --- DARK MODE SUPPORT (AUTO DETECTION) --- */
+    @media (prefers-color-scheme: dark) {
+
+    /* --- CSS DARK VARIABLES  --- */
+        :root {
+            --bg-primary: #1e1e1e;
+            --bg-block: #121212;
+            --bg-header: #1e1e1e;
+            --bg-active: #222222;
+            --bg-button: rgba(255, 255, 255, 0.08);
+            --text-primary: #ffffff;
+            --text-soft: #e0e0e0;
+            --text-muted: #b5b5b5;
+            --border-main: #5a5a5a;
+            --border-soft: #707070;
+            --accent-blue: #4da3ff;
+            --accent-red: #ff859a;
+            --accent-green: #4cff4c;
+            --selection-bg: #1f6fff;
+            --shadow-indicator: rgba(255,255,255,0.05);
+            --touch-height: 44px;
+        }
+
+        html, body {
+            background-color: var(--bg-primary) !important;
+            color: var(--text-primary) !important;
+        }
+
+        /* --- SUB-NAVIGATION BUTTON POSITIONING DARK COLORS --- */
+        #main ul.subsection_tabs {
+            border-bottom-color: var(--border-main) !important;
+        }
+        #main ul.subsection_tabs li a {
+            color: var(--text-muted) !important;
+        }
+        #main ul.subsection_tabs li a.active {
+            background-color: var(--bg-active) !important;
+            color: var(--text-primary) !important;
+            border-bottom: 2px solid var(--border-soft) !important;
+        }
+
+        /* Dark Mode adjustments for generated assets */
+        img[src*="trend"], img[src*="sig"], img[src*="load"] {
+            border-radius: 4px;
+            opacity: 0.9;
+        }
+
+        /* Ensures weapons icons stay sharp and consistent */
+        img[src*="weapons/"] {
+            filter: brightness(1.4) contrast(1.1) !important;
+            transition: filter 0.2s ease !important;
+        }
+
+        /* Blocks, tables, and data rows (bg1, bg2) dark overrides */
+        .block, .content, div[align="center"], td.content,
+        .subblock > div,
+        .game-table-row, .game-table-cell, .data-table tr, .data-table td,
+        .bg1, .bg2, tr.bg1 td, tr.bg2 td, .contents td, .main-table td {
+            background-color: var(--bg-header) !important;
+            color: var(--text-primary) !important;
+            border-color: var(--border-soft) !important;
+        }
+        table, tr, td, th, .contents, .main-table, .data-table {
+            border-color: var(--border-soft) !important;
+        }
+
+        /* Table header fixes */
+        .data-table-head, th,
+        tr.fHeading td, tr.data-table-head td,
+        .contents thead th, .main-table thead th {
+            background-color: var(--bg-header) !important;
+            color: var(--text-primary) !important;
+            border-color: var(--border-soft) !important;
+        }
+
+        /* Fixed: Darken the horizontal line under Awards/Ranks sub-menu */
+        #main ul.subsection_tabs {
+            border-bottom-color: var(--border-soft) !important;
+        }
+
+        /* Fixed: Ensure active button bottom border matches its background */
+        #main ul.subsection_tabs li a.active {
+            border-bottom-color: var(--bg-active) !important;
+        }
+
+        /* Link colors */
+        a:link, a:visited { color: var(--accent-blue) !important; }
+        a:hover { color: var(--text-primary) !important; }
+
+        /* Buttons and Sub-menus (Awards, Ranks, etc.) */
+        .headertabs a, .headertabs ul li a, #main ul.subsection_tabs li a {
+            background-color: var(--bg-active) !important;
+            background-image: none !important;
+            color: var(--text-primary) !important;
+            border: 1px solid var(--border-soft) !important;
+            text-shadow: none !important;
+            box-shadow: none !important;
+        }
+
+        /* FancyNav - Stripping legacy gradients and effects */
+        .fancyNav li { background-image: none !important; background-color: var(--bg-active) !important; border: none !important; }
+        .fancyNav li:after { display: none !important; }
+
+        ul.fancyNav li a, .fancyNav li a, .fancyNav a {
+            background-color: var(--bg-active) !important;
+            background-image: none !important;
+            color: var(--text-primary) !important;
+            border: 1px solid var(--border-soft) !important;
+            box-shadow: none !important;
+            text-shadow: none !important;
+        }
+
+        /* Dark Mode scroll indicators */
+        div[align="center"], .block, .content {
+            padding-bottom: 25px !important;
+            background-image: linear-gradient(to right, var(--bg-primary), var(--bg-primary)),
+                              linear-gradient(to right, var(--bg-primary), var(--bg-primary)),
+                              linear-gradient(to right, var(--shadow-indicator), transparent),
+                              linear-gradient(to left, var(--shadow-indicator), transparent) !important;
+            background-color: var(--bg-primary) !important;
+        }
+
+        /* Breadcrumb (Location) bar fix */
+        .location { 
+            background-color: var(--bg-primary) !important; 
+            border-top: 1px solid var(--border-main) !important; 
+            border-bottom: none !important;
+        }
+
+        /* Removes the redundant gray bar under the label. */
+        .location_under { 
+            display: none !important; 
+        }
+
+        .location li, .location a, .location .arrow { color: var(--text-soft) !important; 
+        }
+
+        /* Statistical text styling - STRICTLY PRESERVED */
+        .fNormal, .fSmall, .fTitle { color: var(--text-soft) !important; 
+        }
+
+        /* --- PROGRESS BARS (METER) DARK MODE FIX --- */
+        /* Darkening the background "trough" of the ratio bars */
+        meter, meter::-webkit-meter-bar {
+            background: var(--bg-active) !important;
+            box-shadow: 0 2px 3px var(--shadow-indicator) inset !important;
+            border: 1px solid var(--border-main) !important;
+        }
+
+        /* Ensuring the background remains dark on Firefox as well */
+        meter::-moz-meter-bar {
+            border-radius: 3px;
+        }
+
+        /* --- DARK SCROLLBAR FIX (Windows 11 & Mobile) --- */
+        /* Tells the browser to use a system-wide dark UI. */
+        :root {
+            color-scheme: dark !important;
+        }
+
+        /* Custom scrollbar styles for a compact look. */
+        ::-webkit-scrollbar {
+            width: 10px;
+            height: 10px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--bg-primary) !important;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--border-main) !important;
+            border-radius: 5px;
+            border: 2px solid var(--bg-primary);
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--border-soft) !important;
+        }
+
+        /* Firefox-specific scrollbar styling. */
+        * {
+            scrollbar-width: thin;
+            scrollbar-color: var(--border-main) var(--bg-primary);
+        }
+
+        /* --- DYNAMIC COLOR CORRECTIONS FOR DARK MODE --- */
+        /* Apply a desaturated red variant for dark-themed UI elements (e.g., Banned, Terrorist, Negative score) to avoid chromatic aberration. */
+        .fRed, .text-red, span[style*="color: red"], span[style*="color:#FF0000"], span[style*="color: #FF0000"] {
+            color: var(--accent-red) !important;
+        }
+
+        /* Apply a desaturated blue variant for dark-themed UI elements (e.g., CT Team, Player Links) */
+        .fBlue, .text-blue, span[style*="color:blue"], span[style*="color:#0000FF"], span[style*="color: #0000FF"] {
+            color: var(--accent-blue) !important;
+        }
+
+        /* Fine-tuning desaturated green and red variants for skill updates (UI deltas) */
+        span[style*="color:green"], .text-green {
+            color: var(--accent-green) !important;
+        }
+
+        /* Updating legacy blue text within table cells to the new muted color palette. */
+        td a, td span {
+            text-shadow: 0 0 1px var(--shadow-indicator);
+        }
+
+        /* --- PREMIUM SELECTION STYLE --- */
+        ::selection {
+            background-color: var(--selection-bg) !important;
+            color: var(--bg-primary) !important;
+        }
+
+        /* Smooth transitions for interactive elements in dark mode */
+        a, input, button, select {
+            transition: background-color 0.2s ease, color 0.2s ease, transform 0.1s ease !important;
+        }
+
+        /* Dark Mode Footer Button Polish */
+        .fSmall a[href*="mode=admin"], 
+        .fSmall a[href*="logout=1"] {
+            background-color: var(--bg-button) !important;
+            border-color: var(--border-soft) !important;
+            color: var(--text-primary) !important;
+        }
+}
+
+/* Refinements below 480px */
+@media screen and (max-width: 480px) {
+    .headertabs ul {
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+
+    .location li {
+        font-size: 10px !important;
+    }
+}
+
+/* --- WCAG FOCUS VISIBILITY --- */
+:focus-visible {
+    outline: 2px solid var(--accent-blue) !important;
+    outline-offset: 2px !important;
+}
+
+@media (prefers-color-scheme: dark) {
+    :focus-visible {
+        outline-color: var(--accent-blue) !important;
+    }
+}

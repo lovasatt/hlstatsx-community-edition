@@ -68,7 +68,7 @@ For support and installation notes visit http://www.hlxcommunity.com
 		(
 		    'lastName',
 		    'Player',
-		    'width=30&flag=1&link=' . urlencode('mode=statsme&amp;player=%k')
+		    'width=30&flag=1&link=' . urlencode('mode=playerinfo&amp;player=%k')
 		),
 		new TableColumn
 		(
@@ -141,7 +141,7 @@ For support and installation notes visit http://www.hlxcommunity.com
 		(
 		    'lastName',
 		    'Player',
-		    'width=30&flag=1&link=' . urlencode('mode=statsme&amp;player=%k')
+		    'width=30&flag=1&link=' . urlencode('mode=playerinfo&amp;player=%k')
 		),
 		new TableColumn
 		(

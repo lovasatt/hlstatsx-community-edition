@@ -60,9 +60,20 @@ For support and installation notes visit http://www.hlxcommunity.com
 
 <html>
 <head>
-    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-    <link rel="stylesheet" type="text/css" href="hlstats.css">
-    <link rel="stylesheet" type="text/css" href="styles/<?php echo htmlspecialchars($style, ENT_QUOTES, 'UTF-8'); ?>">
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <!-- Viewport for In-game Browser scaling -->
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!-- App Integration for In-game Browser -->
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="theme-color" content="#1a1a1a" />
+
+    <link rel="stylesheet" type="text/css" href="hlstats.css" />
+    <link rel="stylesheet" type="text/css" href="styles/<?php echo htmlspecialchars($style, ENT_QUOTES, 'UTF-8'); ?>" />
+
+    <!-- Modern Responsive Adapter for In-game scaling -->
+    <link rel="stylesheet" type="text/css" href="styles/modern-responsive.css?v=1.0" />
+
     <title>HLstatsX</title>
 </head>
 <body style="margin:0px;padding:0px;" id="ingame"> 
