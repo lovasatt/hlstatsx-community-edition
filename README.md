@@ -18,6 +18,8 @@ Counter-Strike 2 is supported, via [`source-udp-forwarder`](https://github.com/s
 
 | Date | Description / Feature | Support Status / Additional Information |
 | :--- | :--- | :--- |
+| **2026-01-12** | **Core Refactoring** | **Modular CSS Platform: Adaptive Modes (Normal/Dark) and Mobile UX 📱** |
+| | Visual Design | High-contrast Light & Dark modes with brightness-corrected assets |
 | **2026-01-02** | **Modernized Build** | **PHP 8.4 and Counter-Strike 2 Support 🚀** |
 | | PHP Version | Full PHP 8.4 compatibility (Zero deprecated warnings) |
 | | Security | Silent Migration (Legacy MD5 auto-upgrade to `password_hash`) |
