@@ -2560,14 +2560,22 @@ while ($loop = &getLine()) {
 			
 			my $killerinfo = &getPlayerInfo($ev_player, 1);
 			my $victiminfo = &getPlayerInfo($ev_obj_a, 1);
-			    # --- CS2 FIRE TRANSLATOR START ---
+			    # --- CS2 WEAPON UNIFIER START ---
 			    # CS2 Fire Translator: remap native 'inferno' code to 'firebomb' for CT team to sync with plugin
 			    if ($g_servers{$s_addr}->{play_game} == CS2()) {
 				if ($ev_obj_b eq "inferno" && $killerinfo->{"team"} eq "CT") {
 				    $ev_obj_b = "firebomb";
 				}
+				# USP Translator ((usp, usp_silencer_off) -> usp_silencer)
+				if ($ev_obj_b =~ /usp/i) {
+				    $ev_obj_b = "usp_silencer";
+				}
+				# M4A1-S Translator (m4a1_silencer_off -> m4a1_silencer)
+				if ($ev_obj_b eq "m4a1_silencer_off") {
+				    $ev_obj_b = "m4a1_silencer";
+				}
 			    }
-			    # --- CS2 FIRE TRANSLATOR END ---
+			    # ---  CS2 WEAPON UNIFIER END ---
 			$ev_type = 8;
 			
 			$headshot = 0;
