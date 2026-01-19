@@ -307,23 +307,21 @@ For support and installation notes visit http://www.hlxcommunity.com
 		    print('<table class="data-table"><tr class="data-table-head">');
 		    print('<td class="fSmall">&nbsp;'.$range_name.'</td></tr>');
 		    print('<tr class="data-table-row"><td style="text-align:center; height: 200px; vertical-align:middle;">');
-		    print('<img ');
+
+		    $graph_url = 'show_graph.php?type=0&amp;width=870&amp;height=200&amp;'.
+		    'game='.$game_url.'&amp;server_id='.$server_id.'&amp;'.
+		    'bgcolor='.$g_options['graphbg_load'].'&amp;color='.$g_options['graphtxt_load'].
+		    '&amp;range='.$range_code;
+
 		    if(!isset($_SESSION['nojs']) || !$_SESSION['nojs']) {
-			/* Javascript is on, so delay loading the image, 
-			    until the accordion code is called below.  We do this
-			    by setting src to a static image, and storing the 'real' image
-			    URL in delaysrc. */
-			print('src="' . IMAGE_PATH .'/title-small.png" delay');
+		    print('<img src="' . IMAGE_PATH .'/title-small.png" delaysrc="' . $graph_url . '" alt="'.$range_name.'" title="'.$range_name.'" />');
+		    } else {
+		    print('<img src="' . $graph_url . '" alt="'.$range_name.'" title="'.$range_name.'" />');
 		    }
-		    
-		    print('src="show_graph.php?type=0&amp;width=870&amp;height=200&amp;'.
-			'game='.$game_url.'&amp;server_id='.$server_id.'&amp;'.
-			'bgcolor='.$g_options['graphbg_load'].'&amp;color='.$g_options['graphtxt_load'].
-			'&amp;range='.$range_code.'" alt="'.$range_name.'" title="'.$range_name.'" />');
-		    print('</td></tr>	</table><br /><br />');					
+
+		    print('</td></tr>	</table><br /><br />');
 		}
 ?>
-
     </div>
 		</div>
 	    </td>
