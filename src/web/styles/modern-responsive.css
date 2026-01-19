@@ -1,6 +1,6 @@
 /*
    HLstatsX Modernized Edition - Responsive Adapter Layer
-   Version: 1.0
+   Version: 1.1
    Project: https://github.com/lovasatt/hlstatsx-community-edition
    Author:  lovasatt (2026)
 */
@@ -82,7 +82,7 @@
         padding-left: env(safe-area-inset-left) !important;
         padding-right: env(safe-area-inset-right) !important;
         padding-top: env(safe-area-inset-top) !important;
-        overscroll-behavior-y: contain;
+        overscroll-behavior-y: auto !important;
         box-sizing: border-box;
         font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
         -webkit-font-smoothing: antialiased !important;
@@ -90,8 +90,9 @@
         text-rendering: optimizeLegibility !important;
         font-variant-numeric: tabular-nums !important;
         transition: background-color 0.3s ease !important;
-        touch-action: manipulation !important;
-        overflow-x: hidden !important;
+        touch-action: pan-y !important;
+        overflow-x: clip !important;
+        -webkit-overflow-scrolling: touch;
     }
 
     /* --- TABLES: SCROLL INDICATORS --- */
@@ -161,10 +162,11 @@
     /* Stops UI text selection on buttons, tabs and labels while keeping data copyable */
     .fancyNav, .headertabs, .location, .headerblock, .subsection_tabs, button, input[type="submit"] {
         -webkit-user-select: none !important;
+        user-select: none !important;
+        touch-action: auto !important;
+        -webkit-touch-callout: none !important;
         -moz-user-select: none !important;
         -ms-user-select: none !important;
-        user-select: none !important;
-        touch-action: manipulation !important;
     }
 
     /* Allows only the specific statistics data (player names, values) to be selectable */

@@ -72,7 +72,7 @@ For support and installation notes visit http://www.hlxcommunity.com
     <link rel="stylesheet" type="text/css" href="styles/<?php echo htmlspecialchars($style, ENT_QUOTES, 'UTF-8'); ?>" />
 
     <!-- Modern Responsive Adapter for In-game scaling -->
-    <link rel="stylesheet" type="text/css" href="styles/modern-responsive.css?v=1.0" />
+    <link rel="stylesheet" type="text/css" href="styles/modern-responsive.css?v=1.1" />
 
     <title>HLstatsX</title>
 </head>

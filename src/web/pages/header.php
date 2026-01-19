@@ -120,7 +120,7 @@ For support and installation notes visit http://www.hlxcommunity.com
     <link rel="stylesheet" type="text/css" href="css/SqueezeBox.css" />
 
     <!-- Modern Responsive Adapter -->
-    <link rel="stylesheet" type="text/css" href="styles/modern-responsive.css?v=1.0" />
+    <link rel="stylesheet" type="text/css" href="styles/modern-responsive.css?v=1.1" />
     <!-- U R A SMACKHEAD -->
 <?php
     if ($mode == 'players')
