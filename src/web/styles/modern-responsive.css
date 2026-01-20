@@ -90,7 +90,7 @@
         text-rendering: optimizeLegibility !important;
         font-variant-numeric: tabular-nums !important;
         transition: background-color 0.3s ease !important;
-        touch-action: pan-y !important;
+        touch-action: pan-y pinch-zoom !important;
         overflow-x: clip !important;
         -webkit-overflow-scrolling: touch;
     }
