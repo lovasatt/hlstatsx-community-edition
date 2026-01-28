@@ -18,9 +18,12 @@ Counter-Strike 2 is supported, via [`source-udp-forwarder`](https://github.com/s
 
 | Date | Description / Feature | Support Status / Additional Information |
 | :--- | :--- | :--- |
-| **2026-01-12** | **Core Refactoring** | **Modular CSS Platform: Adaptive Modes (Normal/Dark) and Mobile UX 📱** |
+| **2026-01-28** | **Unified Weapon System** | **Full-Stack Hitgroup & Loadout Refactor for Source 2 🎯** |
+| | Generic Hitgroup | Implemented 'Body' (Generic 0) support across C#, Perl, and SQL |
+| | Database Update | Update #94: Automated SQL schema migration for 8th hitgroup |
+| 2026-01-12 | Core Refactoring | Modular CSS Platform: Adaptive Modes (Normal/Dark) and Mobile UX 📱 |
 | | Visual Design | High-contrast Light & Dark modes with brightness-corrected assets |
-| **2026-01-02** | **Modernized Build** | **PHP 8.4 and Counter-Strike 2 Support 🚀** |
+| 2026-01-02 | Modernized Build | PHP 8.4 and Counter-Strike 2 Support 🚀 |
 | | PHP Version | Full PHP 8.4 compatibility (Zero deprecated warnings) |
 | | Security | Silent Migration (Legacy MD5 auto-upgrade to `password_hash`) |
 | | CS2 Support | Updated Daemon (Correct CT/T fire/inferno differentiation) |
@@ -52,7 +55,7 @@ All required files are located within the **`/src`** directory.
    +log on +logaddress_add_http "http://your_ip:26999" (to source-udp-forwarder)
 6. **CS2 Dedicated Server Integration:**
 To enable real-time tracking for Counter-Strike 2:<br>
-    Deploy Plugins: Copy the pre-compiled plugins from `./src/plugins/` to your server's directory:<br>
+    Deploy Plugins: Copy the pre-compiled plugins from `./src/counterstrikesharp/plugins/` to your server's directory:<br>
     `game/csgo/addons/counterstrikesharp/plugins/`<br>
     Configuration: Update the .json configuration files for plugins with your database credentials.<br>
     Warmup Control: The included Warmup plugin automatically disables logging during warmup periods to prevent erroneous data collection and ensure statistical integrity.<br>

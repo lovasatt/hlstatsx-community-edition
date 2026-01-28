@@ -26,7 +26,7 @@ public class HLStatsXConfig : BasePluginConfig
 public class HLStatsX_SuperLogs : BasePlugin, IPluginConfig<HLStatsXConfig>
 {
     public override string ModuleName => "HLStatsX:CE SuperLogs CS2";
-    public override string ModuleVersion => "2.0";
+    public override string ModuleVersion => "2.1";
     public override string ModuleAuthor => "lovasatt";
 
     public HLStatsXConfig Config { get; set; } = new HLStatsXConfig();
@@ -91,42 +91,45 @@ public class HLStatsX_SuperLogs : BasePlugin, IPluginConfig<HLStatsXConfig>
         }
     }
 
-private string GetVerifiedWeaponName(CCSPlayerController? player, string eventWeapon)
-{
-    string weapon = eventWeapon.ToLower().Replace("weapon_", "");
-
-    if (weapon.Contains("usp") || weapon.Contains("hkp2000") || weapon == "p2000")
+    private string GetVerifiedWeaponName(CCSPlayerController? player, string eventWeapon)
     {
-        return "usp_silencer";
-    }
+        string weapon = eventWeapon.ToLower().Replace("weapon_", "").Replace("_off", "");
 
-    if (weapon.Contains("m4a1") || weapon == "m4a4")
-    {
-        return "m4a1_silencer";
-    }
-
-    if (weapon.Contains("incgrenade") || weapon.Contains("molotov") || weapon == "inferno")
-    {
-        return (player?.TeamNum == 3) ? "firebomb" : "inferno";
-    }
-
-    if (player != null && player.IsValid && player.PlayerPawn.Value != null)
-    {
-        var activeWeapon = player.PlayerPawn.Value.WeaponServices?.ActiveWeapon.Value;
-        if (activeWeapon != null)
+        if (weapon.Contains("incgrenade") || weapon.Contains("molotov") || weapon == "inferno")
         {
-            uint index = activeWeapon.AttributeManager.Item.ItemDefinitionIndex;
-            return index switch
-            {
-                23 => "mp5sd",  // MP5-SD
-                63 => "cz75a",  // CZ75-Auto
-                _  => weapon    // Other
-            };
+            return (player?.TeamNum == 3) ? "firebomb" : "inferno";
         }
-    }
 
-    return string.IsNullOrEmpty(weapon) ? "unknown" : weapon;
-}
+        if (player != null && player.IsValid && player.PlayerPawn.Value != null)
+        {
+            var activeWeapon = player.PlayerPawn.Value.WeaponServices?.ActiveWeapon.Value;
+            if (activeWeapon != null)
+            {
+                uint index = activeWeapon.AttributeManager.Item.ItemDefinitionIndex;
+                return index switch
+                {
+                    16 => "m4a1",
+                    60 => "m4a1_silencer",
+
+                    61 => "usp_silencer",
+                    32 => "hkp2000",
+
+                    23 => "mp5sd",
+                    63 => "cz75a",
+                    519 => "negev",
+
+                    _  => weapon
+                };
+            }
+        }
+
+        if (weapon == "usp_s" || weapon == "usp") return "usp_silencer";
+        if (weapon == "p2000") return "hkp2000";
+        if (weapon == "m4a4") return "m4a1";
+
+        return string.IsNullOrEmpty(weapon) ? "unknown" : weapon;
+    }   
+
     private HookResult OnWeaponFire(EventWeaponFire @event, GameEventInfo info)
     {
         if (_isWarmup || @event.Userid == null || !@event.Userid.IsValid) return HookResult.Continue;
@@ -142,7 +145,7 @@ private string GetVerifiedWeaponName(CCSPlayerController? player, string eventWe
     private HookResult OnPlayerHurt(EventPlayerHurt @event, GameEventInfo info)
     {
         if (_isWarmup || @event.Attacker == null || @event.Userid == null) return HookResult.Continue;
-        
+    
         var attacker = @event.Attacker;
         var victim = @event.Userid;
 
@@ -150,14 +153,18 @@ private string GetVerifiedWeaponName(CCSPlayerController? player, string eventWe
         {
             string weapon = GetVerifiedWeaponName(attacker, @event.Weapon);
             var stats = GetWeaponStatsSafe(attacker.Slot, weapon);
-            
+        
             stats.Hits++;
             stats.Damage += @event.DmgHealth;
-            
-            if (@event.Hitgroup >= 1 && @event.Hitgroup <= 7)
+        
+            int hGroup = @event.Hitgroup;
+        
+            if (hGroup <= 0 || hGroup > 7) 
             {
-                stats.HitGroups[@event.Hitgroup]++;
+                hGroup = 0;
             }
+        
+            stats.HitGroups[hGroup]++;
         }
         return HookResult.Continue;
     }
@@ -207,9 +214,11 @@ private string GetVerifiedWeaponName(CCSPlayerController? player, string eventWe
         foreach (var kvp in weaponData)
         {
             if (kvp.Value.IsEmpty()) continue;
+        
+            if (kvp.Value.Shots == 0 && kvp.Value.Hits > 0) kvp.Value.Shots = kvp.Value.Hits;
 
-            string msg = $"\"{GetPlayerLogString(player)}\" triggered \"weapon_stats\" (weapon \"{kvp.Key}\") (shots \"{kvp.Value.Shots}\") (hits \"{kvp.Value.Hits}\") (kills \"{kvp.Value.Kills}\") (headshots \"{kvp.Value.Headshots}\") (damage \"{kvp.Value.Damage}\") (head \"{kvp.Value.HitGroups[1]}\") (chest \"{kvp.Value.HitGroups[2]}\") (stomach \"{kvp.Value.HitGroups[3]}\") (leftarm \"{kvp.Value.HitGroups[4]}\") (rightarm \"{kvp.Value.HitGroups[5]}\") (leftleg \"{kvp.Value.HitGroups[6]}\") (rightleg \"{kvp.Value.HitGroups[7]}\")";
-            
+            string msg = $"\"{GetPlayerLogString(player)}\" triggered \"weapon_stats\" (weapon \"{kvp.Key}\") (shots \"{kvp.Value.Shots}\") (hits \"{kvp.Value.Hits}\") (kills \"{kvp.Value.Kills}\") (headshots \"{kvp.Value.Headshots}\") (damage \"{kvp.Value.Damage}\") (head \"{kvp.Value.HitGroups[1]}\") (chest \"{kvp.Value.HitGroups[2]}\") (stomach \"{kvp.Value.HitGroups[3]}\") (leftarm \"{kvp.Value.HitGroups[4]}\") (rightarm \"{kvp.Value.HitGroups[5]}\") (leftleg \"{kvp.Value.HitGroups[6]}\") (rightleg \"{kvp.Value.HitGroups[7]}\") (generic \"{kvp.Value.HitGroups[0]}\")";
+        
             LogToUDP(msg);
         }
         weaponData.Clear();
@@ -217,7 +226,6 @@ private string GetVerifiedWeaponName(CCSPlayerController? player, string eventWe
 
     private void LogToUDP(string msg, bool force = false)
     {
-        // Ha warmup van ÉS nem force-olt üzenet, akkor eldobja
         if (!Config.Enable || (_isWarmup && !force) || _udpClient == null || _remoteEndPoint == null) return;
         
         try
@@ -258,7 +266,7 @@ private string GetVerifiedWeaponName(CCSPlayerController? player, string eventWe
     }
 
     private bool IsIgnoredForShots(string w) => 
-        w.Contains("grenade") || w == "flashbang" || w == "decoy" || w == "molotov" || w == "inferno" || w == "firebomb" || w == "c4" || w == "knife";
+        w == "flashbang" || w == "decoy" || w == "smokegrenade" || w == "c4" || w == "inferno" || w == "firebomb";
 
     private class WeaponStats
     {

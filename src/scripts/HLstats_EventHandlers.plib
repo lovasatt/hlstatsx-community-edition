@@ -3100,7 +3100,7 @@ sub doEvent_Statsme
 
 sub doEvent_Statsme2
 {
-    my ($playerId, $playerUniqueId, $weapon, $head, $chest, $stomach, $leftarm, $rightarm, $leftleg, $rightleg) = @_;
+    my ($playerId, $playerUniqueId, $weapon, $head, $chest, $stomach, $leftarm, $rightarm, $leftleg, $rightleg, $generic) = @_;
 
     my $desc;
     my $player = lookupPlayer($s_addr, $playerId, $playerUniqueId);
@@ -3131,7 +3131,8 @@ sub doEvent_Statsme2
 				$leftarm,
 				$rightarm,
 				$leftleg,
-				$rightleg
+				$rightleg,
+				$generic
 			);
 			$player->updateDB();
 		}
@@ -3140,7 +3141,7 @@ sub doEvent_Statsme2
      {
 		$desc = "(IGNORED) NOPLAYERINFO: ";
      }
-     return $desc . $playerstr . " STATSME weaponstats2 (weapon \"$weapon\") (head \"$head\") (chest \"$chest\") (stomach \"$stomach\") (leftarm \"$leftarm\") (rightarm \"$rightarm\") (leftleg \"$leftleg\") (rightleg \"$rightleg\")";
+     return $desc . $playerstr . " STATSME weaponstats2 (weapon \"$weapon\") (head \"$head\") (chest \"$chest\") (stomach \"$stomach\") (leftarm \"$leftarm\") (rightarm \"$rightarm\") (leftleg \"$leftleg\") (rightleg \"$rightleg\") (generic \"$generic\")";
 }
 
 #

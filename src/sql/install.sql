@@ -3,8 +3,8 @@
 -- This file is only needed for new installations.
 
 
-SET @DBVERSION="93";
-SET @VERSION="1.12.1";
+SET @DBVERSION="94";
+SET @VERSION="1.12.2";
 
 -- --------------------------------------------------------
 
@@ -2507,6 +2507,7 @@ CREATE TABLE IF NOT EXISTS `hlstats_Events_Statsme2` (
   `rightarm` int(6) unsigned NOT NULL default '0',
   `leftleg` int(6) unsigned NOT NULL default '0',
   `rightleg` int(6) unsigned NOT NULL default '0',
+  `generic` int(6) unsigned NOT NULL default '0',
   PRIMARY KEY  (`id`),
   KEY `playerId` (`playerId`),
   KEY `weapon` (`weapon`)

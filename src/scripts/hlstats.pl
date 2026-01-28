@@ -2866,7 +2866,8 @@ while ($loop = &getLine()) {
 					    $ev_properties{"leftarm"} || 0,
 					    $ev_properties{"rightarm"} || 0,
 					    $ev_properties{"leftleg"} || 0,
-					    $ev_properties{"rightleg"} || 0
+					    $ev_properties{"rightleg"} || 0,
+					    $ev_properties{"generic"} || 0
 					);
 				    }
 
@@ -2903,7 +2904,8 @@ while ($loop = &getLine()) {
 						$ev_properties{"leftarm"},
 						$ev_properties{"rightarm"},
 						$ev_properties{"leftleg"},
-						$ev_properties{"rightleg"}
+						$ev_properties{"rightleg"},
+						$ev_properties{"generic"}
 					);
 					
 					if (!$ingame) {

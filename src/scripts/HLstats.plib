@@ -71,7 +71,7 @@ my %db_stmt_cache = ();
 	"Statsme",
 		["playerId", "weapon", "shots", "hits", "headshots", "damage", "kills", "deaths"],
 	"Statsme2",
-		["playerId", "weapon", "head", "chest", "stomach", "leftarm", "rightarm", "leftleg", "rightleg"],
+		["playerId", "weapon", "head", "chest", "stomach", "leftarm", "rightarm", "leftleg", "rightleg", "generic"],
 	"StatsmeLatency",
 		["playerId", "ping"],
 	"StatsmeTime",

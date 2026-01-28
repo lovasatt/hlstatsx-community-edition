@@ -316,7 +316,7 @@ if ($db->num_rows($result) != 0)
 	    new TableColumn(
 		'smweapon',
 		'Weapon',
-		'width=15&type=weaponimg&align=center&link=' . urlencode("mode=weaponinfo&amp;weapon=%k&amp;game=$game_url"),
+		'width=13&type=weaponimg&align=center&link=' . urlencode("mode=weaponinfo&amp;weapon=%k&amp;game=$game_url"),
 		$fname
 	    ),
 	    new TableColumn(
@@ -327,52 +327,57 @@ if ($db->num_rows($result) != 0)
 	    new TableColumn(
 		'smhead',
 		'Head',
-		'width=7&align=right'
+		'width=6&align=right'
 	    ),
 	    new TableColumn(
 		'smchest',
 		'Chest',
-		'width=7&align=right'
+		'width=6&align=right'
 	    ),
 	    new TableColumn(
 		'smstomach',
 		'Stomach',
-		'width=7&align=right'
+		'width=6&align=right'
 	    ),
 	    new TableColumn(
 		'smleftarm',
 		'Left Arm',
-		'width=7&align=right'
+		'width=6&align=right'
 	    ),
 	    new TableColumn(
 		'smrightarm',
 		'Right Arm',
-		'width=7&align=right'
+		'width=6&align=right'
 	    ),
 	    new TableColumn(
 		'smleftleg',
 		'Left Leg',
-		'width=7&align=right'
+		'width=6&align=right'
 	    ),
 	    new TableColumn(
 		'smrightleg',
 		'Right Leg',
-		'width=7&align=right'
+		'width=6&align=right'
+	    ),
+	    new TableColumn(
+		'smgeneric',
+		'Body',
+		'width=6&align=right'
 	    ),
 	    new TableColumn(
 		'smleft',
 		'Left',
-		'width=8&align=right&append=' . urlencode('%')
+		'width=9&align=right&append=' . urlencode('%')
 	    ),
 	    new TableColumn(
 		'smmiddle',
 		'Middle',
-		'width=8&align=right&append=' . urlencode('%')
+		'width=9&align=right&append=' . urlencode('%')
 	    ),
 	    new TableColumn(
 		'smright',
 		'Right',
-		'width=8&align=right&append=' . urlencode('%')
+		'width=9&align=right&append=' . urlencode('%')
 	    )
 	),
 	'smweapon',
@@ -399,12 +404,14 @@ if ($db->num_rows($result) != 0)
 	    SUM(hlstats_Events_Statsme2.rightarm) AS smrightarm,
 	    SUM(hlstats_Events_Statsme2.leftleg) AS smleftleg,
 	    SUM(hlstats_Events_Statsme2.rightleg) AS smrightleg,
+	    SUM(hlstats_Events_Statsme2.generic) AS smgeneric,
 	    SUM(hlstats_Events_Statsme2.head)+SUM(hlstats_Events_Statsme2.chest)+SUM(hlstats_Events_Statsme2.stomach)+
 	    SUM(hlstats_Events_Statsme2.leftarm)+SUM(hlstats_Events_Statsme2.rightarm)+SUM(hlstats_Events_Statsme2.leftleg)+
-	    SUM(hlstats_Events_Statsme2.rightleg) as smhits,							
-	    IFNULL(ROUND((SUM(hlstats_Events_Statsme2.leftarm) + SUM(hlstats_Events_Statsme2.leftleg)) / (SUM(hlstats_Events_Statsme2.head) + SUM(hlstats_Events_Statsme2.chest) + SUM(hlstats_Events_Statsme2.stomach) + SUM(hlstats_Events_Statsme2.leftarm ) + SUM(hlstats_Events_Statsme2.rightarm) + SUM(hlstats_Events_Statsme2.leftleg) + SUM(hlstats_Events_Statsme2.rightleg)) * 100, 1), 0.0) AS smleft,
-	    IFNULL(ROUND((SUM(hlstats_Events_Statsme2.rightarm) + SUM(hlstats_Events_Statsme2.rightleg)) / (SUM(hlstats_Events_Statsme2.head) + SUM(hlstats_Events_Statsme2.chest) + SUM(hlstats_Events_Statsme2.stomach) + SUM(hlstats_Events_Statsme2.leftarm ) + SUM(hlstats_Events_Statsme2.rightarm) + SUM(hlstats_Events_Statsme2.leftleg) + SUM(hlstats_Events_Statsme2.rightleg)) * 100, 1), 0.0) AS smright,
-	    IFNULL(ROUND((SUM(hlstats_Events_Statsme2.head) + SUM(hlstats_Events_Statsme2.chest) + SUM(hlstats_Events_Statsme2.stomach)) / (SUM(hlstats_Events_Statsme2.head) + SUM(hlstats_Events_Statsme2.chest) + SUM(hlstats_Events_Statsme2.stomach) + SUM(hlstats_Events_Statsme2.leftarm ) + SUM(hlstats_Events_Statsme2.rightarm) + SUM(hlstats_Events_Statsme2.leftleg) + SUM(hlstats_Events_Statsme2.rightleg)) * 100, 1), 0.0) AS smmiddle
+	    SUM(hlstats_Events_Statsme2.rightleg)
+	    + SUM(hlstats_Events_Statsme2.generic) AS smhits,
+	    IFNULL(ROUND((SUM(hlstats_Events_Statsme2.leftarm) + SUM(hlstats_Events_Statsme2.leftleg)) / (SUM(hlstats_Events_Statsme2.head) + SUM(hlstats_Events_Statsme2.chest) + SUM(hlstats_Events_Statsme2.stomach) + SUM(hlstats_Events_Statsme2.leftarm ) + SUM(hlstats_Events_Statsme2.rightarm) + SUM(hlstats_Events_Statsme2.leftleg) + SUM(hlstats_Events_Statsme2.rightleg) + SUM(hlstats_Events_Statsme2.generic)) * 100, 1), 0.0) AS smleft,
+	    IFNULL(ROUND((SUM(hlstats_Events_Statsme2.rightarm) + SUM(hlstats_Events_Statsme2.rightleg)) / (SUM(hlstats_Events_Statsme2.head) + SUM(hlstats_Events_Statsme2.chest) + SUM(hlstats_Events_Statsme2.stomach) + SUM(hlstats_Events_Statsme2.leftarm ) + SUM(hlstats_Events_Statsme2.rightarm) + SUM(hlstats_Events_Statsme2.leftleg) + SUM(hlstats_Events_Statsme2.rightleg) + SUM(hlstats_Events_Statsme2.generic)) * 100, 1), 0.0) AS smright,
+	    IFNULL(ROUND((SUM(hlstats_Events_Statsme2.head) + SUM(hlstats_Events_Statsme2.chest) + SUM(hlstats_Events_Statsme2.stomach) + SUM(hlstats_Events_Statsme2.generic)) / (SUM(hlstats_Events_Statsme2.head) + SUM(hlstats_Events_Statsme2.chest) + SUM(hlstats_Events_Statsme2.stomach) + SUM(hlstats_Events_Statsme2.leftarm ) + SUM(hlstats_Events_Statsme2.rightarm) + SUM(hlstats_Events_Statsme2.leftleg) + SUM(hlstats_Events_Statsme2.rightleg) + SUM(hlstats_Events_Statsme2.generic)) * 100, 1), 0.0) AS smmiddle
 	FROM
 	    hlstats_Events_Statsme2
 	LEFT JOIN hlstats_Players ON
@@ -436,7 +443,9 @@ if ($db->num_rows($result) != 0)
         // PHP 8 Fix: Initialize array structure
         $weapon_data['total'] = array(
             'head' => 0, 'leftarm' => 0, 'rightarm' => 0, 'chest' => 0, 
-            'stomach' => 0, 'leftleg' => 0, 'rightleg' => 0, 'model' => ''
+            'stomach' => 0, 'leftleg' => 0, 'rightleg' => 0,
+	    'generic' => 0,
+	    'model' => ''
         );
         
 	$css_models				= array('ct', 'ct2', 'ct3', 'ct4', 'ts', 'ts2', 'ts3', 'ts4');
@@ -480,6 +489,7 @@ if ($db->num_rows($result) != 0)
 	    $weapon_data['total']['stomach']				+= (int)$rowdata['smstomach'];
 	    $weapon_data['total']['leftleg']				+= (int)$rowdata['smleftleg'];
 	    $weapon_data['total']['rightleg']				+= (int)$rowdata['smrightleg'];
+	    $weapon_data['total']['generic']   += (int)$rowdata['smgeneric'];
 	    $weapon_data[$rowdata['smweapon']]['head']		= (int)$rowdata['smhead'];
 	    $weapon_data[$rowdata['smweapon']]['leftarm']	= (int)$rowdata['smleftarm'];
 	    $weapon_data[$rowdata['smweapon']]['rightarm']	= (int)$rowdata['smrightarm'];
@@ -487,7 +497,7 @@ if ($db->num_rows($result) != 0)
 	    $weapon_data[$rowdata['smweapon']]['stomach']	= (int)$rowdata['smstomach'];
 	    $weapon_data[$rowdata['smweapon']]['leftleg']	= (int)$rowdata['smleftleg'];
 	    $weapon_data[$rowdata['smweapon']]['rightleg']	= (int)$rowdata['smrightleg'];
-
+	    $weapon_data[$rowdata['smweapon']]['generic']  = (int)$rowdata['smgeneric'];
 
 	    switch ($realgame) {
 		case 'dods':
@@ -584,9 +594,9 @@ if ($db->num_rows($result) != 0)
 		$key = 'All Weapons';
             
             // PHP 8 Fix: Ensure array keys exist
-            $entry = array_merge(['head'=>0,'leftarm'=>0,'rightarm'=>0,'chest'=>0,'stomach'=>0,'leftleg'=>0,'rightleg'=>0,'model'=>''], $entry);
+            $entry = array_merge(['head'=>0,'leftarm'=>0,'rightarm'=>0,'chest'=>0,'stomach'=>0,'leftleg'=>0,'rightleg'=>0,'generic'=>0,'model'=>''], $entry);
             
-	    echo "data_array['$key'] = ['".ucfirst($key)."',".$entry['head'].",".$entry['leftarm'].",".$entry['rightarm'].",".$entry['chest'].",".$entry['stomach'].",".$entry['leftleg'].",".$entry['rightleg'].",'".$entry['model']."'];\n";
+	    echo "data_array['$key'] = ['".ucfirst($key)."',".$entry['head'].",".$entry['leftarm'].",".$entry['rightarm'].",".$entry['chest'].",".$entry['stomach'].",".$entry['leftleg'].",".$entry['rightleg'].",".$entry['generic'].",'".$entry['model']."'];\n";
 	    $i++; 
 	}
 	
@@ -600,20 +610,30 @@ if ($db->num_rows($result) != 0)
 	if (document.embeds && document.embeds.hitbox) {
 	    if (document.embeds.hitbox.LoadMovie) {
 		document.embeds.hitbox.LoadMovie(0, '<?php echo IMAGE_PATH; ?>/hitbox.swf?wname='+data_array[weapon][0]
-		    +'&head='+data_array[weapon][1]+'&rightarm='+data_array[weapon][2]
-		    +'&leftarm='+data_array[weapon][3]+'&chest='+data_array[weapon][4]
-		    +'&stomach='+data_array[weapon][5]+'&rightleg='+data_array[weapon][6]
-		    +'&leftleg='+data_array[weapon][7]+'&model='+data_array[weapon][8]
+		    +'&head='+data_array[weapon][1]
+		    +'&rightarm='+data_array[weapon][3]
+		    +'&leftarm='+data_array[weapon][2]
+		    +'&chest='+data_array[weapon][4]
+		    +'&stomach='+data_array[weapon][5]
+		    +'&leftleg='+data_array[weapon][6]
+		    +'&rightleg='+data_array[weapon][7]
+		    +'&generic='+data_array[weapon][8]
+		    +'&model='+data_array[weapon][9]
 		    +'&numcolor_num=#<?php echo $g_options['graphtxt_load'] ?>&numcolor_pct=#<?php echo $g_options['graphtxt_load'] ?>&linecolor=#<?php echo $g_options['graphtxt_load'] ?>&barcolor=#FFFFFF&barbackground=#000000&textcolor=#FFFFFF&captioncolor=#FFFFFF&textcolor_total=#FFFFFF');
 	    }
 	} else if (document.getElementById) { 
 	    var obj = document.getElementById('hitbox'); 
 	    if (typeof obj.LoadMovie != 'undefined') { 
 		obj.LoadMovie(0, '<?php echo IMAGE_PATH; ?>/hitbox.swf?wname='+data_array[weapon][0]
-		    +'&head='+data_array[weapon][1]+'&rightarm='+data_array[weapon][2]
-		    +'&leftarm='+data_array[weapon][3]+'&chest='+data_array[weapon][4]
-		    +'&stomach='+data_array[weapon][5]+'&rightleg='+data_array[weapon][6]
-		    +'&leftleg='+data_array[weapon][7]+'&model='+data_array[weapon][8]
+		    +'&head='+data_array[weapon][1]
+		    +'&rightarm='+data_array[weapon][3]
+		    +'&leftarm='+data_array[weapon][2]
+		    +'&chest='+data_array[weapon][4]
+		    +'&stomach='+data_array[weapon][5]
+		    +'&leftleg='+data_array[weapon][6]
+		    +'&rightleg='+data_array[weapon][7]
+		    +'&generic='+data_array[weapon][8]
+		    +'&model='+data_array[weapon][9]
 		    +'&numcolor_num=#<?php echo $g_options['graphtxt_load'] ?>&numcolor_pct=#<?php echo $g_options['graphtxt_load'] ?>&linecolor=#<?php echo $g_options['graphtxt_load'] ?>&barcolor=#FFFFFF&barbackground=#000000&textcolor=#FFFFFF&captioncolor=#FFFFFF&textcolor_total=#FFFFFF');
 	    }
 	}
@@ -621,7 +641,7 @@ if ($db->num_rows($result) != 0)
 </script>
 <?php
 	$tblWeaponstats2->draw($result, $db->num_rows($result), 100);
-	$flashlink = IMAGE_PATH.'/hitbox.swf?wname=All+Weapons&amp;head='.$weapon_data['total']['head'].'&amp;rightarm='.$weapon_data['total']['leftarm'].'&amp;leftarm='.$weapon_data['total']['rightarm'].'&amp;chest='.$weapon_data['total']['chest'].'&amp;stomach='.$weapon_data['total']['stomach'].'&amp;rightleg='.$weapon_data['total']['leftleg'].'&amp;leftleg='.$weapon_data['total']['rightleg'].'&amp;model='.$start_model.'&amp;numcolor_num=#'.$g_options['graphtxt_load'].'&amp;numcolor_pct=#'.$g_options['graphtxt_load'].'&amp;linecolor=#'.$g_options['graphtxt_load'].'&amp;barcolor=#FFFFFF&amp;barbackground=#000000&amp;textcolor=#FFFFFF&amp;captioncolor=#FFFFFF&amp;textcolor_total=#FFFFFF';
+	$flashlink = IMAGE_PATH.'/hitbox.swf?wname=All+Weapons&amp;head='.$weapon_data['total']['head'].'&amp;rightarm='.$weapon_data['total']['leftarm'].'&amp;leftarm='.$weapon_data['total']['rightarm'].'&amp;chest='.$weapon_data['total']['chest'].'&amp;stomach='.$weapon_data['total']['stomach'].'&amp;rightleg='.$weapon_data['total']['leftleg'].'&amp;leftleg='.$weapon_data['total']['rightleg'].'&amp;generic='.$weapon_data['total']['generic'].'&amp;model='.$start_model.'&amp;numcolor_num=#'.$g_options['graphtxt_load'].'&amp;numcolor_pct=#'.$g_options['graphtxt_load'].'&amp;linecolor=#'.$g_options['graphtxt_load'].'&amp;barcolor=#FFFFFF&amp;barbackground=#000000&amp;textcolor=#FFFFFF&amp;captioncolor=#FFFFFF&amp;textcolor_total=#FFFFFF';
 ?>
 </div>
     <div style="float:right;vertical-align:top;width:480px;">
