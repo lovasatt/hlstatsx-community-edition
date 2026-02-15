@@ -1,0 +1,7 @@
+{
+  "menu.title": "Selectează rank-ul tău Competitive:",
+  "rank.set.success": " {Green}[HLStatsX] {Default}Rank-ul tău este acum: {Yellow}{0}{Default}",
+  "error.profile.not.found": " {Red}[HLStatsX] {Default}Eroare: Profilul tău nu a fost găsit încă în HLStatsX.{Default}",
+  "error.wait.for.stats": " {Default}Te rugăm să aștepți până când statisticile tale sunt înregistrate (fă un kill mai întâi).{Default}",
+  "error.cooldown": " {Red}[HLStatsX] {Default}Te rugăm să aștepți {Yellow}{0} {Default}sec. înainte de a folosi din nou această comandă.{Default}"
+}

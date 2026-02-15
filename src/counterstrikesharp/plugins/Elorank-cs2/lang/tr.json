@@ -1,0 +1,7 @@
+{
+  "menu.title": "Competitive Rank'ını seç:",
+  "rank.set.success": " {Green}[HLStatsX] {Default}Rankın artık: {Yellow}{0}{Default}",
+  "error.profile.not.found": " {Red}[HLStatsX] {Default}Hata: Profilin henüz HLStatsX'te bulunamadı.{Default}",
+  "error.wait.for.stats": " {Default}İstatistiklerin kaydedilmesini bekle (önce bir kill al).{Default}",
+  "error.cooldown": " {Red}[HLStatsX] {Default}Komutu tekrar kullanmadan önce {Yellow}{0} {Default}sn. beklemelisin.{Default}"
+}

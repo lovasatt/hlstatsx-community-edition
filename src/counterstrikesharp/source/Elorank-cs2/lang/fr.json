@@ -1,7 +1,7 @@
 {
   "menu.title": "Sélectionne ton rang compétitif :",
   "rank.set.success": " {Green}[HLStatsX] {Default}Ton rang est désormais : {Yellow}{0}{Default}",
-  "error.profile.not.found": " {Red}[HLStatsX] {Default}Erreur : Ton profil n'a pas még été trouvé dans HLStatsX.{Default}",
-  "error.wait.for.stats": " {Default}Veuillez attendre que tes statistiques soient enregistrées.{Default}",
+  "error.profile.not.found": " {Red}[HLStatsX] {Default}Erreur : Ton profil n'a pas encore été trouvé dans HLStatsX.{Default}",
+  "error.wait.for.stats": " {Default}Attends que tes statistiques soient enregistrées (fais un kill d'abord).{Default}",
   "error.cooldown": " {Red}[HLStatsX] {Default}Patiente {Yellow}{0} {Default}sec. avant de réutiliser cette commande.{Default}"
 }

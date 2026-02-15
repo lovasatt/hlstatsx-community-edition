@@ -6,6 +6,7 @@ using CounterStrikeSharp.API.Modules.Menu;
 using CounterStrikeSharp.API.Modules.Utils;
 using MySqlConnector;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Text.Json.Serialization;
 using System.Threading.Tasks;
@@ -25,12 +26,12 @@ public class ElorankConfig : BasePluginConfig
 public class Elorank_cs2 : BasePlugin, IPluginConfig<ElorankConfig>
 {
     public override string ModuleName => "[CS2] Elorank for HLstatsX";
-    public override string ModuleVersion => "1.2";
+    public override string ModuleVersion => "1.2.1";
     public override string ModuleAuthor => "lovasatt";
     public override string ModuleDescription => "Allows players to set their Competitive rank in HLstatsX manually.";
 
     public ElorankConfig Config { get; set; } = new();
-    private Dictionary<int, DateTime> _lastCommandUsage = new Dictionary<int, DateTime>();
+    private ConcurrentDictionary<ulong, DateTime> _lastCommandUsage = new ConcurrentDictionary<ulong, DateTime>();
 
     public void OnConfigParsed(ElorankConfig config)
     {
@@ -41,7 +42,7 @@ public class Elorank_cs2 : BasePlugin, IPluginConfig<ElorankConfig>
     {
         RegisterEventHandler<EventPlayerDisconnect>((@event, info) =>
         {
-            if (@event.Userid != null) _lastCommandUsage.Remove(@event.Userid.Slot);
+            if (@event.Userid != null) _lastCommandUsage.TryRemove(@event.Userid.SteamID, out _);
             return HookResult.Continue;
         });
 
@@ -54,7 +55,7 @@ public class Elorank_cs2 : BasePlugin, IPluginConfig<ElorankConfig>
     {
         if (player == null || !player.IsValid || player.IsBot) return;
 
-        if (_lastCommandUsage.TryGetValue(player.Slot, out var lastUsed))
+        if (_lastCommandUsage.TryGetValue(player.SteamID, out var lastUsed))
         {
             var diff = DateTime.Now - lastUsed;
             if (diff.TotalSeconds < Config.CooldownSeconds)
@@ -88,7 +89,7 @@ public class Elorank_cs2 : BasePlugin, IPluginConfig<ElorankConfig>
         menu.AddMenuOption("The Global Elite", (p, opt) => SetRank(p, 18, "Global Elite"));
 
         MenuManager.OpenChatMenu(player, menu);
-        _lastCommandUsage[player.Slot] = DateTime.Now;
+        _lastCommandUsage.AddOrUpdate(player.SteamID, DateTime.Now, (key, oldValue) => DateTime.Now);
     }
 
     private void SetRank(CCSPlayerController player, int rankId, string rankName)

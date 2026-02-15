@@ -1,7 +1,7 @@
 {
-  "menu.title": "Wybierz swoją rangę turniejową:",
+  "menu.title": "Wybierz swoją rangę rankingową:",
   "rank.set.success": " {Green}[HLStatsX] {Default}Twoja ranga to teraz: {Yellow}{0}{Default}",
   "error.profile.not.found": " {Red}[HLStatsX] {Default}Błąd: Twój profil nie został jeszcze znaleziony w HLStatsX.{Default}",
-  "error.wait.for.stats": " {Default}Poczekaj, aż Twoje statystyki zostaną zarejestrowane.{Default}",
-  "error.cooldown": " {Red}[HLStatsX] {Default}Odczekaj {Yellow}{0} {Default}sek. przed ponownym użyciem.{Default}"
+  "error.wait.for.stats": " {Default}Poczekaj, aż twoje statystyki zostaną zarejestrowane (najpierw zdobądź killa).{Default}",
+  "error.cooldown": " {Red}[HLStatsX] {Default}Odczekaj {Yellow}{0} {Default}sek. przed ponownym użyciem tej komendy.{Default}"
 }

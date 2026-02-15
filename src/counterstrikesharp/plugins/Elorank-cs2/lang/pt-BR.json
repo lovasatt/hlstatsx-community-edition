@@ -1,0 +1,7 @@
+{
+  "menu.title": "Selecione seu Rank Competitivo:",
+  "rank.set.success": " {Green}[HLStatsX] {Default}Seu rank agora é: {Yellow}{0}",
+  "error.profile.not.found": " {Red}[HLStatsX] {Default}Erro: Seu perfil ainda não foi encontrado no HLStatsX.",
+  "error.wait.for.stats": " {Default}Aguarde até que suas estatísticas sejam rastreadas.",
+  "error.cooldown": " {Red}[HLStatsX] {Default}Aguarde {Yellow}{0} segundos antes de usar este comando novamente."
+}

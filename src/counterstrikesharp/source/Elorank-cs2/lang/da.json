@@ -1,0 +1,7 @@
+{
+  "menu.title": "Vælg din Competitive Rank:",
+  "rank.set.success": " {Green}[HLStatsX] {Default}Din rank er nu: {Yellow}{0}{Default}",
+  "error.profile.not.found": " {Red}[HLStatsX] {Default}Fejl: Din profil blev ikke fundet i HLStatsX endnu.{Default}",
+  "error.wait.for.stats": " {Default}Vent venligst, indtil dine stats bliver registreret (få et kill først).{Default}",
+  "error.cooldown": " {Red}[HLStatsX] {Default}Vent venligst {Yellow}{0} {Default}sek., før du bruger kommandoen igen.{Default}"
+}

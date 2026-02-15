@@ -1,0 +1,7 @@
+{
+  "menu.title": "Оберіть свій Competitive ранг:",
+  "rank.set.success": " {Green}[HLStatsX] {Default}Тепер ваш ранг: {Yellow}{0}{Default}",
+  "error.profile.not.found": " {Red}[HLStatsX] {Default}Помилка: Ваш профіль ще не знайдено в HLStatsX.{Default}",
+  "error.wait.for.stats": " {Default}Будь ласка, зачекайте, поки ваша статистика буде зафіксована (спочатку зробіть вбивство).{Default}",
+  "error.cooldown": " {Red}[HLStatsX] {Default}Будь ласка, зачекайте {Yellow}{0} {Default}сек. перед повторним використанням команди.{Default}"
+}

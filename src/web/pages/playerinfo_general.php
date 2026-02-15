@@ -39,6 +39,7 @@ For support and installation notes visit http://www.hlxcommunity.com
     if (!defined('IN_HLSTATS')) {
         die('Do not access this file directly.');
     }
+    $player = (int)$player;
 ?>
 
     <?php printSectionTitle('Player Information'); ?>
@@ -162,7 +163,7 @@ For support and installation notes visit http://www.hlxcommunity.com
 			<?php
 			    if ($playerdata['fullName'])
 			    {
-				echo '<b>' . htmlspecialchars($playerdata['fullName'], ENT_COMPAT) . '</b>';
+				echo '<b>' . htmlspecialchars($playerdata['fullName'], ENT_QUOTES) . '</b>';
 			    }
 			    else
 				echo "(<a href=\"" . $g_options['scripturl'] . '?mode=help#set"><em>Not Specified</em></a>)';
@@ -173,9 +174,10 @@ For support and installation notes visit http://www.hlxcommunity.com
 		    <td>E-mail Address:</td>
 		    <td>
 			<?php
-			    if ($email = getEmailLink($playerdata['email']))
+			    if ($playerdata['email'])
 			    {
-				echo $email;
+				$safe_email = htmlspecialchars($playerdata['email'], ENT_QUOTES);
+				echo "<a href=\"mailto:$safe_email\">$safe_email</a>";
 			    }
 			    else
 				echo "(<a href=\"" . $g_options['scripturl'] . '?mode=help#set"><em>Not Specified</em></a>)';
@@ -186,9 +188,10 @@ For support and installation notes visit http://www.hlxcommunity.com
 		    <td>Home Page:</td>
 		    <td>
 			<?php
-			    if ($playerdata['homepage'])
+			    if ($playerdata['homepage'] && preg_match('/^https?:\/\//i', $playerdata['homepage']))
 			    {
-				echo getLink($playerdata['homepage']);
+				$safe_url = htmlspecialchars($playerdata['homepage'], ENT_QUOTES);
+				echo "<a href=\"$safe_url\" target=\"_blank\" rel=\"nofollow noopener noreferrer\">$safe_url</a>";
 			    }
 			    else
 				echo "(<a href=\"" . $g_options['scripturl'] . '?mode=help#set"><em>Not Specified</em></a>)';

@@ -4,8 +4,8 @@
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <RootNamespace>Elorank_cs2</RootNamespace>
-    <AssemblyName>Elorank-cs2</AssemblyName>
+    <RootNamespace>HLStatsX_CS2</RootNamespace>
+    <AssemblyName>HLStatsX_CS2</AssemblyName>
     <Platforms>AnyCPU</Platforms>
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
   </PropertyGroup>
