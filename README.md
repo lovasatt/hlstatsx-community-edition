@@ -18,7 +18,7 @@ Counter-Strike 2 is supported, via [`source-udp-forwarder`](https://github.com/s
 
 | Date | Description / Feature | Support Status / Additional Information |
 | :--- | :--- | :--- |
-| **2026-02-15** | **Modern In-Game Interface** | **Integrates HLStatsX with Counter-Strike 2 using rich HTML dashboards for rankings, weapon stats, and player management.** |
+| **2026-02-15** | **Modern In-Game Interface** | **Integrates HLStatsX with Counter-Strike 2 using rich HTML dashboards for rankings, weapon stats, and player management. The in-game menus can be accessed with !mm (EloRank) and !hlx (HLStatsX).** |
 | 2026-01-28 | Unified Weapon System | Full-Stack Hitgroup & Loadout Refactor for Source 2 🎯 |
 | | Generic Hitgroup | Implemented 'Body' (Generic 0) support across C#, Perl, and SQL |
 | | Database Update | Update #94: Automated SQL schema migration for 8th hitgroup |
@@ -206,5 +206,6 @@ git commit -m "Chore: Release 1.2.3"
 ### Q: `Xdebug: [Step Debug] Could not connect to debugging client. Tried: host.docker.internal:9000 (through xdebug.client_host/xdebug.client_port)` appears in PHP logs on `docker-compose up`
 
 A: If you are seeing this in development, the PHP debugger is not running. Press `F5` in `vscode` to start the PHP debugger. If you don't need debugging, set `XDEBUG_MODE=off` in `docker-compose.yml` to disable XDebug.
+
 
 
