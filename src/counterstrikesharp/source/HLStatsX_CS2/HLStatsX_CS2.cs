@@ -421,7 +421,7 @@ public class HLStatsX_CS2 : BasePlugin, IPluginConfig<HLXConfig>
             {
                 var p = topList[i].Split('|');
                 string color = i == 0 ? "gold" : i == 1 ? "silver" : i == 2 ? "orange" : "white";
-                formattedList.Add($"<font color='{color}'>{i + 1}. {Escape(Trunc(p[0], 10))} - {p[1]}</font>");
+                formattedList.Add($"<font color='{color}'>{i + 1}. {Escape(Trunc(p[0], 18))} - {p[1]}</font>");
             }
             OpenPagedListMenu(player, Localizer["hof.title"], formattedList, 0, (pl) => BuildAndOpenActionsMenu(pl));
         });
@@ -464,7 +464,7 @@ public class HLStatsX_CS2 : BasePlugin, IPluginConfig<HLXConfig>
             for (int i = 0; i < weapons.Count; i++)
             {
                 var p = weapons[i].Split('|');
-                formattedList.Add($"{i + 1}. {Escape(p[0].ToUpper())} - {p[1]}");
+                formattedList.Add($"{i + 1}. {Escape(Trunc(p[0].ToUpper(), 18))} - {p[1]}");
             }
 
             OpenPagedListMenu(player, Localizer["weapons.title"], formattedList, 0, (pl) => BuildAndOpenActionsMenu(pl));
@@ -509,7 +509,7 @@ public class HLStatsX_CS2 : BasePlugin, IPluginConfig<HLXConfig>
             for (int i = 0; i < victims.Count; i++)
             {
                 var p = victims[i].Split('|');
-                formattedList.Add($"{i + 1}. {Escape(Trunc(p[0], 10))} - {p[1]}");
+                formattedList.Add($"{i + 1}. {Escape(Trunc(p[0], 18))} - {p[1]}");
             }
             OpenPagedListMenu(player, Localizer["victims.title"], formattedList, 0, (pl) => BuildAndOpenActionsMenu(pl));
         });
