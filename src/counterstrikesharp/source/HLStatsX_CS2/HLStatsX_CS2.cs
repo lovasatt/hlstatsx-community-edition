@@ -128,12 +128,16 @@ public class HLStatsX_CS2 : BasePlugin, IPluginConfig<HLXConfig>
             Server.NextFrame(() =>
             {
                 var p = Utilities.GetPlayerFromSlot(slot);
-                if (p != null && p.IsValid && stats != null)
+                if (p == null || !p.IsValid)
+                    return;
+                if (stats == null)
                 {
-                    stats.LastActivity = DateTime.Now;
-                    _activeSessions[slot] = stats;
-                    BuildAndOpenMainMenu(p);
+                    p.PrintToChat(Localizer["error.name"]);
+                    return;
                 }
+                stats.LastActivity = DateTime.Now;
+                _activeSessions[slot] = stats;
+                BuildAndOpenMainMenu(p);
             });
         }
         catch (Exception ex)
