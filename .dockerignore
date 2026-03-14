@@ -1,5 +1,6 @@
-/.*
-/ActivePerl
-/amxmodx
-/sourcemod
-/sql
+.git
+.github
+docker
+README.md
+.dockerignore
+.gitattributes
