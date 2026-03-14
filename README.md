@@ -18,7 +18,8 @@ Counter-Strike 2 is supported, via [`source-udp-forwarder`](https://github.com/s
 
 | Date | Description / Feature | Support Status / Additional Information |
 | :--- | :--- | :--- |
-| **2026-02-15** | **Modern In-Game Interface** | **Integrates HLStatsX with Counter-Strike 2 using rich HTML dashboards for rankings, weapon stats, and player management. The in-game menus can be accessed with !mm (EloRank) and !hlx (HLStatsX).** |
+| **2026-03-14** | **Modern Docker Stack** | **PHP 8.4, Debian 13, Automated DB init & CI verification. 🚀** |
+| 2026-02-15 | Modern In-Game Interface | Integrates HLStatsX with Counter-Strike 2 using rich HTML dashboards for rankings, weapon stats, and player management. The in-game menus can be accessed with !mm (EloRank) and !hlx (HLStatsX). |
 | 2026-01-28 | Unified Weapon System | Full-Stack Hitgroup & Loadout Refactor for Source 2 🎯 |
 | | Generic Hitgroup | Implemented 'Body' (Generic 0) support across C#, Perl, and SQL |
 | | Database Update | Update #94: Automated SQL schema migration for 8th hitgroup |
