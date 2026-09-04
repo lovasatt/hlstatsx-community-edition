@@ -4,7 +4,7 @@ HLstatsX Community Edition - Real-time player and clan rankings and statistics
 Copyleft (L) 2008-20XX Nicholas Hastings (nshastings@gmail.com)
 http://www.hlxcommunity.com
 
-HLstatsX Community Edition is a continuation of 
+HLstatsX Community Edition is a continuation of
 ELstatsNEO - Real-time player and clan rankings and statistics
 Copyleft (L) 2008-20XX Malte Bayer (steam@neo-soft.org)
 http://ovrsized.neo-soft.org/
@@ -18,7 +18,7 @@ HLstatsX is an enhanced version of HLstats made by Simon Garner
 HLstats - Real-time player and clan rankings and statistics for Half-Life
 http://sourceforge.net/projects/hlstats/
 Copyright (C) 2001  Simon Garner
-            
+
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
 as published by the Free Software Foundation; either version 2
@@ -37,10 +37,12 @@ For support and installation notes visit http://www.hlxcommunity.com
 */
 
     if (!defined('IN_HLSTATS')) {
-	die('Do not access this file directly.');
+        die('Do not access this file directly.');
     }
 
     global $db, $game, $g_options;
+
+    $game = (string)($game ?? '');
 
     // Security: Escape game variable
     $game_esc = $db->escape($game);
@@ -48,210 +50,217 @@ For support and installation notes visit http://www.hlxcommunity.com
     // Player Rankings
     $db->query("SELECT name FROM hlstats_Games WHERE code='$game_esc'");
     if ($db->num_rows() < 1) {
-	error("No such game '$game'.");
+        error("No such game '$game'.");
     }
 
     // PHP 8 Fix: Replace list()
     $row = $db->fetch_row();
-    $gamename = ($row) ? $row[0] : '';
+    $gamename = ($row) ? (string)$row[0] : '';
     $db->free_result();
-    
+
+    pageHeader(
+        array($gamename, 'Player Rankings'),
+        array($gamename => "%s?game=" . urlencode($game), 'Player Rankings' => '')
+    );
+
     $minkills = 1;
-    
-    if (isset($g_options['rankingtype']) && $g_options['rankingtype'] != 'kills')
+
+    $rankingtype = (string)($g_options['rankingtype'] ?? 'skill');
+
+    if ($rankingtype !== 'kills')
     {
-	$table = new Table
-	(
-	    array
-	    (
-		new TableColumn
-		(
-		    'lastName',
-		    'Player',
-		    'width=30&flag=1&link=' . urlencode('mode=playerinfo&amp;player=%k')
-		),
-		new TableColumn
-		(
-		    'skill',
-		    'Points',
-		    'width=7&align=right&skill_change=1'
-		),
-		new TableColumn
-		(
-		    'activity',
-		    'Activity',
-		    'width=10&sort=no&type=bargraph'
-		),
-		new TableColumn
-		(
-		    'connection_time',
-		    'Connection Time',
-		    'width=10&align=right&type=timestamp'
-		),
-		new TableColumn
-		(
-		    'kills',
-		    'Kills',
-		    'width=7&align=right'
-		),
-		new TableColumn
-		(
-		    'deaths',
-		    'Deaths',
-		    'width=7&align=right'
-		),
-		new TableColumn
-		(
-		    'kpd',
-		    'K:D',
-		    'width=6&align=right'
-		),
-		new TableColumn
-		(
-		    'headshots',
-		    'Headshots',
-		    'width=6&align=right'
-		),
-		new TableColumn
-		(
-		    'hpk',
-		    'HS:K',
-		    'width=6&align=right'
-		),
-		new TableColumn
-		(
-		    'acc',
-		    'Accuracy',
-		    'width=6&align=right&append=' . urlencode('%')
-		)
-	    ),
-	    'playerId',
-	    $g_options['rankingtype'],
-	    'kpd',
-	    true
-	);
+        $table = new Table
+        (
+            array
+            (
+                new TableColumn
+                (
+                    'lastName',
+                    'Player',
+                    'width=30&flag=1&link=' . urlencode('mode=playerinfo&player=%k')
+                ),
+                new TableColumn
+                (
+                    'skill',
+                    'Points',
+                    'width=7&align=right&skill_change=1'
+                ),
+                new TableColumn
+                (
+                    'activity',
+                    'Activity',
+                    'width=10&sort=no&type=bargraph'
+                ),
+                new TableColumn
+                (
+                    'connection_time',
+                    'Connection Time',
+                    'width=10&align=right&type=timestamp'
+                ),
+                new TableColumn
+                (
+                    'kills',
+                    'Kills',
+                    'width=7&align=right'
+                ),
+                new TableColumn
+                (
+                    'deaths',
+                    'Deaths',
+                    'width=7&align=right'
+                ),
+                new TableColumn
+                (
+                    'kpd',
+                    'K:D',
+                    'width=6&align=right'
+                ),
+                new TableColumn
+                (
+                    'headshots',
+                    'Headshots',
+                    'width=6&align=right'
+                ),
+                new TableColumn
+                (
+                    'hpk',
+                    'HS:K',
+                    'width=6&align=right'
+                ),
+                new TableColumn
+                (
+                    'acc',
+                    'Accuracy',
+                    'width=6&align=right&append=' . urlencode('%')
+                )
+            ),
+            'playerId',
+            $rankingtype,
+            'kpd',
+            true
+        );
     }
     else
     {
-	$table = new Table
-	(
-	    array
-	    (
-		new TableColumn
-		(
-		    'lastName',
-		    'Player',
-		    'width=30&flag=1&link=' . urlencode('mode=playerinfo&amp;player=%k')
-		),
-		new TableColumn
-		(
-		    'activity',
-		    'Activity',
-		    'width=10&sort=no&type=bargraph'
-		    ),
-		new TableColumn
-		(
-		    'kills',
-		    'Kills',
-		    'width=7&align=right'
-		),
-		new TableColumn
-		(
-		    'deaths',
-		    'Deaths',
-		    'width=7&align=right'
-		),
-		new TableColumn
-		(
-		    'kpd',
-		    'K:D',
-		    'width=6&align=right'
-		),
-		new TableColumn
-		(
-		    'headshots',
-		    'Headshots',
-		    'width=6&align=right'
-		),
-		new TableColumn
-		(
-		    'hpk',
-		    'HS:K',
-		    'width=6&align=right'
-		),
-		new TableColumn
-		(
-		    'acc',
-		    'Accuracy',
-		    'width=6&align=right&append=' . urlencode('%')
-		),
-		new TableColumn
-		(
-		    'skill',
-		    'Points',
-		    'width=7&align=right&skill_change=1'
-		),
-		new TableColumn
-		(
-		    'connection_time',
-		    'Connection Time',
-		    'width=10&align=right&type=timestamp'
-		)
-	    ),
-	'playerId',
-	isset($g_options['rankingtype']) ? $g_options['rankingtype'] : 'kills',
-	'kpd',
-	true
-	);
+        $table = new Table
+        (
+            array
+            (
+                new TableColumn
+                (
+                    'lastName',
+                    'Player',
+                    'width=30&flag=1&link=' . urlencode('mode=playerinfo&player=%k')
+                ),
+                new TableColumn
+                (
+                    'activity',
+                    'Activity',
+                    'width=10&sort=no&type=bargraph'
+                    ),
+                new TableColumn
+                (
+                    'kills',
+                    'Kills',
+                    'width=7&align=right'
+                ),
+                new TableColumn
+                (
+                    'deaths',
+                    'Deaths',
+                    'width=7&align=right'
+                ),
+                new TableColumn
+                (
+                    'kpd',
+                    'K:D',
+                    'width=6&align=right'
+                ),
+                new TableColumn
+                (
+                    'headshots',
+                    'Headshots',
+                    'width=6&align=right'
+                ),
+                new TableColumn
+                (
+                    'hpk',
+                    'HS:K',
+                    'width=6&align=right'
+                ),
+                new TableColumn
+                (
+                    'acc',
+                    'Accuracy',
+                    'width=6&align=right&append=' . urlencode('%')
+                ),
+                new TableColumn
+                (
+                    'skill',
+                    'Points',
+                    'width=7&align=right&skill_change=1'
+                ),
+                new TableColumn
+                (
+                    'connection_time',
+                    'Connection Time',
+                    'width=10&align=right&type=timestamp'
+                )
+            ),
+        'playerId',
+        'kills',
+        'kpd',
+        true
+        );
     }
-    
-    $day_interval = 28;  
+
+    $day_interval = 28;
     $result = $db->query("
-	SELECT
-	    playerId,
-	    connection_time,
-	    lastName,
-	    flag,
-	    country,
-	    skill,
-	    kills,
-	    deaths,
-	    IFNULL(kills/deaths, '-') AS kpd,
-	    headshots,
-	    IFNULL(headshots/kills, '-') AS hpk,
-	    IFNULL(ROUND((hits / shots * 100), 1), 0.0) AS acc,
-	    activity,
-	    last_skill_change
-	FROM
-	    hlstats_Players
-	WHERE
-	    game='$game_esc'
-	    AND hideranking=0
-	    AND kills >= $minkills
-	ORDER BY
-	    $table->sort $table->sortorder,
-	    $table->sort2 $table->sortorder,
-	    lastName ASC
-	LIMIT
-	    $table->startitem,
-	    $table->numperpage
+        SELECT
+            playerId,
+            connection_time,
+            lastName,
+            flag,
+            country,
+            skill,
+            kills,
+            deaths,
+            IFNULL(kills/deaths, '-') AS kpd,
+            headshots,
+            IFNULL(headshots/kills, '-') AS hpk,
+            IFNULL(ROUND((hits / shots * 100), 1), 0.0) AS acc,
+            activity,
+            last_skill_change
+        FROM
+            hlstats_Players
+        WHERE
+            game='$game_esc'
+            AND hideranking=0
+            AND kills >= $minkills
+        ORDER BY
+            $table->sort $table->sortorder,
+            $table->sort2 $table->sortorder,
+            lastName ASC
+        LIMIT
+            $table->startitem,
+            $table->numperpage
     ");
-    
+
     $resultCount = $db->query("
-	SELECT
-	    COUNT(*)
-	FROM
-	    hlstats_Players
-	WHERE
-	    game='$game_esc'
-	    AND hideranking=0
-	    AND kills >= $minkills
+        SELECT
+            COUNT(*)
+        FROM
+            hlstats_Players
+        WHERE
+            game='$game_esc'
+            AND hideranking=0
+            AND kills >= $minkills
     ");
-    
+
     // PHP 8 Fix: Replace list()
     $row = $db->fetch_row($resultCount);
     $numitems = ($row) ? (int)$row[0] : 0;
-    
+
     // Logic Fix: Pass correct total item count instead of hardcoded 25
     $table->draw($result, $numitems, 100);
 ?>

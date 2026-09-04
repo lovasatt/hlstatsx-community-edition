@@ -4,7 +4,7 @@ HLstatsX Community Edition - Real-time player and clan rankings and statistics
 Copyleft (L) 2008-20XX Nicholas Hastings (nshastings@gmail.com)
 http://www.hlxcommunity.com
 
-HLstatsX Community Edition is a continuation of 
+HLstatsX Community Edition is a continuation of
 ELstatsNEO - Real-time player and clan rankings and statistics
 Copyleft (L) 2008-20XX Malte Bayer (steam@neo-soft.org)
 http://ovrsized.neo-soft.org/
@@ -18,7 +18,7 @@ HLstatsX is an enhanced version of HLstats made by Simon Garner
 HLstats - Real-time player and clan rankings and statistics for Half-Life
 http://sourceforge.net/projects/hlstats/
 Copyright (C) 2001  Simon Garner
-            
+
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
 as published by the Free Software Foundation; either version 2
@@ -40,20 +40,24 @@ For support and installation notes visit http://www.hlxcommunity.com
         die('Do not access this file directly.');
     }
 
-    require (PAGE_PATH . '/livestats.php');
-    
+    require_once (PAGE_PATH . '/livestats.php');
+
     // Security: Escape game variable
+    $game = isset($game) ? (string)$game : '';
     $game_esc = $db->escape($game);
     $game_url = urlencode($game);
+    $scripturl = htmlspecialchars((string)($g_options['scripturl'] ?? ''), ENT_QUOTES, 'UTF-8');
+    $graphbg_load = htmlspecialchars((string)($g_options['graphbg_load'] ?? '282828'), ENT_QUOTES, 'UTF-8');
+    $graphtxt_load = htmlspecialchars((string)($g_options['graphtxt_load'] ?? 'FFFFFF'), ENT_QUOTES, 'UTF-8');
 
     $db->query("SELECT name FROM hlstats_Games WHERE code='$game_esc'");
     if ($db->num_rows() < 1) {
-	error("No such game '$game'.");
+        error("No such game '" . htmlspecialchars($game, ENT_QUOTES, 'UTF-8') . "'.");
     }
 
     // PHP 8 Fix: Replace list()
     $row = $db->fetch_row();
-    $gamename = ($row) ? $row[0] : '';
+    $gamename = ($row) ? (string)$row[0] : ucfirst($game);
     $db->free_result();
 
     pageHeader(array($gamename), array($gamename => ''));
@@ -61,12 +65,12 @@ For support and installation notes visit http://www.hlxcommunity.com
     include (PAGE_PATH . '/voicecomm_serverlist.php');
 
     $query = "
-	    SELECT
-		count(*)
-	    FROM
-		hlstats_Players
-	    WHERE 
-		game='$game_esc'
+            SELECT
+                count(*)
+            FROM
+                hlstats_Players
+            WHERE
+                game='$game_esc'
     ";
     $result = $db->query($query);
     // PHP 8 Fix: Replace list()
@@ -74,15 +78,15 @@ For support and installation notes visit http://www.hlxcommunity.com
     $total_players = ($row) ? (int)$row[0] : 0;
 
     $query = "
-	    SELECT 
-		players 
-	    FROM 
-		hlstats_Trend 
-	    WHERE       
-		game='$game_esc'
-		AND timestamp<=" . (time() - 86400) . "
-	    ORDER BY 
-		timestamp DESC LIMIT 0,1
+            SELECT
+                players
+            FROM
+                hlstats_Trend
+            WHERE
+                game='$game_esc'
+                AND timestamp<=" . (time() - 86400) . "
+            ORDER BY
+                timestamp DESC LIMIT 0,1
     ";
     $result = $db->query($query);
     // PHP 8 Fix: Replace list()
@@ -90,18 +94,18 @@ For support and installation notes visit http://www.hlxcommunity.com
     $total_players_24h = ($row) ? (int)$row[0] : 0;
     $players_last_day = -1;
     if ($total_players_24h > 0) {
-	$players_last_day = $total_players - $total_players_24h;
+        $players_last_day = $total_players - $total_players_24h;
     }
 
     $query = "
-	    SELECT
-		SUM(kills),
-		SUM(headshots),
-		count(serverId)		
-	    FROM
-		hlstats_Servers
-	    WHERE 
-		game='$game_esc'
+            SELECT
+                IFNULL(SUM(kills), 0),
+                IFNULL(SUM(headshots), 0),
+                count(serverId)
+            FROM
+                hlstats_Servers
+            WHERE
+                game='$game_esc'
     ";
     $result = $db->query($query);
     // PHP 8 Fix: Replace list()
@@ -111,15 +115,15 @@ For support and installation notes visit http://www.hlxcommunity.com
     $total_servers = ($row) ? (int)$row[2] : 0;
 
     $query = "
-	    SELECT 
-		kills 
-	    FROM 
-		hlstats_Trend 
-	    WHERE       
-		game='$game_esc'
-		AND timestamp<=" . (time() - 86400) . "
-	    ORDER BY 
-		timestamp DESC LIMIT 0,1
+            SELECT
+                kills
+            FROM
+                hlstats_Trend
+            WHERE
+                game='$game_esc'
+                AND timestamp<=" . (time() - 86400) . "
+            ORDER BY
+                timestamp DESC LIMIT 0,1
     ";
     $result = $db->query($query);
     // PHP 8 Fix: Replace list()
@@ -129,11 +133,11 @@ For support and installation notes visit http://www.hlxcommunity.com
 
     $kills_last_day = -1;
     if ($total_kills_24h > 0) {
-	$kills_last_day = $total_kills - $total_kills_24h;
+        $kills_last_day = $total_kills - $total_kills_24h;
     }
 
     $query = "
-	    SELECT
+            SELECT
                 serverId,
                 name,
                 IF(publicaddress != '',
@@ -141,13 +145,13 @@ For support and installation notes visit http://www.hlxcommunity.com
                     concat(address, ':', port)
                 ) AS addr,
                 kills,
-                headshots,              
-                act_players,                                
+                headshots,
+                act_players,
                 max_players,
                 act_map,
                 map_started,
                 map_ct_wins,
-                map_ts_wins                 
+                map_ts_wins
             FROM
                 hlstats_Servers
             WHERE
@@ -156,18 +160,18 @@ For support and installation notes visit http://www.hlxcommunity.com
                 sortorder, name, serverId
     ";
     $db->query($query);
-    
+
     // PHP 8 Fix: Ensure array is returned
     $servers = $db->fetch_row_set();
     if (!is_array($servers)) $servers = array();
-    
+
     $db->free_result();
 ?>
 
 <div class="block">
 
-<?php	printSectionTitle('Participating Servers'); ?>
-	<div class="subblock">
+<?php   printSectionTitle('Participating Servers'); ?>
+        <div class="subblock">
 <?php
     if (count($servers) == 1)
     {
@@ -175,16 +179,16 @@ For support and installation notes visit http://www.hlxcommunity.com
 
     <table class="data-table">
     <tr class="data-table-head"><td><?php
-	if ($total_kills > 0)
-	    $hpk = sprintf("%.2f", ($total_headshots / $total_kills) * 100);
-	else
-	    $hpk = sprintf("%.2f", 0);
-	if ($players_last_day > -1)
-	    echo "Tracking <b>" . number_format($total_players) . "</b> players (<b>+" . number_format($players_last_day) . "</b> new players last 24h) with <b>" . number_format($total_kills) . "</b> kills (<b>+" . number_format($kills_last_day) . "</b> last 24h) and <b>" . number_format($total_headshots) . "</b> headshots (<b>$hpk%</b>) on <b>" . number_format($total_servers) . "</b> servers";
-	else
-	    echo "Tracking <b>" . number_format($total_players) . "</b> players with <b>" . number_format($total_kills) . "</b> kills and <b>" . number_format($total_headshots) . "</b> headshots (<b>$hpk%</b>) on <b>" . number_format($total_servers) . "</b> servers";
+        if ($total_kills > 0)
+            $hpk = sprintf("%.2f", ($total_headshots / $total_kills) * 100);
+        else
+            $hpk = sprintf("%.2f", 0);
+        if ($players_last_day > -1)
+            echo "Tracking <b>" . number_format($total_players) . "</b> players (<b>+" . number_format($players_last_day) . "</b> new players last 24h) with <b>" . number_format($total_kills) . "</b> kills (<b>+" . number_format($kills_last_day) . "</b> last 24h) and <b>" . number_format($total_headshots) . "</b> headshots (<b>$hpk%</b>) on <b>" . number_format($total_servers) . "</b> servers";
+        else
+            echo "Tracking <b>" . number_format($total_players) . "</b> players with <b>" . number_format($total_kills) . "</b> kills and <b>" . number_format($total_headshots) . "</b> headshots (<b>$hpk%</b>) on <b>" . number_format($total_servers) . "</b> servers";
 ?></td>
-	</tr>	
+        </tr>
     </table>
 
 <?php
@@ -192,11 +196,11 @@ For support and installation notes visit http://www.hlxcommunity.com
     else
     {
 
-	if (isset($g_options['slider']) && $g_options['slider'] == 1) {
+        if (isset($g_options['slider']) && $g_options['slider'] == 1) {
 ?>
     <table class="data-table" id="accordion">
 <?php
-	} else {
+        } else {
 ?>
     <table class="data-table">
 <?php
@@ -204,334 +208,329 @@ For support and installation notes visit http://www.hlxcommunity.com
 ?>
 
       <tr class="data-table-head"><td colspan="9" style="padding:4px;width:100%;"><?php
-	if ($total_kills > 0)
-	    $hpk = sprintf("%.2f", ($total_headshots / $total_kills) * 100);
-	else
-	    $hpk = sprintf("%.2f", 0);
-	if ($players_last_day > -1)
-	    echo "Tracking <b>" . number_format($total_players) . "</b> players (<b>+" . number_format($players_last_day) . "</b> new players last 24h) with <b>" . number_format($total_kills) . "</b> kills (<b>+" . number_format($kills_last_day) . "</b> last 24h) and <b>" . number_format($total_headshots) . "</b> headshots (<b>$hpk%</b>) on <b>" . number_format($total_servers) . "</b> servers";
-	else
-	    echo "Tracking <b>" . number_format($total_players) . "</b> players with <b>" . number_format($total_kills) . "</b> kills and <b>" . number_format($total_headshots) . "</b> headshots (<b>$hpk%</b>) on <b>" . number_format($total_servers) . "</b> servers";
+        if ($total_kills > 0)
+            $hpk = sprintf("%.2f", ($total_headshots / $total_kills) * 100);
+        else
+            $hpk = sprintf("%.2f", 0);
+        if ($players_last_day > -1)
+            echo "Tracking <b>" . number_format($total_players) . "</b> players (<b>+" . number_format($players_last_day) . "</b> new players last 24h) with <b>" . number_format($total_kills) . "</b> kills (<b>+" . number_format($kills_last_day) . "</b> last 24h) and <b>" . number_format($total_headshots) . "</b> headshots (<b>$hpk%</b>) on <b>" . number_format($total_servers) . "</b> servers";
+        else
+            echo "Tracking <b>" . number_format($total_players) . "</b> players with <b>" . number_format($total_kills) . "</b> kills and <b>" . number_format($total_headshots) . "</b> headshots (<b>$hpk%</b>) on <b>" . number_format($total_servers) . "</b> servers";
 ?></td>
       </tr>
       <tr class="data-table-head">
-	<td class="fSmall" style="width:37%;">&nbsp;Server</td>
-	<td class="fSmall" style="width:19%;">&nbsp;Address</td>
-	<td class="fSmall" style="width:7%;text-align:center;">&nbsp;Map</td>
-	<td class="fSmall" style="width:7%;text-align:center;">&nbsp;Played</td>
-	<td class="fSmall" style="width:10%;text-align:center;">&nbsp;Players</td>
-	<td class="fSmall" style="width:7%;text-align:center;">&nbsp;Kills</td>
-	<td class="fSmall" style="width:7%;text-align:center;">&nbsp;Headshots</td>
-	<td class="fSmall" style="width:6%;text-align:center;">&nbsp;HS:K</td>
+        <td class="fSmall" style="width:37%;">&nbsp;Server</td>
+        <td class="fSmall" style="width:19%;">&nbsp;Address</td>
+        <td class="fSmall" style="width:7%;text-align:center;">&nbsp;Map</td>
+        <td class="fSmall" style="width:7%;text-align:center;">&nbsp;Played</td>
+        <td class="fSmall" style="width:10%;text-align:center;">&nbsp;Players</td>
+        <td class="fSmall" style="width:7%;text-align:center;">&nbsp;Kills</td>
+        <td class="fSmall" style="width:7%;text-align:center;">&nbsp;Headshots</td>
+        <td class="fSmall" style="width:6%;text-align:center;">&nbsp;HS:K</td>
       </tr>
 
 <?php
-	$i = 0;
-	for ($i = 0; $i < count($servers); $i++)
-	{
-	    $rowdata = $servers[$i];
-	    $server_id = $rowdata['serverId'];
-	    $c = ($i % 2) + 1;
+        $i = 0;
+        for ($i = 0; $i < count($servers); $i++)
+        {
+            $rowdata = $servers[$i];
+            $server_id = (int)$rowdata['serverId'];
+            $c = ($i % 2) + 1;
 
-	    $addr = $rowdata['addr'];
+            $addr = (string)$rowdata['addr'];
 
             // PHP 8 Fix: Cast to int
-	    $kills = (int)$rowdata['kills'];
-	    $headshots = (int)$rowdata['headshots'];
-	    $player_string = $rowdata['act_players'] . '/' . $rowdata['max_players'];
-	    $map_teama_wins = $rowdata['map_ct_wins'];
-	    $map_teamb_wins = $rowdata['map_ts_wins'];
+            $kills = (int)$rowdata['kills'];
+            $headshots = (int)$rowdata['headshots'];
+            $player_string = (int)$rowdata['act_players'] . '/' . (int)$rowdata['max_players'];
+            $map_teama_wins = $rowdata['map_ct_wins'];
+            $map_teamb_wins = $rowdata['map_ts_wins'];
 ?>
 <?php
-	    if (isset($g_options['slider']) && $g_options['slider'] == 1) {
+            if (isset($g_options['slider']) && $g_options['slider'] == 1) {
 ?>
     <tr class="game-table-row toggler" style="cursor: pointer;" onmouseover="this.setAttribute('class', 'game-table-row-hover');" onmouseout="this.setAttribute('class', 'game-table-row toggler');">
             <td class="game-table-cell">
 <?php
-	    } else {
+            } else {
 ?>
         <tr class="game-table-row">
             <td class="game-table-cell">
 <?php
-	    }
-	    $image = getImage("/games/$game/game");
-	    echo '<img src="';
-	    if ($image)
-		echo $image['url'];
-	    else
-		echo IMAGE_PATH . '/game.gif';
-	    echo "\" alt=\"$game\" />&nbsp;";
-	    echo '<b>' . htmlspecialchars($rowdata['name']) . '</b>';
+            }
+            $image = getImage("/games/$game_url/game");
+            $img_src = ($image && !empty($image['url'])) ? htmlspecialchars((string)$image['url'], ENT_QUOTES, 'UTF-8') : IMAGE_PATH . '/game.gif';
+            echo '<img src="' . $img_src . '" alt="' . htmlspecialchars($game, ENT_QUOTES, 'UTF-8') . '" />&nbsp;';
+            echo '<b>' . htmlspecialchars((string)$rowdata['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</b>';
 ?></td>
             <td class="game-table-cell"><?php
-	    echo "$addr (<a href=\"steam://connect/$addr\">Join</a>)";
+            $safe_addr = htmlspecialchars($addr, ENT_QUOTES, 'UTF-8');
+            echo "{$safe_addr} (<a href=\"steam://connect/{$safe_addr}\">Join</a>)";
 ?></td>
             <td class="game-table-cell" style="text-align:center;"><?php
-	    echo htmlspecialchars($rowdata['act_map']);
+            echo htmlspecialchars((string)$rowdata['act_map'], ENT_QUOTES, 'UTF-8');
 ?></td>
             <td class="game-table-cell" style="text-align:center;"><?php
             $map_started = (int)$rowdata['map_started'];
-	    $stamp = $map_started==0 ? 0 : time() - $map_started;
-	    $hours = sprintf("%02d", floor($stamp / 3600));
-	    $min = sprintf("%02d", floor(($stamp % 3600) / 60));
-	    $sec = sprintf("%02d", floor($stamp % 60));
-	    echo $hours . ":" . $min . ":" . $sec;
+            $stamp = $map_started==0 ? 0 : max(0, time() - $map_started);
+            $hours = sprintf("%02d", floor($stamp / 3600));
+            $min = sprintf("%02d", floor(($stamp % 3600) / 60));
+            $sec = sprintf("%02d", floor($stamp % 60));
+            echo $hours . ":" . $min . ":" . $sec;
 ?></td>
             <td class="game-table-cell" style="text-align:center;"><?php
-	    echo $player_string;
+            echo htmlspecialchars($player_string, ENT_QUOTES, 'UTF-8');
 ?></td>
             <td class="game-table-cell" style="text-align:center;"><?php
-	    echo number_format($kills);
+            echo number_format($kills);
 ?></td>
             <td class="game-table-cell" style="text-align:center;"><?php
-	    echo number_format($headshots);
+            echo number_format($headshots);
 ?></td>
             <td class="game-table-cell" style="text-align:center;"><?php
-	    if ($kills > 0)
-		echo sprintf("%.2f", ($headshots / $kills));
-	    else
-		echo sprintf("%.2f", 0);
+            if ($kills > 0)
+                echo sprintf("%.2f", ($headshots / $kills));
+            else
+                echo sprintf("%.2f", 0);
 ?></td>
         </tr>
 <?php
-	    if (isset($g_options['slider']) && $g_options['slider'] == 1) {
+            if (isset($g_options['slider']) && $g_options['slider'] == 1) {
 ?>
-	<tr>
-	    <td colspan="9" style="padding: 0px; border: none;">
-		<div class="opener">
-		    <?php printserverstats($server_id); ?>
-		    <div class="subblock">
+        <tr>
+            <td colspan="9" style="padding: 0px; border: none;">
+                <div class="opener">
+                    <?php printserverstats($server_id); ?>
+                    <div class="subblock">
 <?php
-		$range_arr = array(1=>"24h View", 2=>"Last Week", 3=>"Last Month", 4=>"Last Year");
-		foreach($range_arr as $range_code => $range_name) {
-		    print('<table class="data-table"><tr class="data-table-head">');
-		    print('<td class="fSmall">&nbsp;'.$range_name.'</td></tr>');
-		    print('<tr class="data-table-row"><td style="text-align:center; height: 200px; vertical-align:middle;">');
+                $range_arr = array(1=>"24h View", 2=>"Last Week", 3=>"Last Month", 4=>"Last Year");
+                foreach($range_arr as $range_code => $range_name) {
+                    print('<table class="data-table"><tr class="data-table-head">');
+                    print('<td class="fSmall">&nbsp;'.$range_name.'</td></tr>');
+                    print('<tr class="data-table-row"><td style="text-align:center; height: 200px; vertical-align:middle;">');
 
-		    $graph_url = 'show_graph.php?type=0&amp;width=870&amp;height=200&amp;'.
-		    'game='.$game_url.'&amp;server_id='.$server_id.'&amp;'.
-		    'bgcolor='.$g_options['graphbg_load'].'&amp;color='.$g_options['graphtxt_load'].
-		    '&amp;range='.$range_code;
+                    $graph_url = 'show_graph.php?type=0&amp;width=870&amp;height=200&amp;'.
+                    'game='.$game_url.'&amp;server_id='.$server_id.'&amp;'.
+                    'bgcolor='.$graphbg_load.'&amp;color='.$graphtxt_load.
+                    '&amp;range='.$range_code;
 
-		    if(!isset($_SESSION['nojs']) || !$_SESSION['nojs']) {
-		    print('<img src="' . IMAGE_PATH .'/title-small.png" delaysrc="' . $graph_url . '" alt="'.$range_name.'" title="'.$range_name.'" />');
-		    } else {
-		    print('<img src="' . $graph_url . '" alt="'.$range_name.'" title="'.$range_name.'" />');
-		    }
+                    if(!isset($_SESSION['nojs']) || !$_SESSION['nojs']) {
+                    print('<img src="' . IMAGE_PATH .'/title-small.png" delaysrc="' . $graph_url . '" alt="'.$range_name.'" title="'.$range_name.'" />');
+                    } else {
+                    print('<img src="' . $graph_url . '" alt="'.$range_name.'" title="'.$range_name.'" />');
+                    }
 
-		    print('</td></tr>	</table><br /><br />');
-		}
+                    print('</td></tr>   </table><br /><br />');
+                }
 ?>
     </div>
-		</div>
-	    </td>
-	</tr>
-    <?php	
-	    }
-	}
-	echo '</table>';
-    
-	if (isset($g_options['slider']) && $g_options['slider'] == 1) {
+                </div>
+            </td>
+        </tr>
+    <?php
+            }
+        }
+        echo '</table>';
+
+        if (isset($g_options['slider']) && $g_options['slider'] == 1) {
 ?>
     <script type="text/javascript">
-	var myAccordion = new Accordion($('accordion'), 'tr.toggler', 'div.opener', {
-	    opacity: false,
-	    display: '-1',
-	    alwaysHide: true,
-	    onActive: function(toggler, element){
-		toggler.setStyle('color', '#ff3300');
-		/* here we set the 'src' attribute properly, 
-		    so that the images load once the accordion is opened */
-		    
-		element.getElements('img').each(function(el) { 
-		    if(el.get('delaysrc')!=null)
-		    el.set('src', el.get('delaysrc'));
-		});					
-	    },
-	    onBackground: function(toggler, element){
-		toggler.setStyle('color', '#222');
-	    }
-	});
+        var myAccordion = new Accordion($('accordion'), 'tr.toggler', 'div.opener', {
+            opacity: false,
+            display: '-1',
+            alwaysHide: true,
+            onActive: function(toggler, element){
+                toggler.setStyle('color', '#ff3300');
+                /* here we set the 'src' attribute properly,
+                    so that the images load once the accordion is opened */
+
+                element.getElements('img').each(function(el) {
+                    if(el.get('delaysrc')!=null)
+                    el.set('src', el.get('delaysrc'));
+                });
+            },
+            onBackground: function(toggler, element){
+                toggler.setStyle('color', '#222');
+            }
+        });
     </script>
 <?php
-	}
+        }
     }
-    
+
     // PHP 8 Fix: Null coalescing
     $show_google = isset($g_options['show_google_map']) && $g_options['show_google_map'] == 1;
     $show_load = isset($g_options['show_server_load_image']) && $g_options['show_server_load_image'] == 1;
-    
+
     if ($show_google || $show_load) {
- 
-	echo '<table class="data-table" style="margin-bottom:40px;">';
-    
-	if ($show_google)	{
-?>  
-        <tr class="data-table-row">
-	    <td style="text-align:center;">
-		<div id="map" style="margin:10px auto;width: 870px; height: 380px; color:black;"></div>
-	    </td>
-        </tr>  
-<?php
-	}
-	if ($show_load) {
+
+        echo '<table class="data-table" style="margin-bottom:40px;">';
+
+        if ($show_google)       {
 ?>
-	<tr class="data-table-row">
-	    <td style="text-align:center;padding:0px;">
-		<img src="show_graph.php?type=1&amp;game=<?php echo $game_url ?>&amp;width=870&amp;height=200&amp;bgcolor=<?php echo $g_options['graphbg_load']; ?>&amp;color=<?php echo $g_options['graphtxt_load']; ?>" alt="Server Load Graph" title="serverLoadGraph" />
-	    </td>
-	</tr>
+        <tr class="data-table-row">
+            <td style="text-align:center;">
+                <div id="map" style="margin:10px auto;width: 870px; height: 380px; color:black;"></div>
+            </td>
+        </tr>
 <?php
-	}
-    
-	echo '</table>';
-    } 
+        }
+        if ($show_load) {
+?>
+        <tr class="data-table-row">
+            <td style="text-align:center;padding:0px;">
+                <img src="show_graph.php?type=1&amp;game=<?php echo $game_url ?>&amp;width=870&amp;height=200&amp;bgcolor=<?php echo $graphbg_load; ?>&amp;color=<?php echo $graphtxt_load; ?>" alt="Server Load Graph" title="serverLoadGraph" />
+            </td>
+        </tr>
+<?php
+        }
+
+        echo '</table>';
+    }
     if (!$show_google && !$show_load) {
-	echo '<br />     ';
+        echo '<br />     ';
     }
 
     // PHP 8 Fix: Ensure slider key exists
-    $slider_opt = isset($g_options['slider']) ? $g_options['slider'] : 0;
+    $slider_opt = isset($g_options['slider']) ? (int)$g_options['slider'] : 0;
     if ($slider_opt == 0 || ($slider_opt == 1 && count($servers) == 1)) {
-	$i=0;
-	for ($i=0; $i<count($servers); $i++)
-	{
-	    $rowdata = $servers[$i]; 
+        $i=0;
+        for ($i=0; $i<count($servers); $i++)
+        {
+            $rowdata = $servers[$i];
 
-	    $server_id = $rowdata['serverId'];
+            $server_id = (int)$rowdata['serverId'];
 
-	    $c = ($i % 2) + 1;
+            $c = ($i % 2) + 1;
 
-	    $addr = $rowdata['addr'];
-	    $kills = (int)$rowdata['kills'];
-	    $headshots = (int)$rowdata['headshots'];
-	    $player_string = $rowdata['act_players'] . "/" . $rowdata['max_players'];
-	    $map_teama_wins = $rowdata['map_ct_wins'];
-	    $map_teamb_wins = $rowdata['map_ts_wins'];
+            $addr = (string)$rowdata['addr'];
+            $kills = (int)$rowdata['kills'];
+            $headshots = (int)$rowdata['headshots'];
+            $player_string = (int)$rowdata['act_players'] . "/" . (int)$rowdata['max_players'];
+            $map_teama_wins = $rowdata['map_ct_wins'];
+            $map_teamb_wins = $rowdata['map_ts_wins'];
 ?>
-	  <table class="data-table">
-		    <tr class="data-table-head">
-			<td class="fSmall" style="width:37%;">&nbsp;Server</td>
-			<td class="fSmall" style="width:19%;">&nbsp;Address</td>
-			<td class="fSmall" style="width:7%;text-align:center;">&nbsp;Map</td>
-			<td class="fSmall" style="width:7%;text-align:center;">&nbsp;Played</td>
-			<td class="fSmall" style="width:10%;text-align:center;">&nbsp;Players</td>
-			<td class="fSmall" style="width:7%;text-align:center;">&nbsp;Kills</td>
-			<td class="fSmall" style="width:7%;text-align:center;">&nbsp;Headshots</td>
-			<td class="fSmall" style="width:6%;text-align:center;">&nbsp;HS:K</td>
-		    </tr>
-		    <tr class="game-table-row">
-			<td class="game-table-cell"><?php
-	    $image = getImage("/games/$game/game");
-	    echo '<img src="';
-	    if ($image)
-		echo $image['url'];
-	    else
-		echo IMAGE_PATH . '/game.gif';
-	    echo "\" alt=\"$game\" />&nbsp;";
-	    echo "<b><a href=\"" . $g_options['scripturl'] . "?mode=servers&amp;server_id=$server_id&amp;game=$game_url\" style=\"text-decoration:none;\">" . htmlspecialchars($rowdata['name']) . "</a></b>";
+          <table class="data-table">
+                    <tr class="data-table-head">
+                        <td class="fSmall" style="width:37%;">&nbsp;Server</td>
+                        <td class="fSmall" style="width:19%;">&nbsp;Address</td>
+                        <td class="fSmall" style="width:7%;text-align:center;">&nbsp;Map</td>
+                        <td class="fSmall" style="width:7%;text-align:center;">&nbsp;Played</td>
+                        <td class="fSmall" style="width:10%;text-align:center;">&nbsp;Players</td>
+                        <td class="fSmall" style="width:7%;text-align:center;">&nbsp;Kills</td>
+                        <td class="fSmall" style="width:7%;text-align:center;">&nbsp;Headshots</td>
+                        <td class="fSmall" style="width:6%;text-align:center;">&nbsp;HS:K</td>
+                    </tr>
+                    <tr class="game-table-row">
+                        <td class="game-table-cell"><?php
+            $image = getImage("/games/$game_url/game");
+            $img_src = ($image && !empty($image['url'])) ? htmlspecialchars((string)$image['url'], ENT_QUOTES, 'UTF-8') : IMAGE_PATH . '/game.gif';
+            echo '<img src="' . $img_src . '" alt="' . htmlspecialchars($game, ENT_QUOTES, 'UTF-8') . '" />&nbsp;';
+            echo "<b><a href=\"" . $scripturl . "?mode=servers&amp;server_id=$server_id&amp;game=$game_url\" style=\"text-decoration:none;\">" . htmlspecialchars((string)$rowdata['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "</a></b>";
     ?></td>
-			<td class="game-table-cell"><?php
-	    echo "$addr <a href=\"steam://connect/$addr\" style=\"color:black\">(Join)</a>";
+                        <td class="game-table-cell"><?php
+            $safe_addr = htmlspecialchars($addr, ENT_QUOTES, 'UTF-8');
+            echo "$safe_addr <a href=\"steam://connect/$safe_addr\" style=\"color:black\">(Join)</a>";
     ?></td>
-			<td class="game-table-cell" style="text-align:center;"><?php
-	    echo htmlspecialchars($rowdata['act_map']);
+                        <td class="game-table-cell" style="text-align:center;"><?php
+            echo htmlspecialchars((string)$rowdata['act_map'], ENT_QUOTES, 'UTF-8');
     ?></td>
-			<td class="game-table-cell" style="text-align:center;"><?php
-	    $stamp = $rowdata['map_started']==0?0:time() - $rowdata['map_started'];
-	    $hours = sprintf('%02d', floor($stamp / 3600));
-	    $min = sprintf('%02d', floor(($stamp % 3600) / 60));
-	    $sec = sprintf('%02d', floor($stamp % 60));
-	    echo $hours . ':' . $min . ':' . $sec;
+                        <td class="game-table-cell" style="text-align:center;"><?php
+            $map_started = (int)$rowdata['map_started'];
+            $stamp = $map_started==0 ? 0 : max(0, time() - $map_started);
+            $hours = sprintf('%02d', floor($stamp / 3600));
+            $min = sprintf('%02d', floor(($stamp % 3600) / 60));
+            $sec = sprintf('%02d', floor($stamp % 60));
+            echo $hours . ':' . $min . ':' . $sec;
     ?></td>
-			<td class="game-table-cell" style="text-align:center;"><?php
-	    echo $player_string;
+                        <td class="game-table-cell" style="text-align:center;"><?php
+            echo htmlspecialchars($player_string, ENT_QUOTES, 'UTF-8');
     ?></td>
-			<td class="game-table-cell" style="text-align:center;"><?php
-	    echo number_format($kills);
+                        <td class="game-table-cell" style="text-align:center;"><?php
+            echo number_format($kills);
     ?></td>
-			<td class="game-table-cell" style="text-align:center;"><?php
-	    echo number_format($headshots);
+                        <td class="game-table-cell" style="text-align:center;"><?php
+            echo number_format($headshots);
     ?></td>
-			<td class="game-table-cell" style="text-align:center;"><?php
-	    if ($kills > 0)
-		echo sprintf('%.4f', ($headshots / $kills));
-	    else
-		echo sprintf('%.4f', 0);
+                        <td class="game-table-cell" style="text-align:center;"><?php
+            if ($kills > 0)
+                echo sprintf('%.4f', ($headshots / $kills));
+            else
+                echo sprintf('%.4f', 0);
     ?></td>
-		    </tr>
-	    </table>        
+                    </tr>
+            </table>
 
-	    <table class="data-table">
-	    <tr class="data-table-row">
-	      <td style="padding:0px;text-align:center;">
-		<a href="<?php $g_options['scripturl'] ?>?mode=servers&amp;server_id=<?php echo $server_id ?>&amp;game=<?php echo $game_url ?>" style="text-decoration:none;"><img src="show_graph.php?type=0&amp;game=<?php echo $game_url; ?>&amp;width=870&amp;height=200&amp;server_id=<?php echo $server_id ?>&amp;bgcolor=<?php echo $g_options['graphbg_load']; ?>&amp;color=<?php echo $g_options['graphtxt_load']; ?>" style="border:0px;" alt="Server Load Graph" title="Server Load Graph" /></a>
-	      </td>
-	    </tr>
-	    </table>
-		    
+            <table class="data-table">
+            <tr class="data-table-row">
+              <td style="padding:0px;text-align:center;">
+                <a href="<?php echo $scripturl; ?>?mode=servers&amp;server_id=<?php echo $server_id; ?>&amp;game=<?php echo $game_url; ?>" style="text-decoration:none;"><img src="show_graph.php?type=0&amp;game=<?php echo $game_url; ?>&amp;width=870&amp;height=200&amp;server_id=<?php echo $server_id; ?>&amp;bgcolor=<?php echo $graphbg_load; ?>&amp;color=<?php echo $graphtxt_load; ?>" style="border:0px;" alt="Server Load Graph" title="Server Load Graph" /></a>
+              </td>
+            </tr>
+            </table>
+
     <?php
-	    printserverstats($server_id);
+            printserverstats($server_id);
 
-	} // for servers
+        } // for servers
     }
 ?>
 </div></div>
 <?php
     $show_awards = isset($g_options['gamehome_show_awards']) && $g_options['gamehome_show_awards'] == 1;
     if ($show_awards) {
-	$resultAwards = $db->query("
-	    SELECT
-		hlstats_Awards.awardId,
-		hlstats_Awards.name,
-		hlstats_Awards.verb,
-		hlstats_Awards.d_winner_id,
-		hlstats_Awards.d_winner_count,
-		hlstats_Players.lastName AS d_winner_name,
-		hlstats_Players.flag AS flag,
-		hlstats_Players.country AS country
-	    FROM
-		hlstats_Awards
-	    LEFT JOIN hlstats_Players ON
-		hlstats_Players.playerId = hlstats_Awards.d_winner_id
-	    WHERE
-		hlstats_Awards.game='$game_esc'
-	    ORDER BY
-		hlstats_Awards.name
-	");
+        $resultAwards = $db->query("
+            SELECT
+                hlstats_Awards.awardId,
+                hlstats_Awards.name,
+                hlstats_Awards.verb,
+                hlstats_Awards.d_winner_id,
+                hlstats_Awards.d_winner_count,
+                hlstats_Players.lastName AS d_winner_name,
+                hlstats_Players.flag AS flag,
+                hlstats_Players.country AS country
+            FROM
+                hlstats_Awards
+            LEFT JOIN hlstats_Players ON
+                hlstats_Players.playerId = hlstats_Awards.d_winner_id
+            WHERE
+                hlstats_Awards.game='$game_esc'
+            ORDER BY
+                hlstats_Awards.name
+        ");
 
-	$result = $db->query("
-	    SELECT
-		IFNULL(value, 1)
-	    FROM
-		hlstats_Options
-	    WHERE
-		keyname='awards_numdays'
-	");
+        $result = $db->query("
+            SELECT
+                IFNULL(value, 1)
+            FROM
+                hlstats_Options
+            WHERE
+                keyname='awards_numdays'
+        ");
 
-	if ($db->num_rows($result) == 1) {
+        if ($db->num_rows($result) == 1) {
             $row = $db->fetch_row($result);
-	    $awards_numdays = ($row) ? $row[0] : 1;
+            $awards_numdays = ($row) ? (int)$row[0] : 1;
         } else {
-	    $awards_numdays = 1;
+            $awards_numdays = 1;
         }
 
-	$result = $db->query("
-	    SELECT
-		DATE_FORMAT(value, '%W %e %b'),
-		DATE_FORMAT( DATE_SUB( value, INTERVAL $awards_numdays DAY ) , '%W %e %b' )
-	    FROM
-		hlstats_Options
-	    WHERE
-		keyname='awards_d_date'
-	");
-	
+        $result = $db->query("
+            SELECT
+                DATE_FORMAT(value, '%W %e %b'),
+                DATE_FORMAT( DATE_SUB( value, INTERVAL " . (int)$awards_numdays . " DAY ) , '%W %e %b' )
+            FROM
+                hlstats_Options
+            WHERE
+                keyname='awards_d_date'
+        ");
+
         // PHP 8 Fix: Replace list()
         $row = $db->fetch_row($result);
         $awards_d_date = ($row) ? $row[0] : false;
         $awards_s_date = ($row) ? $row[1] : false;
 
-	if ($db->num_rows($resultAwards) > 0 && $awards_d_date) {
+        if ($db->num_rows($resultAwards) > 0 && $awards_d_date) {
 ?>
 <div class="block" style="padding-top:20px">
 
@@ -540,51 +539,51 @@ For support and installation notes visit http://www.hlxcommunity.com
 ?>
     <div class="subblock">
 
-	<table class="data-table">
+        <table class="data-table">
 
 <?php
-	    $c = 0;
-	    while ($awarddata = $db->fetch_array($resultAwards))
-	    {
-		$colour = ($c % 2) + 1;
-		$c++;
+            $c = 0;
+            while ($awarddata = $db->fetch_array($resultAwards))
+            {
+                $colour = ($c % 2) + 1;
+                $c++;
 ?>
 
 <tr class="bg<?php echo $colour; ?>">
     <td style="width:40%;"><?php
-		echo '<a href="'.$g_options['scripturl'].'?mode=dailyawardinfo&amp;award='.$awarddata['awardId']."&amp;game=$game_url\">".htmlspecialchars($awarddata['name']).'</a>';
+                echo '<a href="'.$scripturl.'?mode=dailyawardinfo&amp;award='.$awarddata['awardId']."&amp;game=$game_url\">".htmlspecialchars((string)$awarddata['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8').'</a>';
 ?></td>
     <td style="width:60%;"><?php
 
-		if ($awarddata['d_winner_id']) {
-                    $country = isset($g_options['countrydata']) ? $g_options['countrydata'] : 0;
-		    if ($country == 1) {
-			$flag = '0.gif';
-			$alt = 'Unknown Country';
-			if (!empty($awarddata['flag'])) {
+                if ($awarddata['d_winner_id']) {
+                    $country = isset($g_options['countrydata']) ? (int)$g_options['countrydata'] : 0;
+                    if ($country == 1) {
+                        $flag = '0.gif';
+                        $alt = 'Unknown Country';
+                        if (!empty($awarddata['flag'])) {
                             // PHP 8 Fix: Ensure not null
-			    $alt = ucfirst(strtolower((string)$awarddata['country']));
+                            $alt = ucfirst(strtolower((string)$awarddata['country']));
                             $flag_img = getFlag($awarddata['flag']);
-			} else {
+                        } else {
                             $flag_img = getFlag('0');
                         }
-			echo "<img src=\"" . $flag_img . "\" hspace=\"4\" alt=\"$alt\" title=\"$alt\" /><a href=\"{$g_options['scripturl']}?mode=playerinfo&amp;player={$awarddata['d_winner_id']}\"><b>" . htmlspecialchars($awarddata['d_winner_name'], ENT_COMPAT) . "</b></a> ({$awarddata['d_winner_count']} " . htmlspecialchars($awarddata['verb']) . ")";
-		    } else {
-			echo "<img src=\"" . IMAGE_PATH . "/player.gif\" hspace=\"4\" alt=\"Player\" /><a href=\"{$g_options['scripturl']}?mode=playerinfo&amp;player={$awarddata['d_winner_id']}\"><b>" . htmlspecialchars($awarddata['d_winner_name'], ENT_COMPAT) . "</b></a> ({$awarddata['d_winner_count']} ". htmlspecialchars($awarddata['verb']) . ")";
-		    }
-		}
-		else
-		{
-		    echo '&nbsp;&nbsp; <em>No Award Winner</em>';
-		}
+                        echo "<img src=\"" . $flag_img . "\" hspace=\"4\" alt=\"$alt\" title=\"$alt\" /><a href=\"{$scripturl}?mode=playerinfo&amp;player={$awarddata['d_winner_id']}\"><b>" . htmlspecialchars((string)$awarddata['d_winner_name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "</b></a> ({$awarddata['d_winner_count']} " . htmlspecialchars((string)$awarddata['verb'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . ")";
+                    } else {
+                        echo "<img src=\"" . IMAGE_PATH . "/player.gif\" hspace=\"4\" alt=\"Player\" /><a href=\"{$scripturl}?mode=playerinfo&amp;player={$awarddata['d_winner_id']}\"><b>" . htmlspecialchars((string)$awarddata['d_winner_name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "</b></a> ({$awarddata['d_winner_count']} ". htmlspecialchars((string)$awarddata['verb'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . ")";
+                    }
+                }
+                else
+                {
+                    echo '&nbsp;&nbsp; <em>No Award Winner</em>';
+                }
 ?></td>
 </tr>
 
 <?php
-	    }
+            }
 ?></table>
 </div></div>
 <?php
-	}
+        }
     }
 ?>

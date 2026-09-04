@@ -3,11 +3,11 @@
 # Copyleft (L) 2008-20XX Nicholas Hastings (nshastings@gmail.com)
 # http://www.hlxcommunity.com
 #
-# HLstatsX Community Edition is a continuation of 
+# HLstatsX Community Edition is a continuation of
 # ELstatsNEO - Real-time player and clan rankings and statistics
 # Copyleft (L) 2008-20XX Malte Bayer (steam@neo-soft.org)
 # http://ovrsized.neo-soft.org/
-# 
+#
 # ELstatsNEO is an very improved & enhanced - so called Ultra-Humongus Edition of HLstatsX
 # HLstatsX - Real-time player and clan rankings and statistics for Half-Life 2
 # http://www.hlstatsx.com/
@@ -17,7 +17,7 @@
 # HLstats - Real-time player and clan rankings and statistics for Half-Life
 # http://sourceforge.net/projects/hlstats/
 # Copyright (C) 2001  Simon Garner
-#             
+#
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License
 # as published by the Free Software Foundation; either version 2
@@ -31,121 +31,152 @@
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
-# 
+#
 # For support and installation notes visit http://www.hlxcommunity.com
 
-# If you wish to run this script as a daemon script (in /etc/init.d, etc.)
-# you must configure the "confdir" variable below.
-# The other variables are optional and really should not be modified.
+# Change to directory of script
+cd "$(dirname "$0")"
 
-# Set the path to the scripts folder (you should not need to modify this.)
 confdir=.
-
-# Set the configuration file for the daemon (you should not need to modify this.)
 conffile=hlstats.conf
-# Set the filename of the daemon to use (you should not need to modify this.)
 daemonfile=proxy-daemon.pl
-# Set where you want to log to.  This is a directory inside of the confdir setting.
-# (You should not need to modify this.)
 logdir=logs
-# Set the format of the log file
-logfile=proxy`date +_%Y%m%d_%H-%M-%S`
-# Set where to store PID files
+logfile=proxy_$(date +%Y%m%d_%H-%M-%S).log
 piddir=${confdir}
+pidfile=${piddir}/proxy-daemon.pid
 
-# verify that we can see the daemon file
-if [ ! -f ${confdir}/${daemonfile} ]; then
-	echo "Can't see the daemon.  (${daemonfile})"
-	exit 1
+# Verify that we can see the daemon file
+if [ ! -f "${daemonfile}" ]; then
+        echo "CRITICAL ERROR: Can't find the daemon file (${daemonfile})"
+        exit 1
 fi
 
-# verify that you have write access to the directories
-if [ ! -w ${confdir} ]; then
-	echo "you need write access to ${confdir}"
-	exit 1
+# Verify write access to directories
+if [ ! -w "${confdir}" ]; then
+        echo "CRITICAL ERROR: You need write access to ${confdir}"
+        exit 1
 fi
 
-# verify that you have a logs directory
-if [ ! -d ${confdir}/${logdir} ];then
-	mkdir ${confdir}/${logdir}
+# Create logs directory if needed
+if [ ! -d "${logdir}" ]; then
+        mkdir -p "${logdir}"
 fi
 
-if [ ! -w ${confdir}/${logdir} ];then
-	echo "you need write access to ${confdir}/${logdir}"
-	exit 1
+if [ ! -w "${logdir}" ]; then
+        echo "CRITICAL ERROR: You need write access to ${logdir}"
+        exit 1
 fi
 
-# Grab out original directory so we can return after
-origdir=`pwd`
+function get_pid {
+        if [ -f "${pidfile}" ]; then
+                cat "${pidfile}" 2>/dev/null
+        fi
+}
 
-# Move into configured directory
-cd ${confdir}
+function start_proxy {
+        if [ ! -f "${conffile}" ]; then
+                echo "CRITICAL ERROR: Missing configuration file (${conffile})"
+                exit 1
+        fi
+
+        local PID=$(get_pid)
+        if [ -n "${PID}" ]; then
+                kill -0 "${PID}" &>/dev/null
+                if [ $? -eq 0 ]; then
+                        echo "HLstatsX:CE Proxy Daemon is already running (PID: ${PID})!"
+                        return 2
+                else
+                        rm -f "${pidfile}"
+                fi
+        fi
+
+        echo -n "Starting HLstatsX:CE Proxy Daemon... "
+        ./"${daemonfile}" --configfile="${conffile}" > "${logdir}/${logfile}" 2>&1 &
+        local NEW_PID=$!
+        echo "${NEW_PID}" > "${pidfile}"
+
+        sleep 1
+        kill -0 "${NEW_PID}" &>/dev/null
+        if [ $? -eq 0 ]; then
+                echo "Started successfully (PID: ${NEW_PID})"
+                return 0
+        else
+                echo "FAILED to start! Check log file: ${logdir}/${logfile}"
+                rm -f "${pidfile}"
+                return 1
+        fi
+}
+
+function stop_proxy {
+        local PID=$(get_pid)
+        if [ -z "${PID}" ]; then
+                echo "No HLstatsX:CE Proxy Daemon running (no PID file)."
+                return 3
+        fi
+
+        echo -n "Stopping HLstatsX:CE Proxy Daemon (PID: ${PID})... "
+        kill -INT "${PID}" &>/dev/null
+
+        local i=1
+        while [ $i -le 5 ]
+        do
+                kill -0 "${PID}" &>/dev/null
+                if [ $? -ne 0 ]; then
+                        rm -f "${pidfile}"
+                        echo "Stopped successfully."
+                        return 0
+                fi
+                sleep 1
+                let i++
+        done
+
+        # If not stopped gracefully, force kill
+        echo -n "Forcing shutdown... "
+        kill -KILL "${PID}" &>/dev/null
+        sleep 1
+        rm -f "${pidfile}"
+        echo "Stopped forcefully."
+        return 1
+}
 
 case "$1" in
-	start)
-		# verify that we have a .conf file
-		if [ ! -f ${conffile} ]; then
-			echo "You're missing your configuration file.  (${conffile})"
-			exit 1
-		fi
-		echo "Starting HLstatsX:CE...";
-		if [ -f ${piddir}/proxy-daemon.pid ]; then
-			kill -0 `cat ${piddir}/proxy-daemon.pid` >/dev/null 2>&1
-			if [ "$?" == "0" ]; then
-				echo "HLstatsX:CE already running!"
-			else
-				rm -rf ${piddir}/proxy-daemon.pid
-				./${daemonfile} --configfile=${conffile} > ${logdir}/${logfile} 2>&1 &
-				echo $! >${piddir}/proxy-daemon.pid
-				echo "PID file created"
-				echo "Started successfully"
-			fi
-		else
-			./${daemonfile} --configfile=${conffile} > ${logdir}/${logfile} 2>&1 &
-			echo $! >${piddir}/proxy-daemon.pid
-			echo "PID file created"
-			echo "Started successfully"
-		fi
-    ;;
-	
-	stop)
-		echo "Stopping HLstatsX:CE..."
-		kill -9 `cat ${piddir}/proxy-daemon.pid` >/dev/null 2>&1
-		if [ "$?" == "0" ]; then
-			rm -rf ${piddir}/proxy-daemon.pid
-			echo "Stopped successfully"
-		else
-			echo "No HLstatsX:CE running!"
-		fi
-	;;
+        start)
+                start_proxy
+        ;;
 
-	restart)
-		echo "Restarting HLstatsX:CE..."
-		kill -9 `cat ${piddir}/proxy-daemon.pid` >/dev/null 2>&1
-		if [ "$?" == "0" ]; then
-			rm -rf ${piddir}/proxy-daemon.pid
-			./${daemonfile} --configfile=${conffile} > ${logdir}/${logfile} 2>&1 &
-			echo $! >${piddir}/proxy-daemon.pid
-			echo "PID file created"
-			echo "Restarted successfully"
-		else    
-			echo "HLstatsX:CE"
-			if [ -f ${piddir}/proxy-daemon.pid ]; then
-				rm -rf ${piddir}/proxy-daemon.pid
-			fi
-			./${daemonfile} --configfile=${conffile} > ${logdir}/${logfile} 2>&1 &
-			echo $! >${piddir}/proxy-daemon.pid
-			echo "PID file created"
-			echo "Started successfully"
-		fi
-	;;
-	
-   *)
-		echo "Usage: ./run_hlstats [ start | stop | restart ]"
-	;;
+        stop)
+                stop_proxy
+        ;;
+
+        restart)
+                echo "Restarting HLstatsX:CE Proxy Daemon..."
+                stop_proxy
+                sleep 1
+                start_proxy
+        ;;
+
+        status)
+                PID=$(get_pid)
+                if [ -n "${PID}" ]; then
+                        kill -0 "${PID}" &>/dev/null
+                        if [ $? -eq 0 ]; then
+                                echo "HLstatsX:CE Proxy Daemon is running (PID: ${PID})."
+                                exit 0
+                        else
+                                echo "Stale PID file found (process not running). Removing..."
+                                rm -f "${pidfile}"
+                                exit 1
+                        fi
+                else
+                        echo "HLstatsX:CE Proxy Daemon is NOT running."
+                        exit 0
+                fi
+        ;;
+
+        *)
+                echo "Usage: ./run_proxy [ start | stop | restart | status ]"
+                exit 1
+        ;;
 esac
-
-# Return to original directory
-cd ${origdir}
 
 exit 0

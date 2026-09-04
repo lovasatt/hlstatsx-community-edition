@@ -40,173 +40,175 @@ For support and installation notes visit http://www.hlxcommunity.com
         die('Do not access this file directly.');
     }
 
-    // Security: Escape game variable
+    // Initialize variables
+    $game = isset($game) ? (string)$game : '';
     $game_esc = $db->escape($game);
+    $game_url = urlencode($game);
+    $scripturl = htmlspecialchars((string)($g_options['scripturl'] ?? ''), ENT_QUOTES, 'UTF-8');
 
     // Weapon Statistics
     $db->query
     ("
-	SELECT
-	    hlstats_Games.name
-	FROM
-	    hlstats_Games
-	WHERE
-	    hlstats_Games.code = '$game_esc'
+        SELECT
+            hlstats_Games.name
+        FROM
+            hlstats_Games
+        WHERE
+            hlstats_Games.code = '$game_esc'
     ");
-    if ($db->num_rows() < 1) error("No such game '$game'.");
-    
-    // PHP 8 Fix: Replace list()
+    if ($db->num_rows() < 1) {
+        error("No such game '" . htmlspecialchars($game, ENT_QUOTES, 'UTF-8') . "'.");
+    }
+
     $row = $db->fetch_row();
-    $gamename = ($row) ? $row[0] : '';
+    $gamename = ($row) ? (string)$row[0] : ucfirst($game);
     $db->free_result();
-    
+
     pageHeader
     (
-	array ($gamename, 'Weapon Statistics'),
-	array ($gamename => "%s?game=$game", 'Weapon Statistics' => '')
+        array ($gamename, 'Weapon Statistics'),
+        array ($gamename => "%s?game=$game_url", 'Weapon Statistics' => '')
     );
     $result = $db->query
     ("
-	SELECT
-	    hlstats_Weapons.code,
-	    hlstats_Weapons.name
-	FROM
-	    hlstats_Weapons
-	WHERE
-	    hlstats_Weapons.game = '$game_esc'
+        SELECT
+            hlstats_Weapons.code,
+            hlstats_Weapons.name
+        FROM
+            hlstats_Weapons
+        WHERE
+            hlstats_Weapons.game = '$game_esc'
     ");
-    
+
     $fname = array();
     while ($rowdata = $db->fetch_row($result))
-    { 
-	$code = $rowdata[0];
-        // PHP 8 Fix: Explicit casting and XSS protection
-	$fname[strtolower((string)$code)] = htmlspecialchars((string)$rowdata[1]);
+    {
+        $code = $rowdata[0];
+        $fname[strtolower((string)$code)] = htmlspecialchars((string)$rowdata[1], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
     }
-    
+
     $tblWeapons = new Table
     (
-	array
-	(
-	    new TableColumn
-	    (
-		'weapon',
-		'Weapon',
-		'width=20&type=weaponimg&align=center&link=' . urlencode("mode=weaponinfo&amp;weapon=%k&amp;game=$game"),
-		$fname
-	    ),
-	    new TableColumn
-	    (
-		'modifier',
-		'Modifier',
-		'width=8&align=right'
-	    ),
-	    new TableColumn
-	    (
-		'kills',
-		'Kills',
-		'width=8&align=right'
-	    ),
-	    new TableColumn
-	    (
-		'kpercent',
-		'%',
-		'width=5&sort=no&align=right&append=' . urlencode('%')
-	    ),
-	    new TableColumn
-	    (
-		'kpercent',
-		'Ratio',
-		'width=18&sort=no&type=bargraph'
-	    ),
-	    new TableColumn
-	    (
-		'headshots',
-		'Headshots',
-		'width=8&align=right'
-	    ),
-	    new TableColumn
-	    (
-		'hpercent',
-		'%',
-		'width=5&sort=no&align=right&append=' . urlencode('%')
-	    ),
-	    new TableColumn
-	    (
-		'hpercent',
-		'Ratio',
-		'width=18&sort=no&type=bargraph'
-	    ),
-	    new TableColumn
-	    (
-		'hpk',
-		'HS:K',
-		'width=5&align=right'
-	    )
-	    
-	),
-	'weapon',
-	'kills',
-	'weapon',
-	true,
-	9999,
-	'weap_page',
-	'weap_sort',
-	'weap_sortorder'
+        array
+        (
+            new TableColumn
+            (
+                'weapon',
+                'Weapon',
+                'width=20&type=weaponimg&align=center&link=' . urlencode("mode=weaponinfo&amp;weapon=%k&amp;game=$game_url"),
+                $fname
+            ),
+            new TableColumn
+            (
+                'modifier',
+                'Modifier',
+                'width=8&align=right'
+            ),
+            new TableColumn
+            (
+                'kills',
+                'Kills',
+                'width=8&align=right'
+            ),
+            new TableColumn
+            (
+                'kpercent',
+                '%',
+                'width=5&sort=no&align=right&append=' . urlencode('%')
+            ),
+            new TableColumn
+            (
+                'kpercent',
+                'Ratio',
+                'width=18&sort=no&type=bargraph'
+            ),
+            new TableColumn
+            (
+                'headshots',
+                'Headshots',
+                'width=8&align=right'
+            ),
+            new TableColumn
+            (
+                'hpercent',
+                '%',
+                'width=5&sort=no&align=right&append=' . urlencode('%')
+            ),
+            new TableColumn
+            (
+                'hpercent',
+                'Ratio',
+                'width=18&sort=no&type=bargraph'
+            ),
+            new TableColumn
+            (
+                'hpk',
+                'HS:K',
+                'width=5&align=right'
+            )
+        ),
+        'weapon',
+        'kills',
+        'weapon',
+        true,
+        9999,
+        'weap_page',
+        'weap_sort',
+        'weap_sortorder'
     );
+
     $db->query
     ("
-	SELECT
-	    IF(IFNULL(SUM(hlstats_Weapons.kills), 0) = 0, 1, SUM(hlstats_Weapons.kills)),
-	    IF(IFNULL(SUM(hlstats_Weapons.headshots), 0) = 0, 1, SUM(hlstats_Weapons.headshots))
-	FROM
-	    hlstats_Weapons
-	WHERE
-	    hlstats_Weapons.game = '$game_esc'
+        SELECT
+            IFNULL(SUM(hlstats_Weapons.kills), 0),
+            IFNULL(SUM(hlstats_Weapons.headshots), 0)
+        FROM
+            hlstats_Weapons
+        WHERE
+            hlstats_Weapons.game = '$game_esc'
     ");
-    
-    // PHP 8 Fix: Replace list() and ensure numeric types
+
     $row = $db->fetch_row();
-    $realkills = ($row) ? (int)$row[0] : 1;
-    $realheadshots = ($row) ? (int)$row[1] : 1;
-    
-    // Prevent division by zero logic in PHP (backup for SQL)
-    $realkills_sql = ($realkills == 0) ? 1 : $realkills;
-    $realheadshots_sql = ($realheadshots == 0) ? 1 : $realheadshots;
+    $totalkills      = ($row) ? (int)$row[0] : 0;
+    $totalheadshots  = ($row) ? (int)$row[1] : 0;
+
+    $div_realkills     = ($totalkills > 0) ? $totalkills : 1;
+    $div_realheadshots = ($totalheadshots > 0) ? $totalheadshots : 1;
 
     $result = $db->query
     ("
-	SELECT
-	    hlstats_Weapons.code AS weapon,
-	    hlstats_Weapons.kills,
-	    ROUND(hlstats_Weapons.kills / $realkills_sql * 100, 2) AS kpercent,
-	    hlstats_Weapons.headshots,
-	    ROUND(hlstats_Weapons.headshots / IF(hlstats_Weapons.kills = 0, 1, hlstats_Weapons.kills), 2) AS hpk,
-	    ROUND(hlstats_Weapons.headshots / $realheadshots_sql * 100, 2) AS hpercent,
-	    hlstats_Weapons.modifier
-	FROM
-	    hlstats_Weapons
-	WHERE
-	    hlstats_Weapons.game = '$game_esc'
-	    AND hlstats_Weapons.kills > 0 
-	GROUP BY
-	    hlstats_Weapons.weaponId
-	ORDER BY
-	    $tblWeapons->sort $tblWeapons->sortorder,
-	    $tblWeapons->sort2 $tblWeapons->sortorder
+        SELECT
+            hlstats_Weapons.code AS weapon,
+            hlstats_Weapons.kills,
+            ROUND(hlstats_Weapons.kills / $div_realkills * 100, 2) AS kpercent,
+            hlstats_Weapons.headshots,
+            ROUND(hlstats_Weapons.headshots / IF(hlstats_Weapons.kills = 0, 1, hlstats_Weapons.kills), 2) AS hpk,
+            ROUND(hlstats_Weapons.headshots / $div_realheadshots * 100, 2) AS hpercent,
+            hlstats_Weapons.modifier
+        FROM
+            hlstats_Weapons
+        WHERE
+            hlstats_Weapons.game = '$game_esc'
+            AND hlstats_Weapons.kills > 0
+        GROUP BY
+            hlstats_Weapons.weaponId
+        ORDER BY
+            $tblWeapons->sort $tblWeapons->sortorder,
+            $tblWeapons->sort2 $tblWeapons->sortorder
     ");
 ?>
 
 <div class="block">
     <?php printSectionTitle('Weapon Statistics'); ?>
     <div class="subblock">
-	From a total of <strong><?php echo number_format($realkills); ?></strong> kills with <strong><?php echo number_format($realheadshots); ?></strong> headshots
+        From a total of <strong><?php echo number_format($totalkills); ?></strong> kills with <strong><?php echo number_format($totalheadshots); ?></strong> headshots
     </div>
     <br /><br />
     <?php $tblWeapons->draw($result, $db->num_rows($result), 95); ?><br /><br />
     <div class="subblock">
-	<div style="float:right;">
-	    Go to: <a href="<?php echo htmlspecialchars($g_options["scripturl"]) . "?game=$game"; ?>"><?php echo htmlspecialchars($gamename); ?></a>
-	</div>
+        <div style="float:right;">
+            Go to: <a href="<?php echo $scripturl . '?game=' . $game_url; ?>"><?php echo htmlspecialchars($gamename, ENT_QUOTES, 'UTF-8'); ?></a>
+        </div>
+        <div style="clear:both;"></div>
     </div>
 </div>

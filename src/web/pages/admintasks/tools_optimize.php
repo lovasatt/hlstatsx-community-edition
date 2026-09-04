@@ -4,7 +4,7 @@ HLstatsX Community Edition - Real-time player and clan rankings and statistics
 Copyleft (L) 2008-20XX Nicholas Hastings (nshastings@gmail.com)
 http://www.hlxcommunity.com
 
-HLstatsX Community Edition is a continuation of 
+HLstatsX Community Edition is a continuation of
 ELstatsNEO - Real-time player and clan rankings and statistics
 Copyleft (L) 2008-20XX Malte Bayer (steam@neo-soft.org)
 http://ovrsized.neo-soft.org/
@@ -18,7 +18,7 @@ HLstatsX is an enhanced version of HLstats made by Simon Garner
 HLstats - Real-time player and clan rankings and statistics for Half-Life
 http://sourceforge.net/projects/hlstats/
 Copyright (C) 2001  Simon Garner
-            
+
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
 as published by the Free Software Foundation; either version 2
@@ -42,115 +42,129 @@ For support and installation notes visit http://www.hlxcommunity.com
 
     global $db, $auth, $task;
 
-    // PHP 8 Fix: Null coalescing check
+    // Security & Permission check
     if (($auth->userdata["acclevel"] ?? 0) < 100) {
         die ("Access denied!");
     }
+
+    // Prevent timeout during physical InnoDB / MyISAM table rebuilds
+    @set_time_limit(0);
+    @ini_set('memory_limit', '512M');
+    @ignore_user_abort(true);
 ?>
 
-&nbsp;&nbsp;&nbsp;&nbsp;<img src="<?php echo IMAGE_PATH; ?>/downarrow.gif" width="9" height="6" class="imageformat" alt=""><b>&nbsp;<?php echo htmlspecialchars($task->title); ?></b><p>
+&nbsp;&nbsp;&nbsp;&nbsp;<img src="<?php echo IMAGE_PATH; ?>/downarrow.gif" width="9" height="6" class="imageformat" alt="" /><b>&nbsp;<?php echo htmlspecialchars($task->title ?? 'Optimize Database', ENT_QUOTES, 'UTF-8'); ?></b><br /><br />
 
+<div style="padding-left:15px; margin-bottom:15px;">
+    <p class="note" style="width:90%;margin:auto;">
+        <strong>Storage Engine Maintenance Info:</strong> <code>OPTIMIZE TABLE</code> defragments physical storage and rebuilds index pages, reclaiming unused disk space after 28-day pruning or massive data resets (supports both InnoDB and MyISAM). <code>ANALYZE TABLE</code> updates index cardinality statistics for the Query Optimizer.
+    </p>
+</div>
 
-<span style="padding-left:35px;">Optimizing tables...</span></td>
-</tr>
-</table><br /><br />
+<span style="padding-left:35px;">Optimizing persistent tables...</span><br /><br />
 
 <?php
-	flush();
+        flush();
 
-	$dbtables_arr = array();
-	$result = $db->query("SHOW TABLES");
+        $dbtables_arr = array();
+        $result = $db->query("SHOW TABLES");
 
-        // PHP 8 Fix: Replace list() loop which fails on false return
-	while ($row = $db->fetch_row($result))
-	{
+        while ($row = $db->fetch_row($result))
+        {
             if (isset($row[0])) {
-	        $dbtables_arr[] = "`" . $row[0] . "`";
+                $tbl_name = (string)$row[0];
+                // Target HLstats and GeoIP tables, but exclude MEMORY / LiveStats tables
+                $is_hlstats = (strpos($tbl_name, 'hlstats_') === 0 || strpos($tbl_name, 'geoLiteCity_') === 0);
+                $is_memory  = (strtolower($tbl_name) === 'hlstats_livestats' || str_ends_with(strtolower($tbl_name), '_tmp'));
+
+                if ($is_hlstats && !$is_memory) {
+                    $dbtables_arr[] = "`" . $tbl_name . "`";
+                }
             }
-	}
+        }
+        $db->free_result($result);
 
         $dbtables = implode(", ", $dbtables_arr);
 
         if (!empty($dbtables)) {
 
-	    $tableOptimize = new Table(
-		array(
-		    new TableColumn(
-			"Table",
-			"Table",
-			"width=30&sort=no"
-		    ),
-		    new TableColumn(
-			"Op",
-			"Operation",
-			"width=12&sort=no"
-		    ),
-		    new TableColumn(
-			"Msg_type",
-			"Msg. Type",
-			"width=12&sort=no"
-		    ),
-		    new TableColumn(
-			"Msg_text",
-			"Message",
-			"width=46&sort=no"
-		    )
-		),
-		"Table",
-		"Table",
-		"Msg_type",
-		false,
-		9999
-	    );
-	    
-	    $result = $db->query("OPTIMIZE TABLE $dbtables");
-    
-	    $tableOptimize->draw($result, $db->num_rows($result), 80);
+            $tableOptimize = new Table(
+                array(
+                    new TableColumn(
+                        "Table",
+                        "Table",
+                        "width=30&sort=no"
+                    ),
+                    new TableColumn(
+                        "Op",
+                        "Operation",
+                        "width=12&sort=no"
+                    ),
+                    new TableColumn(
+                        "Msg_type",
+                        "Msg. Type",
+                        "width=12&sort=no"
+                    ),
+                    new TableColumn(
+                        "Msg_text",
+                        "Message",
+                        "width=46&sort=no"
+                    )
+                ),
+                "Table",
+                "Table",
+                "Msg_type",
+                false,
+                9999
+            );
+
+            $result = $db->query("OPTIMIZE TABLE $dbtables");
+
+            $tableOptimize->draw($result, $db->num_rows($result), 80, "center");
 ?>
 <br /><br />
 
-<table style="width:90%;text-align:center;border:0;" cellspacing="0" cellpadding="2">
-
+<table width="90%" border="0" cellspacing="0" cellpadding="2" style="margin:auto;text-align:center;">
 <tr>
-    <td class="fNormal">Analyzing tables...</td>
+    <td class="fNormal"><strong>Analyzing tables (Updating Index Cardinality Statistics)...</strong></td>
 </tr>
 </table><br /><br />
-    
+
 <?php
-	    $tableAnalyze = new Table(
-		array(
-		    new TableColumn(
-			"Table",
-			"Table",
-			"width=30&sort=no"
-		    ),
-		    new TableColumn(
-			"Op",
-			"Operation",
-			"width=12&sort=no"
-		    ),
-		    new TableColumn(
-			"Msg_type",
-			"Msg. Type",
-			"width=12&sort=no"
-		    ),
-		    new TableColumn(
-			"Msg_text",
-			"Message",
-			"width=46&sort=no"
-		    )
-		),
-		"Table",
-		"Table",
-		"Msg_type",
-		false,
-		9999
-	    );
-	    
-	    $result = $db->query("ANALYZE TABLE $dbtables");
-    
-	    $tableAnalyze->draw($result, $db->num_rows($result), 80);
+            $tableAnalyze = new Table(
+                array(
+                    new TableColumn(
+                        "Table",
+                        "Table",
+                        "width=30&sort=no"
+                    ),
+                    new TableColumn(
+                        "Op",
+                        "Operation",
+                        "width=12&sort=no"
+                    ),
+                    new TableColumn(
+                        "Msg_type",
+                        "Msg. Type",
+                        "width=12&sort=no"
+                    ),
+                    new TableColumn(
+                        "Msg_text",
+                        "Message",
+                        "width=46&sort=no"
+                    )
+                ),
+                "Table",
+                "Table",
+                "Msg_type",
+                false,
+                9999
+            );
+
+            $result = $db->query("ANALYZE TABLE $dbtables");
+
+            $tableAnalyze->draw($result, $db->num_rows($result), 80, "center");
         } else {
-            echo "No tables found to optimize.";
+            echo "No persistent tables found to optimize.";
         }
 ?>

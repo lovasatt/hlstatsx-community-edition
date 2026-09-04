@@ -62,14 +62,27 @@ if($historical_cache==1)
     }
 }
 
-// PHP 8 Fix: Check if session is already active
-if (session_status() == PHP_SESSION_NONE) {
+$is_https = (!empty($_SERVER['HTTPS']) && strtolower($_SERVER['HTTPS']) !== 'off') ||
+            (!empty($_SERVER['HTTP_X_FORWARDED_PROTO']) && strtolower($_SERVER['HTTP_X_FORWARDED_PROTO']) === 'https') ||
+            ((int)($_SERVER['SERVER_PORT'] ?? 0) === 443);
+
+$protocol = $is_https ? 'https://' : 'http://';
+
+if (session_status() === PHP_SESSION_NONE) {
+    session_set_cookie_params([
+        'lifetime' => 0,
+        'path'     => '/',
+        'domain'   => '',
+        'secure'   => $is_https,
+        'httponly' => true,
+        'samesite' => 'Lax'
+    ]);
     session_start();
 }
 
 if (!empty($_GET['logout']) && $_GET['logout'] == '1') {
-    unset($_SESSION['loggedin']);
-    header("Location: http://".$_SERVER['HTTP_HOST'].$_SERVER['SCRIPT_NAME']);
+    unset($_SESSION['loggedin'], $_SESSION['username'], $_SESSION['authsessionStart']);
+    header("Location: " . $protocol . ($_SERVER['HTTP_HOST'] ?? 'localhost') . ($_SERVER['SCRIPT_NAME'] ?? '/hlstats.php'));
     die;
 }
 
@@ -85,7 +98,7 @@ if ($last_slash_pos !== false) {
 } else {
     $path_part = '/';
 }
-$siteurlneo = 'http://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . $path_part;
+$siteurlneo = $protocol . ($_SERVER['HTTP_HOST'] ?? 'localhost') . $path_part;
 $siteurlneo = str_replace('\\','/',$siteurlneo);
 
 // Several Stuff end
@@ -96,7 +109,7 @@ foreach ($_SERVER as $key => $entry) {
 	$search_pattern  = array('/<script>/', '/<\/script>/', '/[^A-Za-z0-9.\-\/=:;_?#&~]/');
 	$replace_pattern = array('', '', '');
 	$entry = preg_replace($search_pattern, $replace_pattern, $entry);
-  
+
 	if ($key == "PHP_SELF") {
             // PHP 8 Fix: Ensure not false/null before checking
             $last_segment = strrchr($entry, '/');
@@ -112,7 +125,7 @@ foreach ($_SERVER as $key => $entry) {
 		    ($last_segment !== '/config.php') &&
 		    ($last_segment !== '/') &&
 		    ($entry !== '')) {
-		    header("Location: http://$siteurlneo/hlstats.php");    
+		    header("Location: " . rtrim($siteurlneo, '/') . "/hlstats.php");
 		    exit;
 		}
             }
@@ -165,21 +178,16 @@ if (!isset($g_options['scripturl'])) {
 $game_input = $_GET['game'] ?? '';
 $game = valid_request((string)$game_input, false);
 
-$realgame = $_SESSION['realgame'] ?? null;
-
-if (!$game)
+if ($game !== '')
 {
-    $game = isset($_SESSION['game']) ? $_SESSION['game'] : '';
+    $_SESSION['game'] = $game;
+    $realgame = getRealGame($game);
+    $_SESSION['realgame'] = $realgame;
 }
 else
 {
-    $_SESSION['game'] = $game;
-}
-
-if (!$realgame && $game)
-{
-    $realgame = getRealGame($game);
-    $_SESSION['realgame'] = $realgame;
+    $game = isset($_SESSION['game']) ? (string)$_SESSION['game'] : '';
+    $realgame = isset($_SESSION['realgame']) ? (string)$_SESSION['realgame'] : ($game !== '' ? getRealGame($game) : '');
 }
 
 $mode = isset($_GET['mode']) ? $_GET['mode'] : '';
@@ -221,7 +229,7 @@ $valid_modes = array(
     'updater',
     'profile'
 );
-   
+
 // In docker, the updater folder will always be present, to allow
 // DB upgrades to be done using this updater. Hence, this code is 
 // commented out to allow things to work correctly after the DB upgrade in docker.
@@ -236,7 +244,7 @@ $valid_modes = array(
 // 	pageFooter();
 // 	die();
 // }
-   
+
 if ( !in_array($mode, $valid_modes) )
 {
     $mode = 'contents';

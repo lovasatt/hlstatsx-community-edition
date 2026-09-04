@@ -4,7 +4,7 @@ HLstatsX Community Edition - Real-time player and clan rankings and statistics
 Copyleft (L) 2008-20XX Nicholas Hastings (nshastings@gmail.com)
 http://www.hlxcommunity.com
 
-HLstatsX Community Edition is a continuation of 
+HLstatsX Community Edition is a continuation of
 ELstatsNEO - Real-time player and clan rankings and statistics
 Copyleft (L) 2008-20XX Malte Bayer (steam@neo-soft.org)
 http://ovrsized.neo-soft.org/
@@ -18,7 +18,7 @@ HLstatsX is an enhanced version of HLstats made by Simon Garner
 HLstats - Real-time player and clan rankings and statistics for Half-Life
 http://sourceforge.net/projects/hlstats/
 Copyright (C) 2001  Simon Garner
-            
+
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
 as published by the Free Software Foundation; either version 2
@@ -42,168 +42,168 @@ For support and installation notes visit http://www.hlxcommunity.com
 
     // PHP 8 Fix: Ensure variables exist and are safe
     $player = isset($player) ? (int)$player : 0;
-    $game = isset($game) ? $game : '';
+    $game = isset($game) ? (string)$game : '';
     $game_url = urlencode($game);
 
     flush();
     $tblPlayerActions = new Table
     (
-	array(
-	    new TableColumn
-	    (
-		'description',
-		'Action',
-		'width=45&link=' . urlencode("mode=actioninfo&amp;action=%k&amp;game=$game_url")
-	    ),
-	    new TableColumn
-	    (
-		'obj_count',
-		'Earned',
-		'width=25&align=right&append=+times'
-	    ),
-	    new TableColumn
-	    (
-		'obj_bonus',
-		'Accumulated Points',
-		'width=25&align=right'
-	    )
-	),
-	'code',
-	'obj_count',
-	'description',
-	true,
-	9999,
-	'obj_page',
-	'obj_sort',
-	'obj_sortorder',
-	'tabteams',
-	'desc',
-	true
+        array(
+            new TableColumn
+            (
+                'description',
+                'Action',
+                'width=45&link=' . urlencode("mode=actioninfo&action=%k&game=$game_url")
+            ),
+            new TableColumn
+            (
+                'obj_count',
+                'Earned',
+                'width=25&align=right&append=+times'
+            ),
+            new TableColumn
+            (
+                'obj_bonus',
+                'Accumulated Points',
+                'width=25&align=right'
+            )
+        ),
+        'code',
+        'obj_count',
+        'description',
+        true,
+        9999,
+        'obj_page',
+        'obj_sort',
+        'obj_sortorder',
+        'tabteams',
+        'desc',
+        true
     );
     $result = $db->query
     ("
-	(
-	SELECT
-	    hlstats_Actions.code,
-	    hlstats_Actions.description,
-	    COUNT(hlstats_Events_PlayerActions.id) AS obj_count,
-	    SUM(hlstats_Events_PlayerActions.bonus) AS obj_bonus
-	FROM
-	    hlstats_Actions
-	LEFT JOIN
-	    hlstats_Events_PlayerActions
-	ON
-	    hlstats_Events_PlayerActions.actionId = hlstats_Actions.id
-	WHERE
-	    hlstats_Events_PlayerActions.playerId = $player
-	GROUP BY
-	    hlstats_Actions.id
-	)
-	UNION ALL
-	(
-	SELECT
-	    hlstats_Actions.code,
-	    hlstats_Actions.description,
-	    COUNT(hlstats_Events_PlayerPlayerActions.id) AS obj_count,
-	    SUM(hlstats_Events_PlayerPlayerActions.bonus) AS obj_bonus
-	FROM
-	    hlstats_Actions
-	LEFT JOIN
-	    hlstats_Events_PlayerPlayerActions
-	ON
-	    hlstats_Events_PlayerPlayerActions.actionId = hlstats_Actions.id
-	WHERE
-	    hlstats_Events_PlayerPlayerActions.playerId = $player
-	GROUP BY
-	    hlstats_Actions.id
-	)
-	ORDER BY
-	    $tblPlayerActions->sort $tblPlayerActions->sortorder,
-	    $tblPlayerActions->sort2 $tblPlayerActions->sortorder
+        (
+        SELECT
+            hlstats_Actions.code,
+            hlstats_Actions.description,
+            COUNT(hlstats_Events_PlayerActions.id) AS obj_count,
+            SUM(hlstats_Events_PlayerActions.bonus) AS obj_bonus
+        FROM
+            hlstats_Actions
+        LEFT JOIN
+            hlstats_Events_PlayerActions
+        ON
+            hlstats_Events_PlayerActions.actionId = hlstats_Actions.id
+        WHERE
+            hlstats_Events_PlayerActions.playerId = $player
+        GROUP BY
+            hlstats_Actions.id
+        )
+        UNION ALL
+        (
+        SELECT
+            hlstats_Actions.code,
+            hlstats_Actions.description,
+            COUNT(hlstats_Events_PlayerPlayerActions.id) AS obj_count,
+            SUM(hlstats_Events_PlayerPlayerActions.bonus) AS obj_bonus
+        FROM
+            hlstats_Actions
+        LEFT JOIN
+            hlstats_Events_PlayerPlayerActions
+        ON
+            hlstats_Events_PlayerPlayerActions.actionId = hlstats_Actions.id
+        WHERE
+            hlstats_Events_PlayerPlayerActions.playerId = $player
+        GROUP BY
+            hlstats_Actions.id
+        )
+        ORDER BY
+            $tblPlayerActions->sort $tblPlayerActions->sortorder,
+            $tblPlayerActions->sort2 $tblPlayerActions->sortorder
     ");
     $numitems = $db->num_rows($result);
     if ($numitems > 0)
     {
 ?>
-	<div style="clear:both;padding-top:20px;"></div>
+        <div style="clear:both;padding-top:20px;"></div>
 <?php
-	printSectionTitle('Player Actions *');
-	$tblPlayerActions->draw($result, $numitems, 95);
+        printSectionTitle('Player Actions *');
+        $tblPlayerActions->draw($result, $numitems, 95);
 ?>
-	<br /><br />
+        <br /><br />
 <?php
     }
     $tblPlayerPlayerActionsV = new Table
     (
-	array
-	(
-	    new TableColumn
-	    (
-		'description',
-		'Action',
-		'width=45&link=' . urlencode("mode=actioninfo&amp;action=%k&amp;game=$game_url#victims")
-	    ),
-	    new TableColumn
-	    (
-		'obj_count',
-		'Earned Against',
-		'width=25&align=right&append=+times'
-	    ),
-	    new TableColumn
-	    (
-		'obj_bonus',
-		'Accumulated Points',
-		'width=25&align=right'
-	    )
-	),
-	'code',
-	'obj_count',
-	'description',
-	true,
-	9999,
-	'ppa_page',
-	'ppa_sort',
-	'ppa_sortorder',
-	'tabteams',
-	'desc',
-	true
+        array
+        (
+            new TableColumn
+            (
+                'description',
+                'Action',
+                'width=45&link=' . urlencode("mode=actioninfo&action=%k&game=$game_url#victims")
+            ),
+            new TableColumn
+            (
+                'obj_count',
+                'Earned Against',
+                'width=25&align=right&append=+times'
+            ),
+            new TableColumn
+            (
+                'obj_bonus',
+                'Accumulated Points',
+                'width=25&align=right'
+            )
+        ),
+        'code',
+        'obj_count',
+        'description',
+        true,
+        9999,
+        'ppa_page',
+        'ppa_sort',
+        'ppa_sortorder',
+        'tabteams',
+        'desc',
+        true
     );
     $result = $db->query
     ("
-	SELECT
-	    hlstats_Actions.code,
-	    hlstats_Actions.description,
-	    COUNT(hlstats_Events_PlayerPlayerActions.id) AS obj_count,
-	    SUM(hlstats_Events_PlayerPlayerActions.bonus) * -1 AS obj_bonus
-	FROM
-	    hlstats_Actions
-	LEFT JOIN
-	    hlstats_Events_PlayerPlayerActions
-	ON
-	    hlstats_Events_PlayerPlayerActions.actionId = hlstats_Actions.id
-	WHERE
-	    hlstats_Events_PlayerPlayerActions.victimId = $player
-	GROUP BY
-	    hlstats_Actions.id
-	ORDER BY
-	    $tblPlayerPlayerActionsV->sort $tblPlayerPlayerActionsV->sortorder,
-	    $tblPlayerPlayerActionsV->sort2 $tblPlayerPlayerActionsV->sortorder
+        SELECT
+            hlstats_Actions.code,
+            hlstats_Actions.description,
+            COUNT(hlstats_Events_PlayerPlayerActions.id) AS obj_count,
+            SUM(hlstats_Events_PlayerPlayerActions.bonus) * -1 AS obj_bonus
+        FROM
+            hlstats_Actions
+        LEFT JOIN
+            hlstats_Events_PlayerPlayerActions
+        ON
+            hlstats_Events_PlayerPlayerActions.actionId = hlstats_Actions.id
+        WHERE
+            hlstats_Events_PlayerPlayerActions.victimId = $player
+        GROUP BY
+            hlstats_Actions.id
+        ORDER BY
+            $tblPlayerPlayerActionsV->sort $tblPlayerPlayerActionsV->sortorder,
+            $tblPlayerPlayerActionsV->sort2 $tblPlayerPlayerActionsV->sortorder
     ");
     $numitemsv = $db->num_rows($result);
     if ($numitemsv > 0)
     {
-	if ($numitems == 0)
-	{
+        if ($numitems == 0)
+        {
 ?>
-	<div style="clear:both;padding-top:20px;"></div>
+        <div style="clear:both;padding-top:20px;"></div>
 <?php
-	}
-	
-	printSectionTitle('Victims of Player-Player Actions *');
+        }
+
+        printSectionTitle('Victims of Player-Player Actions *');
         // Logic Fix: Use correct item count ($numitemsv) for the second table pagination
-	$tblPlayerPlayerActionsV->draw($result, $numitemsv, 95);
+        $tblPlayerPlayerActionsV->draw($result, $numitemsv, 95);
 ?>
-	<br /><br />
+        <br /><br />
 <?php
     }
 ?>

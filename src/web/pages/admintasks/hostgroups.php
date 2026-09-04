@@ -4,7 +4,7 @@ HLstatsX Community Edition - Real-time player and clan rankings and statistics
 Copyleft (L) 2008-20XX Nicholas Hastings (nshastings@gmail.com)
 http://www.hlxcommunity.com
 
-HLstatsX Community Edition is a continuation of 
+HLstatsX Community Edition is a continuation of
 ELstatsNEO - Real-time player and clan rankings and statistics
 Copyleft (L) 2008-20XX Malte Bayer (steam@neo-soft.org)
 http://ovrsized.neo-soft.org/
@@ -18,7 +18,7 @@ HLstatsX is an enhanced version of HLstats made by Simon Garner
 HLstats - Real-time player and clan rankings and statistics for Half-Life
 http://sourceforge.net/projects/hlstats/
 Copyright (C) 2001  Simon Garner
-            
+
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
 as published by the Free Software Foundation; either version 2
@@ -46,45 +46,47 @@ For support and installation notes visit http://www.hlxcommunity.com
     if (($auth->userdata["acclevel"] ?? 0) < 100) {
         die ("Access denied!");
     }
-    
+
     $edlist = new EditList("id", "hlstats_HostGroups", "server", false);
-    $edlist->columns[] = new EditListColumn("pattern", "Host Pattern", 30, true, "text", "", 128);
-    $edlist->columns[] = new EditListColumn("name", "Group Name", 30, true, "text", "", 128);
-    
+    $edlist->columns[] = new EditListColumn("pattern", "Host Pattern", 30, true, "text", "", 255);
+    $edlist->columns[] = new EditListColumn("name", "Group Name", 30, true, "text", "", 255);
+
     if (!empty($_POST))
     {
-	if ($edlist->update())
-	    message("success", "Operation successful.");
-	else
-	    message("warning", $edlist->error());
+        if ($edlist->update()) {
+            message("success", "Operation successful.");
+        } else {
+            message("warning", $edlist->error());
+        }
     }
-    
+
 ?>
-Host Groups allow you to group, for example, all players from "...adsl.someisp.net" as "SomeISP ADSL", in the Host Statistics admin tool.<p>
+Host Groups allow you to group, for example, all players from "...adsl.someisp.net" as "SomeISP ADSL", in the Host Statistics admin tool.<br /><br />
 
-The Host Pattern should look like the <b>end</b> of the hostname. For example a pattern ".adsl.someisp.net" will match "1234.ny.adsl.someisp.net". You can use asterisks "*" in the pattern, e.g. ".ny.*.someisp.net". The asterisk matches zero or more of any character except a dot ".".<p>
+The Host Pattern should look like the <b>end</b> of the hostname. For example a pattern ".adsl.someisp.net" will match "1234.ny.adsl.someisp.net". You can use asterisks "*" in the pattern, e.g. ".ny.*.someisp.net". The asterisk matches zero or more of any character except a dot ".".<br /><br />
 
-The patterns are sorted below in the order they will be applied. A more specific pattern should match before a less specific pattern.<p>
+The patterns are sorted below in the order they will be applied. A more specific pattern should match before a less specific pattern.<br /><br />
 
-<b>Note</b> Run <b>hlstats-resolve.pl --regroup</b> to apply grouping changes to existing data.<p>
-<?php $result = $db->query("
-	SELECT
-	    id,
-	    pattern,
-	    name,
-	    LENGTH(pattern) AS patternlength
-	FROM
-	    hlstats_HostGroups
-	ORDER BY
-	    patternlength DESC,
-	    pattern ASC
+<b>Note:</b> Run <b>hlstats-resolve.pl --regroup</b> to apply grouping changes to existing data.<br /><br />
+<?php
+    $result = $db->query("
+        SELECT
+            id,
+            pattern,
+            name,
+            LENGTH(pattern) AS patternlength
+        FROM
+            hlstats_HostGroups
+        ORDER BY
+            patternlength DESC,
+            pattern ASC
     ");
-    
+
     $edlist->draw($result);
 ?>
 
-<table width="75%" border="0" cellspacing="0" cellpadding="0">
+<table width="75%" border="0" cellspacing="0" cellpadding="0" style="margin:15px auto;">
 <tr>
-    <td align="center"><input type="submit" value="  Apply  " class="submit"></td>
+    <td align="center"><input type="submit" value="  Apply  " class="submit" /></td>
 </tr>
 </table>

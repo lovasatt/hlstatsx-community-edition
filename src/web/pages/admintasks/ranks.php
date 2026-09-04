@@ -4,7 +4,7 @@ HLstatsX Community Edition - Real-time player and clan rankings and statistics
 Copyleft (L) 2008-20XX Nicholas Hastings (nshastings@gmail.com)
 http://www.hlxcommunity.com
 
-HLstatsX Community Edition is a continuation of 
+HLstatsX Community Edition is a continuation of
 ELstatsNEO - Real-time player and clan rankings and statistics
 Copyleft (L) 2008-20XX Malte Bayer (steam@neo-soft.org)
 http://ovrsized.neo-soft.org/
@@ -18,7 +18,7 @@ HLstatsX is an enhanced version of HLstats made by Simon Garner
 HLstats - Real-time player and clan rankings and statistics for Half-Life
 http://sourceforge.net/projects/hlstats/
 Copyright (C) 2001  Simon Garner
-            
+
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
 as published by the Free Software Foundation; either version 2
@@ -41,7 +41,7 @@ For support and installation notes visit http://www.hlxcommunity.com
     }
 
     global $db, $auth, $gamecode;
-     
+
     // PHP 8 Fix: Null coalescing check
     if (($auth->userdata["acclevel"] ?? 0) < 80) {
         die ("Access denied!");
@@ -49,50 +49,51 @@ For support and installation notes visit http://www.hlxcommunity.com
 
     $edlist = new EditList("rankId", "hlstats_Ranks", "", false);
     $edlist->columns[] = new EditListColumn("game", "Game", 0, true, "hidden", $gamecode);
-    $edlist->columns[] = new EditListColumn("image", "Image file", 45, true, "text", "", 64);
-    $edlist->columns[] = new EditListColumn("minKills", "Minimum kills", 15, true, "text", "", 64);
-    $edlist->columns[] = new EditListColumn("maxKills", "Maximum kills", 15, true, "text", "", 64);
-    $edlist->columns[] = new EditListColumn("rankName", "Rank Name", 45, true, "text", "", 64);
-    
+    $edlist->columns[] = new EditListColumn("image", "Image file", 45, true, "text", "", 30);
+    $edlist->columns[] = new EditListColumn("minKills", "Minimum kills", 15, true, "text", "", 11);
+    $edlist->columns[] = new EditListColumn("maxKills", "Maximum kills", 15, true, "text", "", 11);
+    $edlist->columns[] = new EditListColumn("rankName", "Rank Name", 45, true, "text", "", 50);
+
     if (!empty($_POST))
     {
-	if ($edlist->update())
-	    message("success", "Operation successful.");
-	else
-	    message("warning", $edlist->error());
+        if ($edlist->update()) {
+            message("success", "Operation successful.");
+        } else {
+            message("warning", $edlist->error());
+        }
     }
-    
+
 ?>
 
-Note: be sure to set the minKills/maxKills values correctly (no gap).<br>
-Images have to be given without ".gif" and "_small" extension!<p>
+Note: be sure to set the minKills/maxKills values correctly (no gap).<br />
+Images have to be given without ".gif" and "_small" extension!<br /><br />
 
 <?php
-    
+
     // Security: Escape gamecode
-    $gamecode_esc = $db->escape($gamecode);
+    $gamecode_esc = $db->escape($gamecode ?? '');
 
     $result = $db->query("
-	SELECT
-	    rankId,
-	    game,
-	    image,
-	    minKills,
-	    maxKills,
-	    rankName
-	FROM
-	    hlstats_Ranks
-	WHERE
-      game='$gamecode_esc'	
-	ORDER BY
-	    minKills ASC
+        SELECT
+            rankId,
+            game,
+            image,
+            minKills,
+            maxKills,
+            rankName
+        FROM
+            hlstats_Ranks
+        WHERE
+            game='$gamecode_esc'
+        ORDER BY
+            minKills ASC
     ");
-    
+
     $edlist->draw($result);
 ?>
 
-<table width="75%" border="0" cellspacing="0" cellpadding="0">
+<table width="75%" border="0" cellspacing="0" cellpadding="0" style="margin:15px auto;">
 <tr>
-    <td align="center"><input type="submit" value="  Apply  " class="submit"></td>
+    <td align="center"><input type="submit" value="  Apply  " class="submit" /></td>
 </tr>
 </table>

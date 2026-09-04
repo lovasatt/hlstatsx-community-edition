@@ -4,7 +4,7 @@ HLstatsX Community Edition - Real-time player and clan rankings and statistics
 Copyleft (L) 2008-20XX Nicholas Hastings (nshastings@gmail.com)
 http://www.hlxcommunity.com
 
-HLstatsX Community Edition is a continuation of 
+HLstatsX Community Edition is a continuation of
 ELstatsNEO - Real-time player and clan rankings and statistics
 Copyleft (L) 2008-20XX Malte Bayer (steam@neo-soft.org)
 http://ovrsized.neo-soft.org/
@@ -18,7 +18,7 @@ HLstatsX is an enhanced version of HLstats made by Simon Garner
 HLstats - Real-time player and clan rankings and statistics for Half-Life
 http://sourceforge.net/projects/hlstats/
 Copyright (C) 2001  Simon Garner
-            
+
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
 as published by the Free Software Foundation; either version 2
@@ -46,36 +46,54 @@ For support and installation notes visit http://www.hlxcommunity.com
     <?php printSectionTitle('Authorization Required'); ?>
     <div class="subblock">
     <?php
-    if ($this->error)
+    if (!empty($this->error))
     {
 ?>
-    <img src="<?php echo htmlspecialchars(IMAGE_PATH); ?>/warning.gif" style="padding-right:5px;" alt="Warning" />
+    <img src="<?php echo htmlspecialchars((string)IMAGE_PATH, ENT_QUOTES, 'UTF-8'); ?>/warning.gif" style="padding-right:5px;" alt="Warning" />
     <?php
-	echo "<span class=\"fTitle\" style=\"font-weight:bold;\">" . htmlspecialchars((string)$this->error) . "</span><br /><br />";
+        echo "<span class=\"fTitle\" style=\"font-weight:bold;\">" . htmlspecialchars((string)($this->error ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "</span><br /><br />";
     }
 ?>
-	<div style="float:left;margin-left:40px;">
-	<form method="post" name="auth" action="">
-    
-	    <table class="data-table">
-		<tr style="vertical-align:middle;">
-		    <td class="bg1" style="width:45%;border:0;">Username:</td>
-		    <td class="bg1" style="width:55%;border:0;"><input type="text" name="authusername" size="20" maxlength="16" value="<?php echo htmlspecialchars((string)$this->username); ?>" class="textbox" /></td>
-		</tr>
-		<tr style="vertical-align:middle;">
-		    <td class="bg1" style="width:45%;border:0;">Password:</td>
-		    <td class="bg1" style="width:55%;border:0;"><input type="password" name="authpassword" size="20" maxlength="16" value="<?php echo htmlspecialchars((string)$this->password); ?>" class="textbox" /></td>
-		</tr>
-		<tr>
-		    <td class="bg1" style="border:0;">&nbsp;</td>
-		    <td class="bg1" style="border:0;"><input type="submit" value=" Login " id="authsubmit" class="submit" /></td>
-		</tr>
-	    
-	    </table><br />
-		
-	    Please ensure cookies are enabled in your browser security options.<br />
-	    <!-- <strong>Note</strong> Do not select "Save my password" if other people will use this computer.</span>	<br /><br /> -->
-	</form>
-	</div>
+        <div style="float:left;margin-left:40px;">
+        <form method="post" name="auth" action="">
+            <?php if (function_exists('hlstats_csrf_token')): ?>
+                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(hlstats_csrf_token(), ENT_QUOTES, 'UTF-8'); ?>" />
+            <?php endif; ?>
+
+            <table class="data-table">
+                <tr style="vertical-align:middle;">
+                    <td class="bg1" style="width:45%;border:0;">Username:</td>
+                    <td class="bg1" style="width:55%;border:0;">
+                        <input type="text" name="authusername" size="22" maxlength="64" value="<?php echo htmlspecialchars((string)($this->username ?? ''), ENT_QUOTES, 'UTF-8'); ?>" class="textbox" autocomplete="username" autofocus />
+                    </td>
+
+                </tr>
+                <tr style="vertical-align:middle;">
+                    <td class="bg1" style="width:45%;border:0;">Password:</td>
+                    <td class="bg1" style="width:55%;border:0;">
+                        <span style="white-space: nowrap;">
+                            <input id="auth_pwd" type="password" name="authpassword" size="22" maxlength="255" value="" class="textbox" autocomplete="current-password" />
+                            <button type="button" style="background:none;border:none;cursor:pointer;font-size:14px;padding:0 2px;vertical-align:middle;user-select:none;" 
+                                onmousedown="document.getElementById('auth_pwd').type='text';" 
+                                onmouseup="document.getElementById('auth_pwd').type='password';" 
+                                onmouseleave="document.getElementById('auth_pwd').type='password';" 
+                                ontouchstart="document.getElementById('auth_pwd').type='text';" 
+                                ontouchend="document.getElementById('auth_pwd').type='password';" 
+                                title="Hold to reveal password">👁</button>
+                        </span>
+                    </td>
+                </tr>
+                <tr>
+                    <td class="bg1" style="border:0;">&nbsp;</td>
+                    <td class="bg1" style="border:0;"><input type="submit" value=" Login " id="authsubmit" class="submit" /></td>
+                </tr>
+
+            </table><br />
+
+            Please ensure cookies are enabled in your browser security options.<br />
+            <!-- <strong>Note</strong> Do not select "Save my password" if other people will use this computer. <br /><br /> -->
+        </form>
+        </div>
+        <div style="clear:both;"></div>
     </div>
 </div>

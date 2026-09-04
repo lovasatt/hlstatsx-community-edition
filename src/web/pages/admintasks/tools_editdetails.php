@@ -49,18 +49,18 @@ For support and installation notes visit http://www.hlxcommunity.com
 
 ?>
 
-&nbsp;&nbsp;&nbsp;&nbsp;<img src="<?php echo IMAGE_PATH; ?>/downarrow.gif" width="9" height="6" class="imageformat"><b>&nbsp;<?php echo htmlspecialchars($task->title); ?></b><p>
+&nbsp;&nbsp;&nbsp;&nbsp;<img src="<?php echo IMAGE_PATH; ?>/downarrow.gif" width="9" height="6" class="imageformat" alt="" /><b>&nbsp;<?php echo htmlspecialchars($task->title ?? '', ENT_QUOTES, 'UTF-8'); ?></b><br /><br />
 
-<span style="padding-left:35px;">You can enter a player or clan ID number directly, or you can search for a player or clan.</span><p>
+<span style="padding-left:35px;">You can enter a player or clan ID number directly, or you can search for a player or clan.</span><br /><br />
 
 <div class="block">
     <?php printSectionTitle('Jump Direct'); ?>
     <div class="subblock">
-        <form method="get" action="<?php echo htmlspecialchars($g_options['scripturl']); ?>">
-            <input type="hidden" name="mode" value="admin">
-            <table class="data-table" style="width:30%;">
+        <form method="get" action="<?php echo htmlspecialchars($g_options['scripturl'] ?? '', ENT_QUOTES, 'UTF-8'); ?>">
+            <input type="hidden" name="mode" value="admin" />
+            <table class="data-table border" style="width:30%;" cellspacing="1" cellpadding="4">
                 <tr style="vertical-align:middle;" class="bg1">
-                    <td nowrap="nowrap" style="width:30%;">Type:</td>
+                    <td style="white-space:nowrap;width:30%;">Type:</td>
                     <td style="width:70%;">
                         <?php
                             echo getSelect("task",
@@ -73,9 +73,9 @@ For support and installation notes visit http://www.hlxcommunity.com
                     </td>
                 </tr>
                 <tr style="vertical-align:middle;" class="bg1">
-                    <td nowrap="nowrap" style="width:30%;">ID Number:</td>
+                    <td style="white-space:nowrap;width:30%;">ID Number:</td>
                     <td style="width:70%;">
-                        <input type="text" name="id" size="15" maxlength="12" class="textbox">
+                        <input type="text" name="id" size="15" maxlength="12" class="textbox" />
                     </td>
                 </tr>
                 <tr class="bg1">
@@ -92,30 +92,32 @@ For support and installation notes visit http://www.hlxcommunity.com
     require(PAGE_PATH . "/search-class.php");
 
     // PHP 8 Fix: Ensure string type and existence
-    $sr_query = isset($_GET["q"]) ? (string)$_GET["q"] : "";
+    $sr_query = trim((string)($_GET["q"] ?? ""));
 
-    $search_pattern  = array("/script/i", "/;/", "/%/");
-    $replace_pattern = array("", "", "");
-    $sr_query = preg_replace($search_pattern, $replace_pattern, $sr_query);
+    if ($sr_query !== '') {
+        $search_pattern  = array("/script/i", "/;/", "/%/");
+        $replace_pattern = array("", "", "");
+        $sr_query = preg_replace($search_pattern, $replace_pattern, $sr_query);
+    }
 
     // PHP 8 Fix: Handle input keys safely
-    $st_input = isset($_GET["st"]) ? $_GET["st"] : "";
+    $st_input = $_GET["st"] ?? "";
     $sr_type = valid_request($st_input, false);
     if (!$sr_type) {
         $sr_type = "player";
     }
 
-    $game_input = isset($_GET["game"]) ? $_GET["game"] : "";
+    $game_input = $_GET["game"] ?? "";
     $sr_game = valid_request($game_input, false);
 
     $search = new Search($sr_query, $sr_type, $sr_game);
 
     $search->drawForm(array(
         "mode"=>"admin",
-        "task"=>$selTask
+        "task"=>$selTask ?? ($_GET['task'] ?? 'tools_editdetails')
     ));
 
-    if ($sr_query)
+    if ($sr_query !== '')
     {
         $search->drawResults(
             "mode=admin&task=tools_editdetails_player&id=%k",

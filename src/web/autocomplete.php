@@ -13,38 +13,34 @@ if (class_exists($db_classname)) {
     error('Database class does not exist.  Please check your config.php file for DB_TYPE');
 }
 
-// PHP 8.4 Fix: Safe input handling with explicit casting
-$game_input = isset($_GET['game']) ? $_GET['game'] : '';
-$search_input = isset($_POST['value']) ? $_POST['value'] : '';
+header('Content-Type: text/html; charset=utf-8');
 
-// Ensure valid_request is called correctly (false for string expectation)
+// PHP 8.4 Fix: Safe input handling (supports both POST and GET)
+$game_input = $_REQUEST['game'] ?? '';
+$search_input = $_POST['value'] ?? $_GET['value'] ?? $_POST['q'] ?? $_GET['q'] ?? '';
+
 $game = function_exists('valid_request') ? valid_request((string)$game_input, false) : (string)$game_input;
-// For search queries, we might want to be lenient, but ensuring string type is key
-$search = (string)$search_input;
+$search = trim((string)$search_input);
 
 $game_escaped = $db->escape($game);
 $search_escaped = $db->escape($search);
  
 // Check length
 if (strlen($search) >= 3 && strlen($search) < 64) {
-    // Building the query
-    // Optimizations:
-    // 1. Added DISTINCT to avoid duplicate names
-    // 2. Added LIMIT to prevent massive result sets crashing the browser
-    // 3. Qualified 'game' column to avoid ambiguous column errors
+    $game_clause = ($game !== '') ? "hlstats_Players.game = '$game_escaped' AND " : "";
+
     $sql = "
-        SELECT DISTINCT 
-            hlstats_PlayerNames.name 
-        FROM 
-            hlstats_PlayerNames 
-        INNER JOIN 
-            hlstats_Players 
-        ON 
-            hlstats_PlayerNames.playerId = hlstats_Players.playerId 
-        WHERE 
-            hlstats_Players.game = '$game_escaped' 
-            AND hlstats_PlayerNames.name LIKE '$search_escaped%'
-        ORDER BY 
+        SELECT DISTINCT
+            hlstats_PlayerNames.name
+        FROM
+            hlstats_PlayerNames
+        INNER JOIN
+            hlstats_Players
+        ON
+            hlstats_PlayerNames.playerId = hlstats_Players.playerId
+        WHERE
+            $game_clause hlstats_PlayerNames.name LIKE '$search_escaped%'
+        ORDER BY
             LENGTH(hlstats_PlayerNames.name), hlstats_PlayerNames.name
         LIMIT 15
     ";

@@ -56,12 +56,13 @@ sub new
 	die("HLstats_Game->new(): must specify game's game code\n")	if ($game eq "");
 	#&::printEvent("DEBUG","game is $game");
 	my $weaponlist = &::doQuery("SELECT code, name, modifier FROM hlstats_Weapons WHERE game='".&::quoteSQL($game)."'");
-	while ( my($code,$name,$modifier) = $weaponlist->fetchrow_array) {
+	    while ( my($code,$name,$modifier) = $weaponlist->fetchrow_array) {
 		$self->{weapons}{$code}{name} = $name;
 		$self->{weapons}{$code}{modifier} = $modifier;
 		#&::printEvent("DEBUG","Weapon: name is \"$name\"; modifier is $modifier");
-	}
-	
+	    }
+	    $weaponlist->finish;
+    
 	my $actionlist = &::doQuery("SELECT id, code, reward_player, reward_team, team, description, for_PlayerActions, for_PlayerPlayerActions, for_TeamActions, for_WorldActions FROM hlstats_Actions WHERE game='".&::quoteSQL($game)."'");
 	while ( my($id, $code, $reward_player,$reward_team,$team, $descr, $paction, $ppaction, $taction, $waction) = $actionlist->fetchrow_array) {
 		$self->{actions}{$code}{id} = $id;
@@ -82,23 +83,23 @@ sub new
 
 sub getTotalPlayers
 {
-	my ($self) = @_;
-	
-	my $query = "
-		SELECT 
-			COUNT(*) 
-		FROM 
-			hlstats_Players
-		WHERE
-			game=?
-			AND hideranking = 0
-			AND kills >= 1
-	";
-	my $resultTotalPlayers = &::execCached("get_game_total_players", $query, &::quoteSQL($self->{game}));
-	my ($totalplayers) = $resultTotalPlayers->fetchrow_array;
-	$resultTotalPlayers->finish;
-	
-	return $totalplayers;
+    my ($self) = @_;
+    
+    my $query = "
+	SELECT 
+	    COUNT(*) 
+	FROM 
+	    hlstats_Players
+	WHERE
+	    game=?
+	    AND hideranking = 0
+	    AND kills >= 1
+    ";
+    my $resultTotalPlayers = &::execCached("get_game_total_players", $query, $self->{game});
+    my ($totalplayers) = $resultTotalPlayers->fetchrow_array;
+    $resultTotalPlayers->finish;
+    
+    return $totalplayers || 0;
 }
 
 1;

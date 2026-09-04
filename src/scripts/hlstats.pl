@@ -37,9 +37,11 @@
 use strict;
 no strict 'vars';
 
-$SIG{HUP} = 'HUP_handler';
-$SIG{INT} = 'INT_handler';  # unix
-$SIG{INT2} = 'INT_handler';  # windows
+$SIG{HUP}  = 'HUP_handler';
+$SIG{INT}  = 'INT_handler';   # unix (Ctrl+C)
+$SIG{INT2} = 'INT_handler';   # windows
+$SIG{TERM} = 'INT_handler';   # Linux kill, systemctl stop, docker stop
+$SIG{QUIT} = 'INT_handler';   # Linux SIGQUIT
 
 ##
 ## Settings
@@ -90,14 +92,42 @@ binmode STDOUT, ":utf8";
 ## Functions
 ##
 
+sub is_source2
+{
+    my ($server) = @_;
+    return 0 unless defined($server);
+    return ($server->{game_engine} == 4 || $server->{play_game} == CS2() || $server->{game} =~ /^(cs2|deadlock|s2_.*)$/i);
+}
+
 sub lookupPlayer
 {
-	my ($saddr, $id, $uniqueid) = @_;
-	if (defined($g_servers{$saddr}->{"srv_players"}->{"$id/$uniqueid"}))
+    my ($saddr, $id, $uniqueid) = @_;
+    if (defined($g_servers{$saddr}->{"srv_players"}->{"$id/$uniqueid"}))
+    {
+	return $g_servers{$saddr}->{"srv_players"}->{"$id/$uniqueid"};
+    }
+    if (defined($g_servers{$saddr}) && is_source2($g_servers{$saddr}))
+    {
+	if (defined($uniqueid) && $uniqueid ne "" && $uniqueid ne "UNKNOWN")
 	{
-		return $g_servers{$saddr}->{"srv_players"}->{"$id/$uniqueid"};
+	    my $srv_players = $g_servers{$saddr}->{"srv_players"};
+	    if ($srv_players)
+	            {
+	    	foreach my $pl (values %$srv_players)
+	    	{
+	    	    if ($pl && $pl->{uniqueid} eq $uniqueid)
+	    	    {
+	    	    my $old_id = $pl->{userid};
+	    	    delete $srv_players->{"$old_id/$uniqueid"};
+	    	    $pl->{userid} = $id if defined($id);
+	    	    $srv_players->{"$id/$uniqueid"} = $pl;
+	    	    return $pl;
+	    	    }
+	    	}
+	    }
 	}
-	return undef;
+    }
+    return undef;
 }
 
 sub removePlayer
@@ -246,7 +276,7 @@ sub track_hlstats_trend
 sub send_global_chat
 {
 	my ($message) = @_;
-	while( my($server) = each(%g_servers))
+	foreach my $server (keys %g_servers)
 	{	
 		if ($server ne $s_addr && $g_servers{$server}->{"srv_players"})
 		{
@@ -287,7 +317,7 @@ my %g_eventtable_data = ();
 sub buildEventInsertData
 {
 	my $insertType = "";
-	$insertType = " DELAYED" if ($db_lowpriority);
+#	$insertType = " DELAYED" if ($db_lowpriority);   # use normal INSERT with InnoDB
 	while ( my ($table, $colsref) = each(%g_eventTables) )
 	{
 		$g_eventtable_data{$table}{queue} = [];
@@ -496,55 +526,48 @@ sub calcSkill
 
 sub calcL4DSkill
 {
-	my ($killerSkill, $weapon, $difficulty) = @_;
-	
-	# ignored bots never do a "comeback"
-	#return ($killerSkill, $victimSkill) if ($killerSkill < 1);
-	#return ($killerSkill, $victimSkill)	if ($victimSkill < 1);
-	
-	if ($g_debug > 2) {
-		&printNotice("Begin calcSkill: killerSkill=$killerSkill");
-		&printNotice("Begin calcSkill: victimSkill=$victimSkill");
-	}
+    my ($killerSkill, $weapon, $difficulty) = @_;
+    
+    if ($g_debug > 2) {
+	&printNotice("Begin calcSkill: killerSkill=$killerSkill");
+    }
 
-	my $modifier = 1.00;
-	# Look up the weapon's skill modifier
-	if (defined($g_games{$g_servers{$s_addr}->{game}}{weapons}{$weapon})) {
-		$modifier = $g_games{$g_servers{$s_addr}->{game}}{weapons}{$weapon}{modifier};
-	}
-	
-	# Calculate the new skills
-	
-	$diffweight=0.5;
-	if ($difficulty > 0) {
-			$diffweight = $difficulty / 2;
-	}	
-	
-	my $killerSkillChange = $pointvalue * $diffweight;
+    my $modifier = 1.00;
+    # Look up the weapon's skill modifier
+    if (defined($g_games{$g_servers{$s_addr}->{game}}{weapons}{$weapon})) {
+	$modifier = $g_games{$g_servers{$s_addr}->{game}}{weapons}{$weapon}{modifier};
+    }
+    
+    # Calculate the new skills based on standard base points (5) * modifier * difficulty weight
+    my $diffweight = 0.5;
+    if ($difficulty > 0) {
+	$diffweight = $difficulty / 2;
+    }	
+    
+    my $killerSkillChange = 5 * $modifier * $diffweight;
 
-	if ($killerSkillChange > $g_skill_maxchange) {
-		&printNotice("Capping killer skill change of $killerSkillChange to $g_skill_maxchange") if ($g_debug > 2);
-		$killerSkillChange = $g_skill_maxchange;
-	}
+    if ($killerSkillChange > $g_skill_maxchange) {
+	&printNotice("Capping killer skill change of $killerSkillChange to $g_skill_maxchange") if ($g_debug > 2);
+	$killerSkillChange = $g_skill_maxchange;
+    }
 
-	if ($g_skill_maxchange >= $g_skill_minchange) {
-		if ($killerSkillChange < $g_skill_minchange) {
-			&printNotice("Capping killer skill change of $killerSkillChange to $g_skill_minchange") if ($g_debug > 2);
-			$killerSkillChange = $g_skill_minchange;
-		} 
-	}
-	
-	$killerSkill += $killerSkillChange;
-	# we want int not float
-	$killerSkill = sprintf("%d", $killerSkill + 0.5);
-	
-	if ($g_debug > 2) {
-		&printNotice("End calcSkill: killerSkill=$killerSkill");
-	}
-	
-	return $killerSkill;
+    if ($g_skill_maxchange >= $g_skill_minchange) {
+	if ($killerSkillChange < $g_skill_minchange) {
+	    &printNotice("Capping killer skill change of $killerSkillChange to $g_skill_minchange") if ($g_debug > 2);
+	    $killerSkillChange = $g_skill_minchange;
+	} 
+    }
+    
+    $killerSkill += $killerSkillChange;
+    # we want int not float
+    $killerSkill = sprintf("%d", $killerSkill + 0.5);
+    
+    if ($g_debug > 2) {
+	&printNotice("End calcSkill: killerSkill=$killerSkill");
+    }
+    
+    return $killerSkill;
 }
-
 
 # Gives members of 'team' an extra 'reward' skill points. Members of the team
 # who have been inactive (no events) for more than 2 minutes are not rewarded.
@@ -580,9 +603,9 @@ sub rewardTeam
 				$player->increment("session_skill", $reward, 1);
 				$player->updateDB();
 			}
-			if ($player->{is_bot} == 0 && $player->{userid} > 0 && $player->{display_events} == 1) {
+			if ($player->{is_bot} == 0 && $player->{userid} >= 0 && $player->{display_events} == 1) {
 				push(@userlist, $player->{userid});
-			}    
+			}
 		}
 	}
 	if (($g_servers{$s_addr}->{broadcasting_events} == 1) && ($g_servers{$s_addr}->{broadcasting_player_actions} == 1)) {
@@ -821,7 +844,8 @@ sub getServer
 		}
 		# l4d code should be reused for l4d2
 		# trying first using l4d as "realgame" code for l4d2 in db. if default server config settings won't work, will leave as own "realgame" code in db but uncomment line.
-		#$realgame = "l4d" if $realgame eq "l4d2";
+		$realgame = "l4d" if $realgame eq "l4d2";
+		$realgame = "hl2mp" if $realgame eq "hl2ctf";
 		
 		return new HLstats_Server($serverId, $address, $port, $name, $rcon_pass, $game, $publicaddress, $gameengine, $realgame, $maxplayers);
 	} else {
@@ -906,10 +930,14 @@ sub getServerMod
 
 	my ($gamename, $gamedir, $hostname, $numplayers, $maxplayers, $mapname) = &queryServer($address, $port, @query);
 
-	if ($gamename =~ /^Counter-Strike$/i) {
-		$playgame = "cstrike";
-	} elsif ($gamename =~ /^Counter-Strike/i) {
+	if ($gamename =~ /^Counter-Strike 2/i) {
+		$playgame = "cs2";
+	} elsif ($gamename =~ /^Counter-Strike: Global Offensive/i) {
+		$playgame = "csgo";
+	} elsif ($gamename =~ /^Counter-Strike: Source/i) {
 		$playgame = "css";
+	} elsif ($gamename =~ /^Counter-Strike$/i) {
+		$playgame = "cstrike";
 	} elsif ($gamename =~ /^Team Fortress C/i) {
 		$playgame = "tfc";
 	} elsif ($gamename =~ /^Team Fortress/i) {
@@ -934,10 +962,10 @@ sub getServerMod
 		$playgame = "bg2";
 	} elsif ($gamename =~ /^Hidden/i) {
 		$playgame = "hidden";
-	} elsif ($gamename =~ /^L4D /i) {
-		$playgame = "l4d";
 	} elsif ($gamename =~ /^Left 4 Dead 2/i) {
 		$playgame = "l4d2";
+	} elsif ($gamename =~ /^L4D /i) {
+		$playgame = "l4d";
 	} elsif ($gamename =~ /^ZPS /i) {
 		$playgame = "zps";
 	} elsif ($gamename =~ /^NS /i) {
@@ -949,9 +977,17 @@ sub getServerMod
 	} elsif ($gamename eq "Half-Life") {
 		$playgame = "valve";
 	} elsif ($gamename eq "Nuclear Dawn") {
-		$playgame = "nucleardawn";
-    
+		$playgame = "nd";
+
 	# We didn't found our mod, trying secondary way. This is required for some games such as FOF and GES and is a fallback for others
+	} elsif ($gamedir =~ /^cs2/i) {
+		$playgame = "cs2";
+	} elsif ($gamedir =~ /^csgo/i) {
+		$playgame = "csgo";
+	} elsif ($gamedir =~ /^cstrike_beta/i) {
+		$playgame = "css";
+	} elsif ($gamedir =~ /^cstrike/i) {
+		$playgame = "cstrike";
 	} elsif ($gamedir =~ /^ges/i) {
 		$playgame = "ges";
 	} elsif ($gamedir =~ /^fistful_of_frags/i || $gamedir =~ /^fof/i) {
@@ -976,10 +1012,10 @@ sub getServerMod
 		$playgame = "sgtls";
 	} elsif ($gamedir =~ /^hidden/i) {
 		$playgame = "hidden";
-	} elsif ($gamedir =~ /^left4dead/i) {
-		$playgame = "l4d";
 	} elsif ($gamedir =~ /^left4dead2/i) {
 		$playgame = "l4d2";
+	} elsif ($gamedir =~ /^left4dead/i) {
+		$playgame = "l4d";
 	} elsif ($gamedir =~ /^zps/i) {
 		$playgame = "zps";
 	} elsif ($gamedir =~ /^ns/i) {
@@ -992,8 +1028,8 @@ sub getServerMod
 		$playgame = "csp";
 	} elsif ($gamedir =~ /^valve$/i) {
 		$playgame = "valve";
-    } elsif ($gamedir =~ /^nucleardawn$/i) {
-		$playgame = "nucleardawn";
+	} elsif ($gamedir =~ /^nucleardawn$/i || $gamedir =~ /^nd$/i) {
+		$playgame = "nd";
 	} elsif ($gamedir =~ /^dinodday$/i) {
 		$playgame = "dinodday";
 	} else {
@@ -1036,15 +1072,14 @@ sub addServerToDB
 
 sub sameTeam
 {
-	my ($team1, $team2) = @_;
-	
-	if (($team1 eq $team2) && (($team1 ne "Unassigned") || ($team2 ne "Unassigned"))) {
-		return 1;
-	} else {
-		return 0;
-	}
-}
+    my ($team1, $team2) = @_;
 
+    # Do not trigger teamkill penalties if teams are undefined or empty (Deathmatch/FFA/warmup)
+    return 0 if (!defined($team1) || !defined($team2) || $team1 eq "" || $team2 eq "");
+    return 0 if ($team1 =~ /unassigned/i || $team1 =~ /spectator/i);
+
+    return ($team1 eq $team2) ? 1 : 0;
+}
 
 #
 # string getPlayerInfoString (object player, string ident)
@@ -1083,6 +1118,9 @@ sub getPlayerInfo
 		my $bot			= 0;
 		my $haveplayer  = 0;
 		
+		# Strip binary control characters (null-byte, bell, backspace) to prevent MySQL string truncation
+		$name =~ s/[\x00-\x1f\x7f]//g;
+
 		$plainuniqueid = $uniqueid;
 		$uniqueid =~ s!\[U:1:(\d+)\]!'STEAM_0:'.($1 % 2).':'.int($1 / 2)!eg;
 		$uniqueid =~ s/^STEAM_[0-9]+?\://;
@@ -1245,17 +1283,33 @@ sub getPlayerInfo
 					$unique_id = $uniqueid if ($g_mode eq "LAN");
 				}
 			
+				# Treat "0" or empty string as unauthenticated/pending, never as a bot
+				$uniqueid = "UNKNOWN" if ($uniqueid eq "" || $uniqueid eq "0");
 				if ($uniqueid eq "UNKNOWN"
-					|| $uniqueid eq "STEAM_ID_PENDING" || $uniqueid eq "STEAM_ID_LAN"
-					|| $uniqueid eq "VALVE_ID_PENDING" || $uniqueid eq "VALVE_ID_LAN"
+				    || $uniqueid eq "STEAM_ID_PENDING" || $uniqueid eq "STEAM_ID_LAN"
+				    || $uniqueid eq "VALVE_ID_PENDING" || $uniqueid eq "VALVE_ID_LAN"
 				) {
-					return {
-						name     => $name,
-						userid   => $userid,
-						uniqueid => $uniqueid,
-						team     => $team,
-						is_bot   => $bot
-					};
+				    # Fallback lookup: If player is already active on server, preserve their real SteamID
+				    if ($haveplayer == 0 && ($userid > 0 || is_source2($g_servers{$s_addr}))) {
+					while ( my ($index, $pl) = each(%g_players) ) {
+					    if ($pl && (($pl->{userid} == $userid && $userid != 0) || ($pl->{name} eq $name && is_source2($g_servers{$s_addr})))) {
+						return {
+						    name     => $pl->{name},
+						    userid   => $pl->{userid},
+						    uniqueid => $pl->{uniqueid},
+						    team     => $team,
+						    is_bot   => $pl->{is_bot}
+						};
+					    }
+					}
+				    }
+				    return {
+					name     => $name,
+					userid   => $userid,
+					uniqueid => $uniqueid,
+					team     => $team,
+					is_bot   => 0
+				    };
 				}
 			}
 		}
@@ -1267,56 +1321,49 @@ sub getPlayerInfo
 				# (bug? or just bad logging)
 				# Either way, we disconnect any that don't match the current line
 				if ($player->{uniqueid} eq $uniqueid) {
-					$haveplayer = 1;
-					# Catch players reconnecting without first disconnecting
-					if ($player->{userid} != $userid) {
-					
-						&doEvent_Disconnect(
-							$player->{"userid"},
-							$uniqueid,
-							""
-						);
-						$haveplayer = 0;
-					}
+				    $haveplayer = 1;
+				    if ($player->{userid} != $userid) {
+				        if (is_source2($g_servers{$s_addr})) {
+				                my $old_uid = $player->{userid};
+				            delete($g_servers{$s_addr}->{"srv_players"}->{"$old_uid/$uniqueid"});
+				            $player->{userid} = $userid;
+				            $g_servers{$s_addr}->{"srv_players"}->{"$userid/$uniqueid"} = $player;
+				        } else {
+				            &doEvent_Disconnect(
+				                $player->{"userid"},
+				                $uniqueid,
+				                ""
+				            );
+				            $haveplayer = 0;
+				        }
+				    }
 				}
 			}
 		}
-		
 		if ($haveplayer) {
-			my $player = lookupPlayer($s_addr, $userid, $uniqueid);
-			if ($player) {
-				#  The only time team should go /back/ to unassigned ("") is on mapchange
-				#  (which is already handled in the ChangeMap handler)
-				#  So ignore when team is blank (<>) from lazy log lines
-				if ($team ne "" && $player->{team} ne $team) {
-					&doEvent_TeamSelection(
-						$userid,
-						$uniqueid,
-						$team
-					);
-				}
-				if ($role ne "" && $role ne $player->{role}) {
-					&doEvent_RoleSelection(
-						$player->{"userid"},
-						$player->{"uniqueid"},
-						$role
-					);
-				}
-				
-				$player->updateTimestamp();
-			}  
+		    my $player = lookupPlayer($s_addr, $userid, $uniqueid);
+		    if ($player) {
+		        if ($role ne "" && $role ne $player->{role}) {
+		            &doEvent_RoleSelection(
+		                $player->{"userid"},
+		                $player->{"uniqueid"},
+		                $role
+		            );
+		        }
+		        $player->updateTimestamp();
+			}
 		} else {
 			# In CS2, the first user is always assigned userid of '0'. Always create a player regardless of its value
 			#       E.g. L 02/01/2024 - 21:02:01.253 - "X<0><[U:Y]><>" entered the game
 			# For all other games, userid is always above '0'
-			if ($userid != 0 || $g_servers{$s_addr}->{play_game} == CS2()) {
+			if ($userid != 0 || is_source2($g_servers{$s_addr})) {
 				if ($create_player > 0) {
 					my $preIpAddr = "";
 					if ($g_preconnect->{"$s_addr/$userid/$name"}) {
 						$preIpAddr = $g_preconnect->{"$s_addr/$userid/$name"}->{"ipaddress"};
 					}
 					# Add the player to our hash of player objects
-					$g_servers{$s_addr}->{"srv_players"}->{"$userid/$uniqueid"} = new HLstats_Player(
+					    $g_servers{$s_addr}->{"srv_players"}->{"$userid/$uniqueid"} = new HLstats_Player(
 						server => $s_addr,
 						server_id => $g_servers{$s_addr}->{id},
 						userid => $userid,
@@ -1324,20 +1371,28 @@ sub getPlayerInfo
 						plain_uniqueid => $plainuniqueid,
 						game => $g_servers{$s_addr}->{game},
 						name => $name,
-						team => $team,
+						team => "",
 						role => $role,
 						is_bot => $bot,
 						display_events => $g_servers{$s_addr}->{default_display_events},
 						address => (($preIpAddr ne "") ? $preIpAddr : $ipAddr)
-					);
-					
-					if ($preIpAddr ne "") {
-						&printEvent("SERVER", "LATE CONNECT [$name/$userid] - steam userid validated");
-						&doEvent_Connect($userid, $uniqueid, $preIpAddr);
-						delete($g_preconnect->{"$s_addr/$userid/$name"});
-					}
-					# Increment number of players on server
-					$g_servers{$s_addr}->updatePlayerCount();
+					    );
+
+					    if ($team ne "" && &isTrackableTeam($team)) {
+						&doEvent_TeamSelection(
+						    $userid,
+						    $uniqueid,
+						    $team
+						);
+					    }
+		    
+		    if ($preIpAddr ne "") {
+			&printEvent("SERVER", "LATE CONNECT [$name/$userid] - steam userid validated");
+			&doEvent_Connect($userid, $uniqueid, $preIpAddr);
+			delete($g_preconnect->{"$s_addr/$userid/$name"});
+		    }
+		    # Increment number of players on server
+		    $g_servers{$s_addr}->updatePlayerCount();
 				}  
 			} elsif (($g_mode eq "LAN") && (defined($g_lan_noplayerinfo{"$s_addr/$userid/$name"}))) {
 				if ((!$haveplayer) && ($uniqueid ne "UNKNOWN") && ($create_player > 0)) {
@@ -1471,24 +1526,26 @@ sub like
 
 sub botidcheck
 {
-	# needs cleaned up
-	# added /^00000000\:\d+\:0$/ check for "whichbot"
-	my ($uniqueid) = @_;
-	if ($uniqueid eq "BOT" || $uniqueid eq "0" || $uniqueid =~ /^00000000\:\d+\:0$/) {
-		return 1
-	}
-	return 0;
+    my ($uniqueid) = @_;
+    return 0 unless defined($uniqueid);
+    # In Source 1/2 real bots strictly report "BOT" or "BOT:hash". "0" is unauthenticated human state.
+    if ($uniqueid eq "BOT" || $uniqueid =~ /^BOT:/ || $uniqueid =~ /^00000000\:\d+\:0$/) {
+	return 1;
+    }
+    return 0;
 }
+
 
 sub isTrackableTeam
 {
-	my ($team) = @_;
-	#if ($team =~ /spectator/i || $team =~ /unassigned/i || $team eq "") {
-	if ($team =~ /spectator/i || $team eq "") {
-		return 0;
-	}
-	return 1;
+    my ($team) = @_;
+    #if ($team =~ /spectator/i || $team eq "") {
+    if ($team =~ /spectator/i || $team =~ /unassigned/i || $team eq "") {
+	return 0;
+    }
+    return 1;
 }
+
 
 sub reloadConfiguration
 {
@@ -1556,7 +1613,7 @@ $g_server_ip = "";
 $g_server_port = 27015;
 $g_timestamp = 0;
 $g_cpanelhack = 0;
-$g_event_queue_size = 10;
+$g_event_queue_size = 25; # Perfectly balanced for 24-player server round cycles, default: 10
 $g_dns_resolveip = 1;
 $g_dns_timeout = 5;
 $g_skill_maxchange = 100;
@@ -1568,6 +1625,7 @@ $g_onlyconfig_servers = 1;
 $g_track_stats_trend = 0;
 %g_lan_noplayerinfo = ();
 %g_preconnect = ();
+%g_discovery_cooldown = ();
 $g_global_banning = 0;
 $g_log_chat = 0;
 $g_log_chat_admins = 0;
@@ -2116,7 +2174,8 @@ while ($loop = &getLine()) {
 		    if ($data =~ /^POST/i) {
 			        	    my ($headers, $body) = split(/\r?\n\r?\n/, $data, 2);
 			        	    $body //= "";
-        
+					    $body = decode('utf8', $body);
+
 			        	    if ($headers =~ /Content-Length:\s*(\d+)/i) {
 					    my $content_length = int($1);
 					    if ($content_length > 131072) {
@@ -2269,7 +2328,32 @@ while ($loop = &getLine()) {
             }
         }
     }
+    # --- SECURITY GUARD: EARLY DROP UNREGISTERED SOURCES & ANTI-DOS ---
+    if ($timeout == 0 && $s_addr ne "") {
+        my $is_local = ($s_peerhost eq "127.0.0.1" || $s_peerhost eq "localhost" || $s_peerhost eq "::1" || $s_peerhost eq "::ffff:127.0.0.1");
+        my $is_known = defined($g_config_servers{$s_addr});
+        my $has_valid_proxy = ($proxy_key ne "" && ($packet->{proxy_key_matched} || ($rproxy_key eq $proxy_key)));
 
+        # Strict Mode: Allow only configured game servers, localhost commands, or authenticated proxies
+        if ($g_onlyconfig_servers == 1) {
+            unless ($is_known || $is_local || $has_valid_proxy) {
+                &printEvent("SECURITY", "Dropped unauthorized packet from $s_addr") if ($g_debug > 2);
+                $s_output = "";
+                next;
+            }
+        }
+        # Auto-Discovery Mode: Apply 10-second per-IP cooldown to prevent socket and CPU exhaustion
+        else {
+            unless ($is_known || $is_local || $has_valid_proxy) {
+                if (defined($g_discovery_cooldown{$s_peerhost}) && ($ev_daemontime - $g_discovery_cooldown{$s_peerhost}) < 10) {
+                    $s_output = "";
+                    next;
+                }
+                $g_discovery_cooldown{$s_peerhost} = $ev_daemontime;
+            }
+        }
+    }
+    # --- SECURITY GUARD END ---
 	if ($timeout == 0) {
 		my ($address, $port);
 		my @data = split ";", $s_output;
@@ -2963,33 +3047,26 @@ while ($loop = &getLine()) {
 			    # 501. Statsme weaponstats
 			    # 502. Statsme weaponstats2
 			    # 503. CS2 SuperLogs weapon_stats
-    
+
 			    $ev_player = $1;
 			    $ev_verb   = $2; # weaponstats; weaponstats2; weapon_stats
 			    $ev_properties = $3;
 			    %ev_properties = &getProperties($ev_properties);
-    
+
 			    if (like($ev_verb, "weaponstats") || like($ev_verb, "weapon_stats")) {
 				$ev_type = 501;
-				my $playerinfo = &getPlayerInfo($ev_player, 0);
-		
+				my $playerinfo = &getPlayerInfo($ev_player, 1);
+
 				if ($playerinfo) {
 				    my $playerId = $playerinfo->{"userid"};
 				    my $playerUniqueId = $playerinfo->{"uniqueid"};
-				    my $ingame = 0;
-		    
-				    $ingame = 1 if (lookupPlayer($s_addr, $playerId, $playerUniqueId));
-		    
-				    if (!$ingame) {
-					&getPlayerInfo($ev_player, 1);
-				    }
-		    
-				    # CS2 FIX: Lowercase (Weapon -> weapon, Shots -> shots)
+
+				    # Case-insensitive kulcsok kezelése
 				    foreach my $k (keys %ev_properties) { $ev_properties{lc($k)} = $ev_properties{$k}; }
 
 				    $ev_status = &doEvent_Statsme(
-					$playerId,
-					$playerUniqueId,
+		    			$playerId,
+		    			$playerUniqueId,
 					$ev_properties{"weapon"},
 					$ev_properties{"shots"} || 0,
 					$ev_properties{"hits"} || 0,
@@ -2999,13 +3076,13 @@ while ($loop = &getLine()) {
 					$ev_properties{"deaths"} || 0
 				    );
 
-				    # CS2 FIX: Hitgroups (Statsme2)
 				    if (defined($ev_properties{"head"}) || defined($ev_properties{"chest"})) {
-					 &doEvent_Statsme2(
+					&doEvent_Statsme2(
 					    $playerId,
 					    $playerUniqueId,
 					    $ev_properties{"weapon"},
 					    $ev_properties{"head"} || 0,
+					    $ev_properties{"neck"} || 0,
 					    $ev_properties{"chest"} || 0,
 					    $ev_properties{"stomach"} || 0,
 					    $ev_properties{"leftarm"} || 0,
@@ -3015,53 +3092,31 @@ while ($loop = &getLine()) {
 					    $ev_properties{"generic"} || 0
 					);
 				    }
-
-				    if (!$ingame) {
-					&doEvent_Disconnect(
-					    $playerId,
-					    $playerUniqueId,
-					    ""
-					);
-				    }
 				}
 			    } elsif (like($ev_verb, "weaponstats2")) {
 				$ev_type = 502;
-				my $playerinfo = &getPlayerInfo($ev_player, 0);
-				
+				my $playerinfo = &getPlayerInfo($ev_player, 1);
+
 				if ($playerinfo) {
-					my $playerId = $playerinfo->{"userid"};
-					my $playerUniqueId = $playerinfo->{"uniqueid"};
-					my $ingame = 0;
-					
-					$ingame = 1 if (lookupPlayer($s_addr, $playerId, $playerUniqueId));
-					
-					if (!$ingame) {
-						&getPlayerInfo($ev_player, 1);
-					}
-					
-					$ev_status = &doEvent_Statsme2(
-						$playerId,
-						$playerUniqueId,
-						$ev_properties{"weapon"},
-						$ev_properties{"head"},
-						$ev_properties{"chest"},
-						$ev_properties{"stomach"},
-						$ev_properties{"leftarm"},
-						$ev_properties{"rightarm"},
-						$ev_properties{"leftleg"},
-						$ev_properties{"rightleg"},
-						$ev_properties{"generic"}
-					);
-					
-					if (!$ingame) {
-						&doEvent_Disconnect(
-							$playerId,
-							$playerUniqueId,
-							""
-						);
-					}
+				    my $playerId = $playerinfo->{"userid"};
+				    my $playerUniqueId = $playerinfo->{"uniqueid"};
+
+				    $ev_status = &doEvent_Statsme2(
+					$playerId,
+					$playerUniqueId,
+					$ev_properties{"weapon"},
+					$ev_properties{"head"},
+					$ev_properties{"neck"},
+					$ev_properties{"chest"},
+					$ev_properties{"stomach"},
+					$ev_properties{"leftarm"},
+					$ev_properties{"rightarm"},
+					$ev_properties{"leftleg"},
+					$ev_properties{"rightleg"},
+					$ev_properties{"generic"}
+				    );
 				}
-			}
+			    }
 		} elsif ($s_output =~ /^(?:\[STATSME\] )?"(.+?(?:<.+?>)*)" triggered "(latency|time)"(.*)$/ ) {
 			# Prototype: [STATSME] "player" triggered "latency|time"[properties]
 			# Matches:
@@ -3155,7 +3210,8 @@ while ($loop = &getLine()) {
 						$ev_obj_a,
 						$ev_Xcoord,
 						$ev_Ycoord,
-						$ev_Zcoord
+						$ev_Zcoord,
+						%ev_properties
 					);
 				}
 			}
@@ -3624,21 +3680,22 @@ while ($loop = &getLine()) {
 				);
 			}
 		} elsif ($s_output =~ /^([^"\(]+):\s*"([^"]*)"$/) {
-            # Matches Counter-Strike 2 line
-            # 19. L 11/15/2023 - 18:54:31.849 - Started:  ""
-            $ev_verb   = $1;
-            $ev_obj_a  = $2;
+		            # Matches Counter-Strike 2 line
+		            # 19. L 11/15/2023 - 18:54:31.849 - Started:  ""
+		            $ev_verb   = $1;
+		            $ev_obj_a  = $2;
 
-            if (like($ev_verb, "Started")) {
-                # leo - debug
-                printEvent('[MAP]', "line: $s_output");
-
-                $ev_type = 19;
-                $ev_status = &doEvent_ChangeMap(
-                    "started",
-                    ""
-                );
-            }
+		            if (like($ev_verb, "Started")) {
+		                $ev_type = 19;
+		                my $current_map = $ev_obj_a;
+		                if ($current_map eq "") {
+		                    $current_map = $g_servers{$s_addr}->get_map();
+		                }
+		                $ev_status = &doEvent_ChangeMap(
+		                    "started",
+		                    $current_map
+		                );
+		            }
 		} elsif ($s_output =~ /^\[MANI_ADMIN_PLUGIN\]\s*(.+)$/) {
 			# Prototype: [MANI_ADMIN_PLUGIN] obj_a
 			# Matches:
@@ -3848,8 +3905,11 @@ EOT
 		if (($g_stdin == 0) && defined($g_servers{$s_addr})) {
 			$s_lines = $g_servers{$s_addr}->{lines};
 			# get ping from players
-			if ($s_lines % 1000 == 0) {
-				$g_servers{$s_addr}->update_players_pings();
+			my $last_ping_time = $g_servers{$s_addr}->{last_ping_time} || 0;
+
+			if ($s_lines % 1000 == 0 && ($ev_daemontime - $last_ping_time) >= 60) {
+			    $g_servers{$s_addr}->update_players_pings();
+			    $g_servers{$s_addr}->{last_ping_time} = $ev_daemontime;
 			}
 
 			if ($g_servers{$s_addr}->{show_stats} == 1) {
@@ -3892,18 +3952,24 @@ EOT
 					#}  
 					my $userid = $player->{userid};
 					my $uniqueid = $player->{uniqueid};
-					if ( ($ev_daemontime - $player->{timestamp}) > $timeout ) {
-						#printf("%s - %s %s\n",$server, $player->{userid}, $player->{uniqueid});
+					    if ( ($ev_daemontime - $player->{timestamp}) > $timeout ) {
 						# we delete any player who is inactive for over $timeout sec
 						# - they probably disconnected silently somehow.
-						if (($player->{is_bot} == 0) || ($g_stdin)) {
-							if (defined($status_players{$uniqueid})) {
-								# Don't remove player who exists in server 'status'
-								&printNotice("Not auto-disconnecting " . $player->getInfoString() . " because player exists in server status");
-							}else {
-								# Remove player who does not exists in server 'status'
-								&printEvent(400, "Auto-disconnecting " . $player->getInfoString() ." for idling (" . ($ev_daemontime - $player->{timestamp}) . " sec) on server (".$server.")");
-								removePlayer($server, $userid, $uniqueid);
+						#if (($player->{is_bot} == 0) || ($g_stdin)) {
+						if (1) {
+						    # Multi-key check: UniqueID -> UserID -> Name -> Address
+						    my $p_exists = (defined($uniqueid) && $uniqueid ne "" && defined($status_players{$uniqueid}))
+						                || (defined($userid) && $userid ne "" && defined($status_players{$userid}))
+						                || (defined($player->{name}) && $player->{name} ne "" && defined($status_players{$player->{name}}))
+						                || (defined($player->{address}) && $player->{address} ne "" && defined($status_players{$player->{address}}));
+						    if ($p_exists || ($player->{team} eq "Spectator" && is_source2($g_servers{$server}))) {
+							# Don't remove player who exists in server 'status'
+							&printNotice("Not auto-disconnecting " . $player->getInfoString() . " (verified active/spectator on $server)");
+							$player->updateTimestamp();
+						    } else {
+							# Remove player who does not exist in server 'status'
+							&printEvent(400, "Auto-disconnecting " . $player->getInfoString() ." for idling (" . ($ev_daemontime - $player->{timestamp}) . " sec) on server (".$server.")");
+							removePlayer($server, $userid, $uniqueid);
 							}
 						}
 					}
@@ -3921,14 +3987,21 @@ EOT
 		}
 	}
 
-	while ( my($pl, $player) = each(%g_preconnect) ) {
+	    foreach my $pl (keys %g_preconnect) {
 		my $timeout = 600;
-		if ( ($ev_unixtime - $player->{"timestamp"}) > $timeout ) {
-			&printEvent(401, "Clearing pre-connect entry with key ".$pl);
-			delete($g_preconnect{$pl});
+		if ( ($ev_unixtime - $g_preconnect{$pl}->{"timestamp"}) > $timeout ) {
+		    &printEvent(401, "Clearing pre-connect entry with key ".$pl);
+		    delete($g_preconnect{$pl});
 		}
 	}
-	
+
+	# Garbage collection: Purge expired discovery cooldowns older than 60s
+	    foreach my $ip (keys %g_discovery_cooldown) {
+		if ( ($ev_daemontime - $g_discovery_cooldown{$ip}) > 60 ) {
+		    delete($g_discovery_cooldown{$ip});
+		}
+	}
+
 	if ($g_stdin == 0) {
 		# Track the Trend
 		if ($g_track_stats_trend > 0) {

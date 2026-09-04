@@ -497,7 +497,7 @@ sub doEvent_EnterGame
     
 	if ($player)
 	{
-		if ($g_mode eq "Normal" && $isbot == 0 && $player->{userid} > 0)
+		if ($g_mode eq "Normal" && $isbot == 0 && $player->{userid} >= 0)
 		{
 			$hostname = &resolveIp($player->{address});
 			$hostgroup = "";
@@ -576,14 +576,15 @@ sub doEvent_EnterGame
 					}
 				}
 			}
+			$player->updateDB();
 			if ($isbot == 0)
-			{
-				$player->updateDB();
-				recordEvent(
-					"Entries", 0,
-					$player->{playerid}
-				);
-			}
+				    {
+					$player->updateDB();
+					recordEvent(
+					    "Entries", 0,
+					    $player->{playerid}
+					);
+			    }
 		}
 	}
 	else
@@ -781,13 +782,20 @@ sub doEvent_Clan
 
 sub doEvent_Suicide
 {	
-	my ($playerId, $playerUniqueId, $weapon, $x, $y, $z) = @_;
+	my ($playerId, $playerUniqueId, $weapon, $x, $y, $z, %properties) = @_;
 	
 	my $desc;
 	my $player = lookupPlayer($s_addr, $playerId, $playerUniqueId);
 	my $playerstr = &getPlayerInfoString($player, $playerId);
 
 	$player->set("is_dead", "1");
+
+	# CS2 / Source 2 Console Quit & Post-Disconnect Ghost Guard:
+	# If a player dies to "world" with an empty or unassigned team, it represents a post-disconnect ghost suicide
+	if ($player && is_source2($g_servers{$s_addr}) && $weapon eq "world" && ($player->{team} eq "" || $player->{team} eq "Unassigned")) {
+	    &doEvent_Disconnect($playerId, $playerUniqueId, "(reason \"Client Quit\")");
+	    return "(CS2 QUIT) " . $playerstr . " disconnected via console quit";
+	}
 	
 	if ($g_servers{$s_addr}->{num_trackable_players} < $g_servers{$s_addr}->{minplayers})
 	{
@@ -867,44 +875,71 @@ sub doEvent_Suicide
 
 sub doEvent_TeamSelection
 {
-	my ($playerId, $playerUniqueId, $team) = @_;
-	
-	my $desc;
-	my $player = lookupPlayer($s_addr, $playerId, $playerUniqueId);
-	my $playerstr = &getPlayerInfoString($player, $playerId);
-	
-	if ($player)
-	{
-		if (($g_servers{$s_addr}->{ignore_bots} == 1) && ($player->{is_bot} == 1))
-		{
-			$player->set("team", $team);
-			$desc = "(IGNORED) BOT: ";
-		} else {
-			$old_team = $player->{team};
-			if (($old_team eq "CT") || ($old_team eq "TERRORIST"))
-			{
-				$g_servers{$s_addr}->increment("ba_player_switch");
-			}  
-			$player->set("last_team_change",$ev_remotetime);
-			$player->set("team", $team);
-			&recordEvent(
-				"ChangeTeam", 0,
-				$player->{playerid},
-				$team
-			);
-			
-			$player->updateTrackable();
-			$player->updateDB();
-			$g_servers{$s_addr}->updatePlayerCount();
-		}
-	}
-	else
-	{
-		$desc = "(IGNORED) NOPLAYERINFO: ";
-	}
-	
-	return $desc . $playerstr . " joined team \"$team\"";
+    my ($playerId, $playerUniqueId, $team) = @_;
+
+    my $desc;
+    my $player = lookupPlayer($s_addr, $playerId, $playerUniqueId);
+    my $playerstr = &getPlayerInfoString($player, $playerId);
+
+    if ($player)
+    {
+        $team =~ s/^\s+|\s+$//g;
+
+        my $game = $g_servers{$s_addr}->{game} // "";
+        if ($game =~ /^(cs2|csgo|css|cstrike|csp)$/i) {
+            if ($team =~ /^(TERRORIST|TERRORISTS|T|Terrorists|Terrorist)$/i) {
+                $team = "TERRORIST";
+            } elsif ($team =~ /^(CT|COUNTER-TERRORIST|COUNTERTERRORIST|Counter-Terrorists|Counter-Terrorist)$/i) {
+                $team = "CT";
+            } elsif ($team =~ /^(SPECTATOR|SPEC|Spectator|Spectators)$/i) {
+                $team = "Spectator";
+            } elsif ($team =~ /^(UNASSIGNED|Unassigned)$/i) {
+                $team = "Unassigned";
+            }
+        }
+
+        if (($g_servers{$s_addr}->{ignore_bots} == 1) && (($player->{is_bot} == 1) || ($player->{userid} < 0)))
+        {
+            $player->set("team", $team);
+            $desc = "(IGNORED) BOT: ";
+        } else {
+            my $old_team = $player->{team};
+
+            if (defined($old_team) && $old_team eq $team && $team ne "")
+            {
+                return "(IGNORED DUPLICATE) " . $playerstr . " already joined team \"$team\"";
+            }
+
+            if (defined($old_team) && $old_team ne "" && &isTrackableTeam($old_team) && $old_team ne $team)
+            {
+                $g_servers{$s_addr}->increment("ba_player_switch");
+            }
+
+            $player->set("last_team_change", $ev_remotetime);
+            $player->set("team", $team);
+
+            if (&isTrackableTeam($team))
+            {
+                &recordEvent(
+                    "ChangeTeam", 0,
+                    $player->{playerid},
+                    $team
+                );
+            }
+
+            $player->updateTrackable();
+            $player->updateDB();
+            $g_servers{$s_addr}->updatePlayerCount();
+        }
+    }
+    else
+    {
+        $desc = "(IGNORED) NOPLAYERINFO: ";
+    }
+
+    return $desc . $playerstr . " joined team \"$team\"";
 }
+
 
 
 #
@@ -1013,39 +1048,39 @@ sub doEvent_Frag
 
 	# if killer coords were on kill line, use them
 	if (defined($properties{attacker_position})) {
-		$coords = $properties{attacker_position};
-		($x,$y,$z) = split(/ /,$coords);
+	$coords = $properties{attacker_position};
+	($x,$y,$z) = split(/ /,$coords);
 	} elsif (defined($properties{killerpos})) { #pvkii
-		$coords = $properties{killerpos};
-		($x,$y,$z) = split(/ /,$coords);
+	$coords = $properties{killerpos};
+	($x,$y,$z) = split(/ /,$coords);
 	} elsif ($g_servers{$s_addr}->{nextkillx} ne "") {
 	# else use coords stored from plugin if available
-		$x = $g_servers{$s_addr}->{nextkillx};
-		$y = $g_servers{$s_addr}->{nextkilly};
-		$z = $g_servers{$s_addr}->{nextkillz};
+	$x = $g_servers{$s_addr}->{nextkillx};
+	$y = $g_servers{$s_addr}->{nextkilly};
+	$z = $g_servers{$s_addr}->{nextkillz};
 	}
-	# reset last kill coords
+	# reset last killer coords
 	$g_servers{$s_addr}->{nextkillx} = "";
 	$g_servers{$s_addr}->{nextkilly} = "";
 	$g_servers{$s_addr}->{nextkillz} = "";
-	
-		# if killer coords were on kill line, use them
+    
+	# if victim coords were on kill line, use them
 	if (defined($properties{victim_position})) {
-		$coords = $properties{victim_position};
-		($vx,$vy,$vz) = split(/ /,$coords);
+	$coords = $properties{victim_position};
+	($vx,$vy,$vz) = split(/ /,$coords);
 	} elsif (defined($properties{victimpos})) { #pvkii
-		$coords = $properties{victimpos};
-		($vx,$vy,$vz) = split(/ /,$coords);
+	$coords = $properties{victimpos};
+	($vx,$vy,$vz) = split(/ /,$coords);
 	} elsif ($g_servers{$s_addr}->{nextkillvicx} ne "") {
 	# else use coords stored from plugin if available
-		$vx = $g_servers{$s_addr}->{nextkillvicx};
-		$vy = $g_servers{$s_addr}->{nextkillvicy};
-		$vz = $g_servers{$s_addr}->{nextkillvicz};
+	$vx = $g_servers{$s_addr}->{nextkillvicx};
+	$vy = $g_servers{$s_addr}->{nextkillvicy};
+	$vz = $g_servers{$s_addr}->{nextkillvicz};
 	}
-	# reset last kill coords
+	# reset last victim coords
 	$g_servers{$s_addr}->{nextkillvicx} = "";
 	$g_servers{$s_addr}->{nextkillvicy} = "";
-	$g_servers{$s_addr}->{nextkillzvic} = "";
+	$g_servers{$s_addr}->{nextkillvicz} = "";
 
 	# determine if kill was fake
 	# currently only applicable to TF2's "Dead Ringer"
@@ -1266,7 +1301,7 @@ sub doEvent_Frag
 						$msg = sprintf("%s (%s)%s got %s points%s for killing %s (%s)%s",$k_name,&number_format($killerskill),$killer_add_text,$k_skill,$v_skill_text,$v_name,&number_format($victimskill),$victim_add_text);
 					}
 					my @rcmds;
-					if (($killer->{is_bot} == 0) && ($killer->{"display_events"} == 1) && ($killer->{userid} > 0)) {
+					if (($killer->{is_bot} == 0) && ($killer->{"display_events"} == 1) && ($killer->{userid} >= 0)) {
 						my $cmd_str = sprintf("%s %s%s %s",$rcmd,$k_userid,$colorparam,$g_servers{$s_addr}->quoteparam($msg));
 						push(@rcmds, $cmd_str);
 						if (($g_player_minkills > 20) && (($killer->{"total_kills"} < ($g_player_minkills / 4)) || (($killer->{"total_kills"} < $g_player_minkills) && (($killer->{"total_kills"} % 5) == 0)))) {
@@ -1275,7 +1310,7 @@ sub doEvent_Frag
 							
 						}
 					}  
-					if (($victim->{is_bot} == 0) && ($victim->{"display_events"} == 1) && ($g_servers{$s_addr}->{play_game} != L4D()) && ($victim->{userid} > 0) && $isfake == 0) {
+					if (($victim->{is_bot} == 0) && ($victim->{"display_events"} == 1) && ($g_servers{$s_addr}->{play_game} != L4D()) && ($victim->{userid} >= 0) && $isfake == 0) {
 						push(@rcmds, sprintf("%s %s%s %s",$rcmd,$v_userid,$colorparam,$g_servers{$s_addr}->quoteparam($msg)));
 					}
 					if (@rcmds) {
@@ -1394,11 +1429,11 @@ sub doEvent_Frag
 					my $msg = sprintf("%s lost %s points (%s) for team-killing",$k_name,$tk_penalty,&number_format($k_skill));
 					
 					my @rcmds;
-					if (($killer->{is_bot} == 0) && ($killer->{display_events} == 1) && ($killer->{userid} > 0)) {
+					if (($killer->{is_bot} == 0) && ($killer->{display_events} == 1) && ($killer->{userid} >= 0)) {
 						my $cmd_str = sprintf("%s %s%s %s",$rcmd,$k_userid, $colorparam, $g_servers{$s_addr}->quoteparam($msg));
 						push (@rcmds, $cmd_str);
 					}
-					if (($victim->{is_bot} == 0) && ($victim->{display_events} == 1) && ($victim->{userid} > 0)) {
+					if (($victim->{is_bot} == 0) && ($victim->{display_events} == 1) && ($victim->{userid} >= 0)) {
 						my $cmd_str = sprintf("%s %s%s %s",$rcmd,$v_userid, $colorparam, $g_servers{$s_addr}->quoteparam($msg));
 						push (@rcmds, $cmd_str);
 					}
@@ -1616,12 +1651,12 @@ sub doEvent_PlayerPlayerAction
 							my $v_skill   = $victim->{skill};
 							my $msg = sprintf("%s %s %s points (%s) for %s%s%s against %s (%s)",$p_name,$verb,abs($reward_player), &number_format($p_skill),$coloraction,$actionname,$colorend, $v_name, &number_format($v_skill));
 							my @rcmds;
-							if (($player->{is_bot} == 0) && ($player->{display_events} == 1) && ($player->{userid} > 0)) {
+							if (($player->{is_bot} == 0) && ($player->{display_events} == 1) && ($player->{userid} >= 0)) {
 								my $p_userid  = $g_servers{$s_addr}->format_userid($player->{userid});
 								my $cmd_str = sprintf("%s %s%s %s",$rcmd,$p_userid,$colorparam,$g_servers{$s_addr}->quoteparam($msg));
 								push(@rcmds, $cmd_str);
 							}
-							if (($victim->{is_bot} == 0) && ($victim->{display_events} == 1) && ($victim->{userid} > 0)) {
+							if (($victim->{is_bot} == 0) && ($victim->{display_events} == 1) && ($victim->{userid} >= 0)) {
 								my $v_userid  = $g_servers{$s_addr}->format_userid($victim->{userid});
 								my $cmd_str = sprintf("%s %s%s %s",$rcmd,$v_userid,$colorparam,$g_servers{$s_addr}->quoteparam($msg));
 								push(@rcmds, $cmd_str);
@@ -1881,7 +1916,7 @@ sub doEvent_PlayerAction
 				if (($g_servers{$s_addr}->{broadcasting_events} == 1) && ($reward_player != 0)) {
 					if ($g_servers{$s_addr}->{broadcasting_player_actions} == 1) {
 						my $p_userid  = $g_servers{$s_addr}->format_userid($player->{userid});
-						if (($player->{is_bot} == 0) && ($player->{display_events} == 1) && ($player->{userid} > 0)) {
+						if (($player->{is_bot} == 0) && ($player->{display_events} == 1) && ($player->{userid} >= 0)) {
 							my $colorparam = $g_servers{$s_addr}->{format_color};
 							my $coloraction = $g_servers{$s_addr}->{format_action};
 							if ($reward_player !=0) {
@@ -1975,25 +2010,45 @@ sub doEvent_TeamAction
 			$desc = "(IGNORED) ";
 		}
 	}
-	if ($g_servers{$s_addr}->{round_status} == 0) {
-		if (($action eq "SFUI_Notice_CTs_Win")  || ($action eq "SFUI_Notice_Bomb_Defused")) {
-			$g_servers{$s_addr}->increment("round_status");
-			$g_servers{$s_addr}->increment("ct_wins");
-			$g_servers{$s_addr}->increment("map_ct_wins");
-			$g_servers{$s_addr}->add_round_winner("ct");
-			if ($action eq "SFUI_Notice_Bomb_Defused") {
-				$g_servers{$s_addr}->increment("bombs_defused");
-			}  
-		} elsif (($action eq "SFUI_Notice_Terrorists_Win") || ($action eq "SFUI_Notice_Target_Bombed")) {
-			$g_servers{$s_addr}->increment("round_status");
-			$g_servers{$s_addr}->increment("ts_wins");
-			$g_servers{$s_addr}->increment("map_ts_wins");
-			$g_servers{$s_addr}->add_round_winner("ts");
-			if ($action eq "SFUI_Notice_Target_Bombed") {
-				$g_servers{$s_addr}->increment("bombs_planted");
-			}  
+	# --- UNIVERSAL MULTI-MOD ROUND WIN DETECTION START ---
+	        if ($g_servers{$s_addr}->{round_status} == 0) {
+		my $is_team1 = 0;
+		my $is_team2 = 0;
+
+		# 1. Direct CS / Stargate / PVKII Action Triggers
+		if ($action =~ /^(SFUI_Notice_CTs_Win|SFUI_Notice_Bomb_Defused|SFUI_Notice_Target_Saved|SFUI_Notice_All_Hostages_Rescued|CTs_Win|Bomb_Defused|Target_Saved|All_Hostages_Rescued|Escaped_As_VIP|VIP_Escaped|Tau'ri_Win|Tauri_Win|Pirates_Win)$/i) {
+		    $is_team1 = 1;
+		} elsif ($action =~ /^(SFUI_Notice_Terrorists_Win|SFUI_Notice_Target_Bombed|SFUI_Notice_Hostages_Not_Rescued|Terrorists_Win|Target_Bombed|Hostages_Not_Rescued|Assassinated_The_VIP|VIP_Assassinated|Goa'uld_Win|Goauld_Win|Vikings_Win|Knights_Win)$/i) {
+		    $is_team2 = 1;
 		}
-	}
+		# 2. Generic Round_Win / versus_win / scavenge_win (TF2, DoD, L4D2, AOC, NTS, ND, PVKII, etc.)
+		elsif ($action =~ /^(Round_Win|round_win|Mini_Round_Win|versus_win|scavenge_win|Round_Win_Team|Defenders_Win|Attackers_Win|dod_round_win)$/i) {
+		    my $check_team = ($team ne "") ? $team : $action;
+		    if ($check_team =~ /^(CT|Counter-Terrorist|Counter-Terrorists|Blue|BLU|#FF_TEAM_BLUE|#DDD_Team_Blue|Defenders|Allies|Humans|Survivor|Survivors|Marines|U\.S\.\s*Marines|US\s*Marines|marine1team|Frontiersmen|Combine|Agatha|Agathia\s*Knights|Americans|The\s*Americans|Corps|Consortium|Jinrai|Tau'ri|Tauri|Desperados|MI6|IRIS|I\.R\.I\.S\.|Pirates|Robo)$/i) {
+		    $is_team1 = 1;
+		    } elsif ($check_team =~ /^(TERRORIST|Terrorist|Terrorists|T|Red|RED|#FF_TEAM_RED|#DDD_Team_Red|Attackers|Axis|Dinosaurs|Zombies|Undead|Infected|Insurgents|Iraqi\s*Insurgents|Aliens|alien1team|Kharaa|Rebels|Rebel\s*Forces|Mason|The\s*Mason\s*Order|British|The\s*British|Punks|Empire|NSF|Goa'uld|Goauld|Vigilantes|Bandidos|Rangers|Janus|Hidden|Subject\s*617|Vikings|Knights|Hgrunt)$/i) {
+		    $is_team2 = 1;
+		    }
+		}
+		if ($is_team1) {
+		    $g_servers{$s_addr}->increment("round_status");
+		    $g_servers{$s_addr}->increment("ct_wins");
+		    $g_servers{$s_addr}->increment("map_ct_wins");
+		    $g_servers{$s_addr}->add_round_winner("ct");
+		    if ($action =~ /^(SFUI_Notice_Bomb_Defused|Bomb_Defused)$/i) {
+			$g_servers{$s_addr}->increment("bombs_defused");
+		    }
+		} elsif ($is_team2) {
+		    $g_servers{$s_addr}->increment("round_status");
+		    $g_servers{$s_addr}->increment("ts_wins");
+		    $g_servers{$s_addr}->increment("map_ts_wins");
+		    $g_servers{$s_addr}->add_round_winner("ts");
+		    if ($action =~ /^(SFUI_Notice_Target_Bombed|Target_Bombed)$/i) {
+			$g_servers{$s_addr}->increment("bombs_planted");
+		    }
+		}
+	    }
+	# --- UNIVERSAL MULTI-MOD ROUND WIN DETECTION END ---
 	$g_servers{$s_addr}->updateDB();
 	return $desc . "Team \"$team\" triggered \"$action\"";
 }
@@ -2900,65 +2955,64 @@ sub doEvent_Chat
 
 sub doEvent_ChangeMap
 {
-	my ($type, $newmap) = @_;
-	
-    if ($newmap) {
-        # CS2 does not log 'Started map' event, but 'Loading map' event before it should have populated $newmap already
-        $g_servers{$s_addr}->set("map", $newmap);
-    }
-	
+    my ($type, $newmap) = @_;
+    
+    if (defined($newmap) && $newmap ne "") {
 	$g_servers{$s_addr}->set("map", $newmap);
-	$g_servers{$s_addr}->clear_winner();
+    }
+    
+    $g_servers{$s_addr}->clear_winner();
 
-	if ($type eq "loading")
+    if ($type eq "loading")
+    {
+	while (my($pl, $player) = each(%g_players) )
 	{
-		while (my($pl, $player) = each(%g_players) )
-		{
-			if ($player->{is_bot} == 1)
-			{
-				$player->updateDB();
-				removePlayer($s_addr, $player->{userid}, $player->{uniqueid}, 1);
-			}
-			else
-			{
-				endKillStreak($player);
-			}
-		}
-		$g_servers{$s_addr}->setHlxCvars();
-		return "Loading map \"$newmap\"";
+	    if ($player->{is_bot} == 1)
+	    {
+		$player->updateDB();
+		removePlayer($s_addr, $player->{userid}, $player->{uniqueid}, 1);
+	    }
+	    else
+	    {
+		endKillStreak($player);
+	    }
 	}
-	elsif ($type eq "started")
+	$g_servers{$s_addr}->setHlxCvars();
+	return "Loading map \"$newmap\"";
+    }
+    elsif ($type eq "started")
+    {
+	$g_servers{$s_addr}->increment("map_changes");
+	$g_servers{$s_addr}->set("map_started", time());
+	$g_servers{$s_addr}->set("map_rounds", 0);
+	$g_servers{$s_addr}->set("map_ct_wins", 0);
+	$g_servers{$s_addr}->set("map_ts_wins", 0);
+	$g_servers{$s_addr}->set("map_ct_shots", 0);
+	$g_servers{$s_addr}->set("map_ct_hits", 0);
+	$g_servers{$s_addr}->set("map_ts_shots", 0);
+	$g_servers{$s_addr}->set("map_ts_hits", 0);
+	$g_servers{$s_addr}->updateDB();
+	while (my($pl, $player) = each(%g_players) )
 	{
-		$g_servers{$s_addr}->increment("map_changes");
-		$g_servers{$s_addr}->set("map_started", time());
-		$g_servers{$s_addr}->set("map_rounds", 0);
-		$g_servers{$s_addr}->set("map_ct_wins", 0);
-		$g_servers{$s_addr}->set("map_ts_wins", 0);
-		$g_servers{$s_addr}->set("map_ct_shots", 0);
-		$g_servers{$s_addr}->set("map_ct_hits", 0);
-		$g_servers{$s_addr}->set("map_ts_shots", 0);
-		$g_servers{$s_addr}->set("map_ts_hits", 0);
-		$g_servers{$s_addr}->updateDB();
-		while (my($pl, $player) = each(%g_players) )
-		{
-			$player->set("team", "");
-			$player->set("map_kills", "0");
-			$player->set("map_deaths", "0");
-			$player->set("map_headshots", "0");
-			$player->set("map_shots", "0");
-			$player->set("map_hits", "0");
-			$player->{trackable} = 0;
-		}
-		$g_servers{$s_addr}->updatePlayerCount();
-		$g_servers{$s_addr}->{map} = $newmap;
-		&printNotice("Current map for server \"$s_addr\" is now \"" . $newmap . "\"");
-		
-		return "Started map \"$newmap\"";
+	    $player->set("team", "");
+	    $player->set("map_kills", "0");
+	    $player->set("map_deaths", "0");
+	    $player->set("map_headshots", "0");
+	    $player->set("map_shots", "0");
+	    $player->set("map_hits", "0");
+	    $player->{trackable} = 0;
 	}
-	else
-	{
-		return "Map \"$newmap\": $type";
-	}
+	$g_servers{$s_addr}->updatePlayerCount();
+	
+	my $current_map = $g_servers{$s_addr}->get_map();
+	&printNotice("Current map for server \"$s_addr\" is now \"" . $current_map . "\"");
+	
+	return "Started map \"" . ($newmap ne "" ? $newmap : $current_map) . "\"";
+    }
+    else
+    {
+	return "Map \"$newmap\": $type";
+    }
 }
 
 
@@ -3100,7 +3154,7 @@ sub doEvent_Statsme
 
 sub doEvent_Statsme2
 {
-    my ($playerId, $playerUniqueId, $weapon, $head, $chest, $stomach, $leftarm, $rightarm, $leftleg, $rightleg, $generic) = @_;
+    my ($playerId, $playerUniqueId, $weapon, $head, $neck, $chest, $stomach, $leftarm, $rightarm, $leftleg, $rightleg, $generic) = @_;
 
     my $desc;
     my $player = lookupPlayer($s_addr, $playerId, $playerUniqueId);
@@ -3126,6 +3180,7 @@ sub doEvent_Statsme2
 				$player->{playerid},
 				$weapon,
 				$head,
+				$neck,
 				$chest,
 				$stomach,
 				$leftarm,
@@ -3141,7 +3196,7 @@ sub doEvent_Statsme2
      {
 		$desc = "(IGNORED) NOPLAYERINFO: ";
      }
-     return $desc . $playerstr . " STATSME weaponstats2 (weapon \"$weapon\") (head \"$head\") (chest \"$chest\") (stomach \"$stomach\") (leftarm \"$leftarm\") (rightarm \"$rightarm\") (leftleg \"$leftleg\") (rightleg \"$rightleg\") (generic \"$generic\")";
+     return $desc . $playerstr . " STATSME weaponstats2 (weapon \"$weapon\") (head \"$head\") (neck \"$neck\") (chest \"$chest\") (stomach \"$stomach\") (leftarm \"$leftarm\") (rightarm \"$rightarm\") (leftleg \"$leftleg\") (rightleg \"$rightleg\") (generic \"$generic\")";
 }
 
 #

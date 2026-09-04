@@ -52,8 +52,9 @@ function getOptions()
     $result = $db->query("SELECT `keyname`,`value` FROM hlstats_Options WHERE opttype >= 1");
     while ($rowdata = $db->fetch_row($result))
     {
-	$options[$rowdata[0]] = $rowdata[1];
+        $options[$rowdata[0]] = $rowdata[1];
     }
+    $db->free_result($result);
     if ( !count($options) )
     {
 	error('Warning: Could not find any options in table <b>hlstats_Options</b>, database <b>' .
@@ -507,10 +508,11 @@ function mystripslashes($text)
 function getRealGame($game)
 {
     global $db;
-    $game_esc = $db->escape($game);
+    $game_esc = $db->escape((string)$game);
     $result = $db->query("SELECT realgame from hlstats_Games WHERE code='$game_esc'");
     // PHP 8 Fix: Replace list() which fails on empty result
     $row = $db->fetch_row($result);
+    $db->free_result($result);
     $realgame = ($row) ? $row[0] : '';
     return $realgame;
 }
@@ -534,18 +536,17 @@ function get_player_rank($playerdata) {
     global $db, $g_options;
     
     $rank = 0;
-    $tempdeaths = (int)$playerdata['deaths'];
+    $tempdeaths = (int)($playerdata['deaths'] ?? 0);
     if ($tempdeaths == 0)
-	$tempdeaths = 1;
+        $tempdeaths = 1;
 
-    $game_esc = $db->escape($playerdata['game']);
-    $rankingtype = $g_options['rankingtype'];
+    $game_esc = $db->escape((string)($playerdata['game'] ?? ''));
+    $rankingtype = (string)($g_options['rankingtype'] ?? 'skill');
     // Ensure rankingtype is safe (usually kills or skill)
     if ($rankingtype !== 'kills' && $rankingtype !== 'skill') $rankingtype = 'skill';
     
-    $player_rank_val = $db->escape($playerdata[$rankingtype]);
-    $player_kills = (float)$playerdata['kills'];
-
+    $player_rank_val = $db->escape((string)($playerdata[$rankingtype] ?? 0));
+    $player_kills = (float)($playerdata['kills'] ?? 0);
     $query = "
 	SELECT
 	    COUNT(*)

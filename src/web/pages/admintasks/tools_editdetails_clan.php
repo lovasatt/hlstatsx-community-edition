@@ -4,7 +4,7 @@ HLstatsX Community Edition - Real-time player and clan rankings and statistics
 Copyleft (L) 2008-20XX Nicholas Hastings (nshastings@gmail.com)
 http://www.hlxcommunity.com
 
-HLstatsX Community Edition is a continuation of 
+HLstatsX Community Edition is a continuation of
 ELstatsNEO - Real-time player and clan rankings and statistics
 Copyleft (L) 2008-20XX Malte Bayer (steam@neo-soft.org)
 http://ovrsized.neo-soft.org/
@@ -18,7 +18,7 @@ HLstatsX is an enhanced version of HLstats made by Simon Garner
 HLstats - Real-time player and clan rankings and statistics for Half-Life
 http://sourceforge.net/projects/hlstats/
 Copyright (C) 2001  Simon Garner
-            
+
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
 as published by the Free Software Foundation; either version 2
@@ -47,77 +47,86 @@ For support and installation notes visit http://www.hlxcommunity.com
         die ("Access denied!");
     }
 
-    $id = -1;
+    $id = 0;
     if (isset($_GET['id']) && is_numeric($_GET['id'])) {
-	$id = valid_request((int)$_GET['id'], true);
+        $id = (int)$_GET['id'];
+    }
+
+    if ($id <= 0) {
+        die("Invalid Clan ID!");
     }
 
     // PHP 8 Fix: Initialize variable
+    // Fetch regions safely with table existence check
     $mapselect = "";
-    $result = $db->query("SELECT `value` FROM hlstats_Options_Choices WHERE `keyname` = 'google_map_region' ORDER BY `value`");
-    while ($rowdata = $db->fetch_row($result)) {
-        // PHP 8 Fix: Cast to string
-        $val = (string)$rowdata[0];
-        $mapselect .= ";" . $val . "/" . ucwords(strtolower($val));
+    $table_check = $db->query("SHOW TABLES LIKE 'hlstats_Map_Regions'");
+    if ($table_check && $db->num_rows($table_check) > 0) {
+        $res_map = $db->query("SELECT `code`, `name` FROM `hlstats_Map_Regions` ORDER BY `name` ASC");
+    } else {
+        $res_map = $db->query("SELECT `value`, `text` FROM `hlstats_Options_Choices` WHERE `keyname` = 'google_map_region' ORDER BY `text` ASC");
     }
-
-    $mapselect .= ";";   
+    if ($res_map) {
+        while ($rowdata = $db->fetch_row($res_map)) {
+            $mapselect .= ";" . (string)$rowdata[0] . "/" . (string)$rowdata[1];
+        }
+    }
+    $mapselect .= ";";
 ?>
 
-&nbsp;&nbsp;&nbsp;&nbsp;<img src="<?php echo IMAGE_PATH; ?>/downarrow.gif" width="9" height="6" class="imageformat" alt="" /><b>&nbsp;<a href="<?php echo htmlspecialchars($g_options['scripturl']); ?>?mode=admin&amp;task=tools_editdetails">Edit Player or Clan Details</a></b><br />
+&nbsp;&nbsp;&nbsp;&nbsp;<img src="<?php echo IMAGE_PATH; ?>/downarrow.gif" width="9" height="6" class="imageformat" alt="" /><b>&nbsp;<a href="<?php echo htmlspecialchars($g_options['scripturl'] ?? '', ENT_QUOTES, 'UTF-8'); ?>?mode=admin&amp;task=tools_editdetails">Edit Player or Clan Details</a></b><br />
 
-<img src="<?php echo IMAGE_PATH; ?>/spacer.gif" width="1" height="8" border="0"><br />
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<img src="<?php echo IMAGE_PATH; ?>/downarrow.gif" width="9" height="6" class="imageformat" alt="" /><b>&nbsp;<?php echo "Edit Clan #$id"; ?></b><br /><br />
+<img src="<?php echo IMAGE_PATH; ?>/spacer.gif" width="1" height="8" alt="" /><br />
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<img src="<?php echo IMAGE_PATH; ?>/downarrow.gif" width="9" height="6" class="imageformat" alt="" /><b>&nbsp;<?php echo "Edit Clan #" . (int)$id; ?></b><br /><br />
 
-<form method="post" action="<?php echo htmlspecialchars($g_options['scripturl']) . "?mode=admin&amp;task=$selTask&amp;id=$id&" . strip_tags(SID); ?>">
+<form method="post" action="<?php echo htmlspecialchars($g_options['scripturl'] ?? '', ENT_QUOTES, 'UTF-8') . "?mode=admin&amp;task=" . urlencode((string)($selTask ?? 'tools_editdetails_clan')) . "&amp;id=" . (int)$id . (defined('SID') && SID ? '&amp;' . strip_tags(SID) : ''); ?>">
 <?php
     $proppage = new PropertyPage("hlstats_Clans", "clanId", $id, array(
-	new PropertyPage_Group("Profile", array(
-	    new PropertyPage_Property("name", "Clan Name", "text"),
-	    new PropertyPage_Property("homepage", "Homepage URL", "text"),
-	    new PropertyPage_Property("mapregion", "Map Region", "select", $mapselect),
-	    new PropertyPage_Property("hidden", "1 = Hide from clan list", "text")
-	))
+        new PropertyPage_Group("Profile", array(
+            new PropertyPage_Property("name", "Clan Name", "text"),
+            new PropertyPage_Property("homepage", "Homepage URL", "text"),
+            new PropertyPage_Property("mapregion", "Map Region", "select", $mapselect),
+            new PropertyPage_Property("hidden", "Hide from Rankings", "select", "0/No (Visible);1/Yes (Hidden)")
+        ))
     ));
 
-    if (isset($_POST['name'])) {
-	$proppage->update();
-	message("success", "Profile updated successfully.");
+    if (!empty($_POST)) {
+        $proppage->update();
+        message("success", "Profile updated successfully.");
     }
-    
+
     // Security: Ensure ID is integer
     $id = (int)$id;
 
     $result = $db->query("
-	SELECT
-	    *
-	FROM
-	    hlstats_Clans
-	WHERE
-	    clanId='$id'
+        SELECT
+            *
+        FROM
+            hlstats_Clans
+        WHERE
+            clanId='$id'
     ");
 
-    if ($db->num_rows() < 1) {
+    if ($db->num_rows($result) < 1) {
         die("No clan exists with ID #$id");
     }
-    
+
     $data = $db->fetch_array($result);
-    
+
     echo "<span class='fTitle'>";
-    echo htmlspecialchars((string)$data['tag']);
+    echo htmlspecialchars((string)($data['tag'] ?? ''), ENT_QUOTES, 'UTF-8');
     echo "</span>";
-    
+
     echo "<span class='fNormal'> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"
-	. "<a href=\"" . htmlspecialchars($g_options['scripturl']) . "?mode=claninfo&amp;clan=$id&amp;" . strip_tags(SID) . "\">"
-	. "(View Clan Details)</a></span>";
+        . "<a href=\"" . htmlspecialchars($g_options['scripturl'] ?? '', ENT_QUOTES, 'UTF-8') . "?mode=claninfo&amp;clan=" . (int)$id . (defined('SID') && SID ? '&amp;' . strip_tags(SID) : '') . "\">"
+        . "(View Clan Details)</a></span>";
 ?><br /><br />
 
-<table width="60%" align="center" border="0" cellspacing="0" cellpadding="0">
+<table width="60%" border="0" cellspacing="0" cellpadding="0" style="margin:15px auto;">
 <tr>
     <td class="fNormal"><?php
-	$proppage->draw($data);
+        $proppage->draw($data);
 ?>
-    <center><input type="submit" value="  Apply  " class="submit"></center></td>
+    <div style="text-align:center;margin-top:12px;"><input type="submit" value="  Apply  " class="submit" /></div></td>
 </tr>
 </table>
 </form>

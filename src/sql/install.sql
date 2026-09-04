@@ -2,9 +2,11 @@
 
 -- This file is only needed for new installations.
 
+SET NAMES utf8mb4;
+SET CHARACTER SET utf8mb4;
 
-SET @DBVERSION="96";
-SET @VERSION="1.12.4";
+SET @DBVERSION="97";
+SET @VERSION="1.12.5";
 
 -- --------------------------------------------------------
 
@@ -15,8 +17,9 @@ SET @VERSION="1.12.4";
 CREATE TABLE IF NOT EXISTS `geoLiteCity_Blocks` (
   `startIpNum` bigint(11) unsigned NOT NULL default '0',
   `endIpNum` bigint(11) unsigned NOT NULL default '0',
-  `locId` bigint(11) unsigned NOT NULL default '0'
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  `locId` bigint(11) unsigned NOT NULL default '0',
+  KEY `idx_iprange` (`startIpNum`, `endIpNum`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 
@@ -33,7 +36,7 @@ CREATE TABLE IF NOT EXISTS `geoLiteCity_Location` (
   `latitude` decimal(14,4) default NULL,
   `longitude` decimal(14,4) default NULL,
   PRIMARY KEY  (`locId`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 
@@ -56,8 +59,9 @@ CREATE TABLE IF NOT EXISTS `hlstats_Actions` (
   `count` int(10) unsigned NOT NULL default '0',
   PRIMARY KEY  (`id`),
   UNIQUE KEY `gamecode` (`code`,`game`,`team`),
-  KEY `code` (`code`)
-) ENGINE=MyISAM  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  KEY `code` (`code`),
+  KEY `idx_game` (`game`)
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
 -- Dumping data for table `hlstats_Actions`
@@ -182,6 +186,8 @@ INSERT INTO `hlstats_Actions` (`game`, `code`, `reward_player`, `reward_team`, `
 ('css','All_Hostages_Rescued',0,10,'CT','Counter-Terrorists rescued all the hostages','0','0','1','0'),
 ('css','Target_Bombed',0,5,'TERRORIST','Terrorists bombed the target','0','0','1','0'),
 ('css','Bomb_Defused',0,5,'CT','Counter-Terrorists defused the bomb','0','0','1','0'),
+('css','Target_Saved',0,2,'CT','Target saved (Time ran out)','0','0','1','0'),
+('css','Hostages_Not_Rescued',0,2,'TERRORIST','Hostages not rescued (Time ran out)','0','0','1','0'),
 ('css','Escaped_As_VIP',0,10,'CT','VIP escaped','0','0','1','0'),
 ('css','Assassinated_The_VIP',0,6,'TERRORIST','Terrorists assassinated the VIP','0','0','1','0'),
 ('css','Became_VIP',1,0,'CT','Become the VIP','1','0', '0', '0'),
@@ -217,6 +223,7 @@ INSERT INTO `hlstats_Actions` (`game`, `code`, `reward_player`, `reward_team`, `
 ('hl2ctf', 'kill_streak_10', 9, 0, '', 'Monster Kill (10 kills)', '1', '0', '0', '0'),
 ('hl2ctf', 'kill_streak_11', 10, 0, '', 'Unstoppable (11 kills)', '1', '0', '0', '0'),
 ('hl2ctf', 'kill_streak_12', 11, 0, '', 'God Like (12+ kills)', '1', '0', '0', '0'),
+('hl2ctf', 'Round_Win', 0, 5, '', 'Round Win', '0', '0', '1', '0'),
 ('dods','capblock',6,1,'','Capture Blocked','1','0','1','0'),
 ('dods','captured_loc',6,1,'','Area Captured','1','0','1','0'),
 ('dods','kill_planter',2,0,'','Bomb Planter Killed','1','0', '0', '0'),
@@ -294,6 +301,8 @@ INSERT INTO `hlstats_Actions` (`game`, `code`, `reward_player`, `reward_team`, `
 ('ff', 'flag_dropped', -3, 0, '', 'Flag Dropped', '1', '0', '0', '0'),
 ('ff', 'flag_thrown', -3, 0, '', 'Flag Thrown', '1', '0', '0', '0'),
 ('ff', 'disguise_lost', 1, 0, '', 'Uncovered Enemy', '0', '1', '0', '0'),
+('ff', 'Round_Win', 0, 10, '', 'Round Win', '0', '0', '1', '0'),
+('ff', 'Mini_Round_Win', 0, 5, '', 'Mini-Round Win', '0', '0', '1', '0'),
 ('hidden', 'kill_streak_2', 1, 0, '', 'Double Kill (2 kills)', '1', '0', '0', '0'),
 ('hidden', 'kill_streak_3', 2, 0, '', 'Triple Kill (3 kills)', '1', '0', '0', '0'),
 ('hidden', 'kill_streak_4', 3, 0, '', 'Domination (4 kills)', '1', '0', '0', '0'),
@@ -305,6 +314,7 @@ INSERT INTO `hlstats_Actions` (`game`, `code`, `reward_player`, `reward_team`, `
 ('hidden', 'kill_streak_10', 9, 0, '', 'Monster Kill (10 kills)', '1', '0', '0', '0'),
 ('hidden', 'kill_streak_11', 10, 0, '', 'Unstoppable (11 kills)', '1', '0', '0', '0'),
 ('hidden', 'kill_streak_12', 11, 0, '', 'God Like (12+ kills)', '1', '0', '0', '0'),
+('hidden', 'Round_Win', 0, 5, '', 'Round Win', '0', '0', '1', '0'),
 ('zps', 'kill_streak_2', 1, 0, '', 'Double Kill (2 kills)', '1', '0', '0', '0'),
 ('zps', 'kill_streak_3', 2, 0, '', 'Triple Kill (3 kills)', '1', '0', '0', '0'),
 ('zps', 'kill_streak_4', 3, 0, '', 'Domination (4 kills)', '1', '0', '0', '0'),
@@ -317,6 +327,7 @@ INSERT INTO `hlstats_Actions` (`game`, `code`, `reward_player`, `reward_team`, `
 ('zps', 'kill_streak_11', 10, 0, '', 'Unstoppable (11 kills)', '1', '0', '0', '0'),
 ('zps', 'kill_streak_12', 11, 0, '', 'God Like (12+ kills)', '1', '0', '0', '0'),
 ('zps', 'headshot', 1, 0, '', 'Headshot Kill', '1', '0', '0', '0'),
+('zps', 'Round_Win', 0, 5, '', 'Round Win', '0', '0', '1', '0'),
 ('aoc', 'kill_streak_2', 1, 0, '', 'Double Kill (2 kills)', '1', '0', '0', '0'),
 ('aoc', 'kill_streak_3', 2, 0, '', 'Triple Kill (3 kills)', '1', '0', '0', '0'),
 ('aoc', 'kill_streak_4', 3, 0, '', 'Domination (4 kills)', '1', '0', '0', '0'),
@@ -348,6 +359,8 @@ INSERT INTO `hlstats_Actions` (`game`, `code`, `reward_player`, `reward_team`, `
 ('cstrike','Target_Bombed',0,10,'TERRORIST','Terrorists bombed the target','0','0','1','0'),
 ('cstrike','VIP_Assassinated',0,6,'TERRORIST','Terrorists assassinated the VIP','0','0','1','0'),
 ('cstrike','Bomb_Defused',0,6,'CT','Counter-Terrorists defused the bomb','0','0','1','0'),
+('cstrike','Target_Saved',0,2,'CT','Target saved (Time ran out)','0','0','1','0'),
+('cstrike','Hostages_Not_Rescued',0,2,'TERRORIST','Hostages not rescued (Time ran out)','0','0','1','0'),
 ('cstrike','VIP_Escaped',0,10,'CT','VIP escaped','0','0','1','0'),
 ('cstrike', 'kill_streak_2', 1, 0, '', 'Double Kill (2 kills)', '1', '0', '0', '0'),
 ('cstrike', 'kill_streak_3', 2, 0, '', 'Triple Kill (3 kills)', '1', '0', '0', '0'),
@@ -415,6 +428,7 @@ INSERT INTO `hlstats_Actions` (`game`, `code`, `reward_player`, `reward_team`, `
 ('dod', 'kill_streak_10', 9, 0, '', 'Monster Kill (10 kills)', '1', '0', '0', '0'),
 ('dod', 'kill_streak_11', 10, 0, '', 'Unstoppable (11 kills)', '1', '0', '0', '0'),
 ('dod', 'kill_streak_12', 11, 0, '', 'God Like (12+ kills)', '1', '0', '0', '0'),
+('dod', 'dod_round_win', 0, 5, '', 'Round Win', '0', '0', '1', '0'),
 ('ns','structure_built',1,0,'','Structures Built','1','0','0','0'),
 ('ns','structure_destroyed',2,0,'','Structures Destroyed','1','0','0','0'),
 ('ns','research_start',1,0,'','Researches Performed','1','0','0','0'),
@@ -549,6 +563,7 @@ INSERT INTO `hlstats_Actions` (`game`, `code`, `reward_player`, `reward_team`, `
 ('fof', 'loot_capture', 8, 0, '', 'Captured the loot', '1', '0', '0', '0'),
 ('fof', 'carrier_protect', 5, 0, '', 'Protected the carrier', '1', '0', '0', '0'),
 ('fof', 'headshot', 1, 0, '', 'Headshot Kill', '1', '0', '0', '0'),
+('fof', 'Round_Win', 0, 5, '', 'Round Win', '0', '0', '1', '0'),
 ('ges', 'headshot', 1, 0, '', 'Headshot Kill', '1', '0', '0', '0'),
 ('ges', 'kill_streak_2', 1, 0, '', 'Double Kill (2 kills)', '1', '0', '0', '0'),
 ('ges', 'kill_streak_3', 2, 0, '', 'Triple Kill (3 kills)', '1', '0', '0', '0'),
@@ -587,6 +602,7 @@ INSERT INTO `hlstats_Actions` (`game`, `code`, `reward_player`, `reward_team`, `
 ('bg2', 'kill_streak_10', 9, 0, '', 'Monster Kill (10 kills)', '1', '0', '0', '0'),
 ('bg2', 'kill_streak_11', 10, 0, '', 'Unstoppable (11 kills)', '1', '0', '0', '0'),
 ('bg2', 'kill_streak_12', 11, 0, '', 'God Like (12+ kills)', '1', '0', '0', '0'),
+('bg2', 'Round_Win', 0, 5, '', 'Round Win', '0', '0', '1', '0'),
 ('sgtls', 'kill_streak_2', 1, 0, '', 'Double Kill (2 kills)', '1', '0', '0', '0'),
 ('sgtls', 'kill_streak_3', 2, 0, '', 'Triple Kill (3 kills)', '1', '0', '0', '0'),
 ('sgtls', 'kill_streak_4', 3, 0, '', 'Domination (4 kills)', '1', '0', '0', '0'),
@@ -643,9 +659,10 @@ INSERT INTO `hlstats_Actions` (`game`, `code`, `reward_player`, `reward_team`, `
 ('dystopia', 'Redirect Laser', 2, 0, '', 'Redirect Laser', '1', '0', '0', '0'),
 ('dystopia', 'Reroute Power To Control Room', 2, 0, '', 'Reroute Power To Control Room', '1', '0', '0', '0'),
 ('dystopia', 'Shut Down Security', 2, 0, '', 'Shut Down Security', '1', '0', '0', '0'),
-('dystopia', 'Shutdown The Production Line', 2, 0, '', 'hutdown The Production Line', '1', '0', '0', '0'),
+('dystopia', 'Shutdown The Production Line', 2, 0, '', 'Shutdown The Production Line', '1', '0', '0', '0'),
 ('dystopia', 'Smash Data Storage', 2, 0, '', 'Smash Data Storage', '1', '0', '0', '0'),
 ('dystopia', 'Turn Power Offline', 2, 0, '', 'Turn Power Offline', '1', '0', '0', '0'),
+('dystopia', 'Round_Win', 0, 5, '', 'Round Win', '0', '0', '1', '0'),
 ('nts', 'headshot', 5, 0, '', 'Headshot Kill', '1', '0', '0', '0'),
 ('nts', 'kill_streak_10', 9, 0, '', 'Monster Kill (10 kills)', '1', '0', '0', '0'),
 ('nts', 'kill_streak_11', 10, 0, '', 'Unstoppable (11 kills)', '1', '0', '0', '0'),
@@ -676,11 +693,24 @@ INSERT INTO `hlstats_Actions` (`game`, `code`, `reward_player`, `reward_team`, `
 ('pvkii', 'mvp3', 0, 0, '', 'Most Valuable Player #3', '1', '0', '0', '0'),
 ('pvkii', 'chest_capture', 3, 0, '', 'Chest Capture', '1', '0', '0', '0'),
 ('pvkii', 'chest_defend', 2, 0, '', 'Chest Defend', '1', '0', '0', '0'),
-('pvkii', 'obj_complete', 3, 0, '', 'Complted Objective', '1', '0', '0', '0'),
+('pvkii', 'obj_complete', 3, 0, '', 'Completed Objective', '1', '0', '0', '0'),
 ('pvkii', 'grail_defend', 2, 0, '', 'Defended Grail', '1', '0', '0', '0'),
 ('pvkii', 'killed_parrot', 1, 0, '', 'Killed Parrot', '1', '0', '0', '0'),
 ('pvkii', 'domination', 5, 0, '', 'Domination', '0', '1', '0', '0'),
 ('pvkii', 'revenge', 3, 0, '', 'Revenge', '0', '1', '0', '0'),
+('pvkii', 'Round_Win', 0, 10, '', 'Round Win', '0', '0', '1', '0'),
+('pvkii', 'Pirates_Win', 0, 10, 'Pirates', 'Pirates Won Round', '0', '0', '1', '0'),
+('pvkii', 'Vikings_Win', 0, 10, 'Vikings', 'Vikings Won Round', '0', '0', '1', '0'),
+('pvkii', 'Knights_Win', 0, 10, 'Knights', 'Knights Won Round', '0', '0', '1', '0'),
+('csp', 'CTs_Win', 0, 2, 'CT', 'All Terrorists eliminated', '0', '0', '1', '0'),
+('csp', 'Terrorists_Win', 0, 2, 'TERRORIST', 'All Counter-Terrorists eliminated', '0', '0', '1', '0'),
+('csp', 'Bomb_Defused', 0, 5, 'CT', 'Counter-Terrorists defused the bomb', '0', '0', '1', '0'),
+('csp', 'Target_Bombed', 0, 5, 'TERRORIST', 'Terrorists bombed the target', '0', '0', '1', '0'),
+('csp', 'All_Hostages_Rescued', 0, 10, 'CT', 'Counter-Terrorists rescued all the hostages', '0', '0', '1', '0'),
+('csp', 'Planted_The_Bomb', 10, 2, 'TERRORIST', 'Plant the Bomb', '1', '0', '0', '0'),
+('csp', 'Defused_The_Bomb', 10, 0, 'CT', 'Defuse the Bomb', '1', '0', '0', '0'),
+('csp', 'Target_Saved', 0, 2, 'CT', 'Target saved (Time ran out)', '0', '0', '1', '0'),
+('csp', 'Hostages_Not_Rescued', 0, 2, 'TERRORIST', 'Hostages not rescued (Time ran out)', '0', '0', '1', '0'),
 ('csp', 'headshot', 1, 0, '', 'Headshot', '1', '0', '0', '0'),
 ('csp', 'kill_streak_2', 1, 0, '', 'Double Kill (2 kills)', '1', '0', '0', '0'),
 ('csp', 'kill_streak_3', 2, 0, '', 'Triple Kill (3 kills)', '1', '0', '0', '0'),
@@ -755,6 +785,8 @@ INSERT INTO `hlstats_Actions` (`game`, `code`, `reward_player`, `reward_team`, `
 ('csgo', 'SFUI_Notice_All_Hostages_Rescued', 0, 10, 'CT', 'Counter-Terrorists rescued all the hostages', '0', '0', '1', '0'),
 ('csgo', 'SFUI_Notice_Target_Bombed', 0, 5, 'TERRORIST', 'Terrorists bombed the target', '0', '0', '1', '0'),
 ('csgo', 'SFUI_Notice_Bomb_Defused', 0, 5, 'CT', 'Counter-Terrorists defused the bomb', '0', '0', '1', '0'),
+('csgo', 'SFUI_Notice_Target_Saved', 0, 2, 'CT', 'Target saved (Time ran out)', '0', '0', '1', '0'),
+('csgo', 'SFUI_Notice_Hostages_Not_Rescued', 0, 2, 'TERRORIST', 'Hostages not rescued (Time ran out)', '0', '0', '1', '0'),
 ('csgo', 'Escaped_As_VIP', 0, 10, 'CT', 'VIP escaped', '0', '0', '1', '0'),
 ('csgo', 'Assassinated_The_VIP', 0, 6, 'TERRORIST', 'Terrorists assassinated the VIP', '0', '0', '1', '0'),
 ('csgo', 'Became_VIP', 1, 0, 'CT', 'Become the VIP', '1', '0', '0', '0'),
@@ -786,6 +818,7 @@ INSERT INTO `hlstats_Actions` (`game`, `code`, `reward_player`, `reward_team`, `
 ('dinodday', 'kill_streak_10', 9, 0, '', 'Monster Kill (10 kills)', '1', '0', '0', '0'),
 ('dinodday', 'kill_streak_11', 10, 0, '', 'Unstoppable (11 kills)', '1', '0', '0', '0'),
 ('dinodday', 'kill_streak_12', 11, 0, '', 'God Like (12+ kills)', '1', '0', '0', '0'),
+('dinodday', 'Round_Win', 0, 5, '', 'Round Win', '0', '0', '1', '0'),
 ('cs2', 'Begin_Bomb_Defuse_Without_Kit', 1, 0, 'CT', 'Start Defusing the Bomb Without a Defuse Kit', '1', '0', '0', '0'),
 ('cs2', 'Begin_Bomb_Defuse_With_Kit', 2, 0, 'CT', 'Start Defusing the Bomb With a Defuse Kit', '1', '0', '0', '0'),
 ('cs2', 'Planted_The_Bomb', 10, 2, 'TERRORIST', 'Plant the Bomb', '1', '0', '0', '0'),
@@ -801,6 +834,8 @@ INSERT INTO `hlstats_Actions` (`game`, `code`, `reward_player`, `reward_team`, `
 ('cs2', 'SFUI_Notice_All_Hostages_Rescued', 0, 10, 'CT', 'Counter-Terrorists rescued all the hostages', '0', '0', '1', '0'),
 ('cs2', 'SFUI_Notice_Target_Bombed', 0, 5, 'TERRORIST', 'Terrorists bombed the target', '0', '0', '1', '0'),
 ('cs2', 'SFUI_Notice_Bomb_Defused', 0, 5, 'CT', 'Counter-Terrorists defused the bomb', '0', '0', '1', '0'),
+('cs2', 'SFUI_Notice_Target_Saved', 0, 2, 'CT', 'Target saved (Time ran out)', '0', '0', '1', '0'),
+('cs2', 'SFUI_Notice_Hostages_Not_Rescued', 0, 2, 'TERRORIST', 'Hostages not rescued (Time ran out)', '0', '0', '1', '0'),
 ('cs2', 'Escaped_As_VIP', 0, 10, 'CT', 'VIP escaped', '0', '0', '1', '0'),
 ('cs2', 'Assassinated_The_VIP', 0, 6, 'TERRORIST', 'Terrorists assassinated the VIP', '0', '0', '1', '0'),
 ('cs2', 'Became_VIP', 1, 0, 'CT', 'Become the VIP', '1', '0', '0', '0'),
@@ -841,7 +876,7 @@ CREATE TABLE IF NOT EXISTS `hlstats_Awards` (
   `g_winner_count` int(10) unsigned default NULL,  
   PRIMARY KEY  (`awardId`),
   UNIQUE KEY `code` (`game`,`awardType`,`code`)
-) ENGINE=MyISAM  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
 -- Dumping data for table `hlstats_Awards`
@@ -1124,6 +1159,15 @@ INSERT INTO `hlstats_Awards` (`awardType`, `game`, `code`, `name`, `verb`) VALUE
 ('W','hl2ctf','slam','SLAMMED!','kills with the slam'),
 ('W','hl2ctf','grenade_frag','Grenade Fiend','kills with nades'),
 ('W','hl2ctf','rpg_missile','Role Player','kills with RPG'),
+('W','hl2ctf','combine_ball','Ball Player','kills with combine ball'),
+('W','hl2ctf','smg1_grenade','SMG Nader','kills with smg grenade'),
+('W','hl2ctf','ctf_oicw','OICW Master','kills with OICW'),
+('W','hl2ctf','ctf_sniper','Sniper Master','kills with sniper rifle'),
+('W','hl2ctf','ctf_alyxgun','Alyx Gunner','kills with alyx gun'),
+('O','hl2ctf','ctf_flag_capture','Flag Master','flags captured'),
+('O','hl2ctf','headshot','Headshot King','headshots'),
+('W','hl2ctf','mostkills','Most Kills','kills'),
+('W','hl2ctf','suicide','Suicides','suicides'),
 ('W','hl2ctf','latency','Best Latency','ms average connection'),
 ('O','dods','bomb_defuse','Top Defuser','bomb defusions'),
 ('O','dods','bomb_plant','Top Demolitionist','bomb plantings'),
@@ -1368,7 +1412,7 @@ INSERT INTO `hlstats_Awards` (`awardType`, `game`, `code`, `name`, `verb`) VALUE
 ('O', 'l4d2', 'killed_hunter', 'Hunter Punter', 'killed Hunters'),
 ('O', 'l4d2', 'killed_spitter', 'Spittle Splatter', 'Spitters Splated'),
 ('O', 'l4d2', 'killed_charger', 'Bumrush Thwarter', 'killed Chargers'),
-('O', 'l4d2', 'killed_jockey', 'Hunter Punter', 'killed Jockeys'),
+('O', 'l4d2', 'killed_jockey', 'Jockey Buster', 'killed Jockeys'),
 ('P', 'l4d2', 'killed_survivor', 'Dead Wreckening', 'downed Survivors'),
 ('O', 'l4d2', 'killed_tank', 'Tankbuster', 'killed Tanks'),
 ('O', 'l4d2', 'killed_witch', 'Inquisitor', 'killed Witches'),
@@ -1394,7 +1438,7 @@ INSERT INTO `hlstats_Awards` (`awardType`, `game`, `code`, `name`, `verb`) VALUE
 ('W', 'l4d2', 'tank_claw', 'Burger Tank', 'kills with Tank''s Claws'),
 ('W', 'l4d2', 'tank_rock', 'Rock Star', 'kills with Tank''s Rock'),
 ('O', 'l4d2', 'hunter_punter', 'Hunter Punter', 'hunter punts'),
-('O', 'l4d2', 'protect_teammate', 'Protector', 'hunter punts'),
+('O', 'l4d2', 'protect_teammate', 'Protector', 'teammate protections'),
 ('W', 'l4d2', 'latency', 'Lowest Ping', 'ms average connection'),
 ('O', 'l4d2', 'defibrillated_teammate', 'Dr. Shocker', 'teammates defibrillated'),
 ('O', 'l4d2', 'used_adrenaline', 'Adrenaline Junkie', 'adrenaline shots used'),
@@ -1488,7 +1532,7 @@ INSERT INTO `hlstats_Awards` (`awardType`, `game`, `code`, `name`, `verb`) VALUE
 ('W', 'ges', '#GE_Taser', 'Taser', 'kills with Taser'),
 ('W', 'ges', '#GE_SniperButt', 'Sniper Butt', 'kills with Sniper Butt'),
 ('W', 'ges', '#GE_Slapper', 'Bitch Fighter', 'kills with Slappers'),
-('W', 'ges', '#GE_RocketLauncher', ', Rocket Launcher', 'kills with Rocket Launcher'),
+('W', 'ges', '#GE_RocketLauncher', 'Rocket Launcher', 'kills with Rocket Launcher'),
 ('W', 'ges', 'latency', 'Lowest Ping','ms average connection'),
 ('W', 'ges', 'mostkills', 'Bond, James Bond', 'kills'),
 ('W', 'bg2', 'brownbess', 'Brown Bess', 'kills with Brown Bess'),
@@ -1559,7 +1603,7 @@ INSERT INTO `hlstats_Awards` (`awardType`, `game`, `code`, `name`, `verb`) VALUE
 ('O', 'dystopia', 'Redirect Laser', 'Redirect Laser', 'redirections'),
 ('O', 'dystopia', 'Reroute Power To Control Room', 'Reroute Power To Control Room', 'reroutings'),
 ('O', 'dystopia', 'Shut Down Security', 'Shut Down Security', 'shutdowns'),
-('O', 'dystopia', 'Shutdown The Production Line', 'hutdown The Production Line', 'shutdowns'),
+('O', 'dystopia', 'Shutdown The Production Line', 'Shutdown The Production Line', 'shutdowns'),
 ('O', 'dystopia', 'Smash Data Storage', 'Smash Data Storage', 'smashings'),
 ('O', 'dystopia', 'Turn Power Offline', 'Turn Power Offline', 'times'),
 ('W', 'dystopia', 'bonuspoints', 'Most Bonus Points', 'bonus points'),
@@ -1746,6 +1790,13 @@ INSERT INTO `hlstats_Awards` (`awardType`, `game`, `code`, `name`, `verb`) VALUE
 ('W', 'csgo', 'ump45', 'UMP-45', 'kills with ump45'),
 ('W', 'csgo', 'xm1014', 'XM automatic Shotgun', 'kills with xm1014'),
 ('W', 'csgo', 'taser', 'Zeus x27', 'kills with taser'),
+('W', 'csgo', 'm4a1_silencer', 'M4A1-S', 'kills with m4a1_silencer'),
+('W', 'csgo', 'usp_silencer', 'USP-S', 'kills with usp_silencer'),
+('W', 'csgo', 'revolver', 'R8 Revolver', 'kills with revolver'),
+('W', 'csgo', 'mp5sd', 'MP5-SD', 'kills with mp5sd'),
+('W', 'csgo', 'inferno', 'Molotov', 'kills with molotov'),
+('W', 'csgo', 'bayonet', 'Bayonet', 'kills with bayonet'),
+('W', 'csgo', 'cz75a', 'CZ75-Auto', 'kills with cz75a'),
 ('W', 'cs2', 'ak47', 'AK47', 'kills with ak47'), 
 ('W', 'cs2', 'aug', 'Aug', 'kills with aug'), 
 ('W', 'cs2', 'awp', 'AWP', 'kills with awp'),
@@ -1815,6 +1866,12 @@ INSERT INTO `hlstats_Awards` (`awardType`, `game`, `code`, `name`, `verb`) VALUE
 ('W', 'cs2', 'knife_twinblade', 'Twinblade Knife', 'kills'),
 ('W', 'cs2', 'knife_ursus', 'Ursus Knife', 'kills'),
 ('W', 'cs2', 'knife_widowmaker', 'Talon Knife', 'kills'),
+('W', 'cs2', 'm4a1_silencer', 'M4A1-S', 'kills with m4a1_silencer'),
+('W', 'cs2', 'usp_silencer', 'USP-S', 'kills with usp_silencer'),
+('W', 'cs2', 'revolver', 'R8 Revolver', 'kills with revolver'),
+('W', 'cs2', 'mp5sd', 'MP5-SD', 'kills with mp5sd'),
+('W', 'cs2', 'inferno', 'Molotov', 'kills with molotov'),
+('W', 'cs2', 'bayonet', 'Bayonet', 'kills with bayonet'),
 ('O', 'nd', 'headshot', 'Headshot King', 'shots in the head'),
 ('O', 'nd', 'structure_kill', 'Destroyer', 'destroyed structures'),
 ('O', 'nd', 'killed_commander', 'Commander Killer', 'enemy commander kills'),
@@ -1822,7 +1879,7 @@ INSERT INTO `hlstats_Awards` (`awardType`, `game`, `code`, `name`, `verb`) VALUE
 ('O', 'nd', 'armoury_destroyed', 'Armoury Destroyer', 'destroyed armouries'),
 ('O', 'nd', 'artillery_destroyed', 'Armoury Destroyer', 'destroyed artilleries'),
 ('O', 'nd', 'assembler_destroyed', 'Armoury Destroyer', 'destroyed assemblers'),
-('O', 'nd', 'flamethrowerturret_destroyed', 'Armoury Destroyer', 'destroyed flameghrower turrets'),
+('O', 'nd', 'flamethrowerturret_destroyed', 'Flamethrower Turret Destroyer', 'destroyed flamethrower turrets'),
 ('O', 'nd', 'wirelessrepeater_destroyed', 'Armoury Destroyer', 'destroyed wireless repeaters'),
 ('O', 'nd', 'powerstation_destroyed', 'Armoury Destroyer', 'destroyed power stations'),
 ('O', 'nd', 'radar_destroyed','Armoury Destroyer', 'destroyed radars'),
@@ -1891,7 +1948,7 @@ CREATE TABLE IF NOT EXISTS `hlstats_Clans` (
   PRIMARY KEY  (`clanId`),
   UNIQUE KEY `tag` (`game`,`tag`),
   KEY `game` (`game`)
-) ENGINE=MyISAM  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 
@@ -1905,7 +1962,7 @@ CREATE TABLE IF NOT EXISTS `hlstats_ClanTags` (
   `position` enum('EITHER','START','END') NOT NULL default 'EITHER',
   PRIMARY KEY  (`id`),
   UNIQUE KEY `pattern` (`pattern`)
-) ENGINE=MyISAM  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
 -- Dumping data for table `hlstats_ClanTags`
@@ -1932,7 +1989,7 @@ INSERT INTO `hlstats_ClanTags` (`pattern`, `position`) VALUES
 ('((AXXXXXX))', 'EITHER'),
 ('.|AXXXXXX|.', 'EITHER'),
 ('--AXXXXXX--', 'EITHER'),
-('\AXXXXXX/', 'EITHER'),
+('\\AXXXXXX/', 'EITHER'),
 ('-)AXXXXXX(-', 'EITHER'),
 ('/AXXXXXX', 'EITHER'),
 ('//AXXXXXX', 'EITHER'),
@@ -1950,9 +2007,9 @@ INSERT INTO `hlstats_ClanTags` (`pattern`, `position`) VALUES
 
 CREATE TABLE IF NOT EXISTS `hlstats_Countries` (
   `flag` varchar(16) NOT NULL,
-  `name` varchar(50) NOT NULL,
+  `name` varchar(64) NOT NULL,
   PRIMARY KEY  (`flag`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
 -- Dumping data for table `hlstats_Countries`
@@ -1974,6 +2031,7 @@ INSERT INTO `hlstats_Countries` (`flag`, `name`) VALUES
 ('AT', 'Austria'),
 ('AU', 'Australia'),
 ('AW', 'Aruba'),
+('AX', 'Åland Islands'),
 ('AZ', 'Azerbaijan'),
 ('BA', 'Bosnia and Herzegovina'),
 ('BB', 'Barbados'),
@@ -1984,6 +2042,8 @@ INSERT INTO `hlstats_Countries` (`flag`, `name`) VALUES
 ('BH', 'Bahrain'),
 ('BI', 'Burundi'),
 ('BJ', 'Benin'),
+('BL', 'Saint Barthélemy'),
+('BQ', 'Bonaire, Sint Eustatius and Saba'),
 ('BM', 'Bermuda'),
 ('BN', 'Brunei Darussalam'),
 ('BO', 'Bolivia'),
@@ -1997,11 +2057,12 @@ INSERT INTO `hlstats_Countries` (`flag`, `name`) VALUES
 ('BZ', 'Belize'),
 ('CA', 'Canada'),
 ('CC', 'Cocos (Keeling) Islands'),
+('CD', 'Congo, The Democratic Republic of the'),
 ('CF', 'Central African Republic'),
 ('CG', 'Congo'),
 ('CH', 'Switzerland'),
 ('CI', 'Côte D''ivoire (Ivory Coast)'),
-('CK', 'Cook Iislands'),
+('CK', 'Cook Islands'),
 ('CL', 'Chile'),
 ('CM', 'Cameroon'),
 ('CN', 'China'),
@@ -2009,6 +2070,7 @@ INSERT INTO `hlstats_Countries` (`flag`, `name`) VALUES
 ('CR', 'Costa Rica'),
 ('CS', 'Czechoslovakia (no longer exists)'),
 ('CU', 'Cuba'),
+('CW', 'Curaçao'),
 ('CV', 'Cape Verde'),
 ('CX', 'Christmas Island'),
 ('CY', 'Cyprus'),
@@ -2039,6 +2101,7 @@ INSERT INTO `hlstats_Countries` (`flag`, `name`) VALUES
 ('GD', 'Grenada'),
 ('GE', 'Georgia'),
 ('GF', 'French Guiana'),
+('GG', 'Guernsey'),
 ('GH', 'Ghana'),
 ('GI', 'Gibraltar'),
 ('GL', 'Greenland'),
@@ -2061,12 +2124,14 @@ INSERT INTO `hlstats_Countries` (`flag`, `name`) VALUES
 ('ID', 'Indonesia'),
 ('IE', 'Ireland'),
 ('IL', 'Israel'),
+('IM', 'Isle of Man'),
 ('IN', 'India'),
 ('IO', 'British Indian Ocean Territory'),
 ('IQ', 'Iraq'),
 ('IR', 'Islamic Republic of Iran'),
 ('IS', 'Iceland'),
 ('IT', 'Italy'),
+('JE', 'Jersey'),
 ('JM', 'Jamaica'),
 ('JO', 'Jordan'),
 ('JP', 'Japan'),
@@ -2094,7 +2159,10 @@ INSERT INTO `hlstats_Countries` (`flag`, `name`) VALUES
 ('LY', 'Libyan Arab Jamahiriya'),
 ('MA', 'Morocco'),
 ('MC', 'Monaco'),
-('MD', 'Moldova, Republic of '),
+('MD', 'Moldova, Republic of'),
+('ME', 'Montenegro'),
+('MF', 'Saint Martin'),
+('MK', 'North Macedonia'),
 ('MG', 'Madagascar'),
 ('MH', 'Marshall Islands'),
 ('ML', 'Mali'),
@@ -2136,12 +2204,14 @@ INSERT INTO `hlstats_Countries` (`flag`, `name`) VALUES
 ('PM', 'St. Pierre & Miquelon'),
 ('PN', 'Pitcairn'),
 ('PR', 'Puerto Rico'),
+('PS', 'Palestine'),
 ('PT', 'Portugal'),
 ('PW', 'Palau'),
 ('PY', 'Paraguay'),
 ('QA', 'Qatar'),
 ('RE', 'Réunion'),
 ('RO', 'Romania'),
+('RS', 'Serbia'),
 ('RU', 'Russian Federation'),
 ('RW', 'Rwanda'),
 ('SA', 'Saudi Arabia'),
@@ -2159,11 +2229,13 @@ INSERT INTO `hlstats_Countries` (`flag`, `name`) VALUES
 ('SN', 'Senegal'),
 ('SO', 'Somalia'),
 ('SR', 'Suriname'),
+('SS', 'South Sudan'),
+('SX', 'Sint Maarten'),
 ('ST', 'Sao Tome & Principe'),
-('SU', 'Union of Soviet Socialist Republics (no longer exi'),
+('SU', 'Union of Soviet Socialist Republics (no longer exists)'),
 ('SV', 'El Salvador'),
 ('SY', 'Syrian Arab Republic'),
-('SZ', 'Swaziland'),
+('SZ', 'Eswatini'),
 ('TC', 'Turks & Caicos Islands'),
 ('TD', 'Chad'),
 ('TF', 'French Southern Territories'),
@@ -2171,11 +2243,12 @@ INSERT INTO `hlstats_Countries` (`flag`, `name`) VALUES
 ('TH', 'Thailand'),
 ('TJ', 'Tajikistan'),
 ('TK', 'Tokelau'),
+('TL', 'Timor-Leste'),
 ('TM', 'Turkmenistan'),
 ('TN', 'Tunisia'),
 ('TO', 'Tonga'),
 ('TP', 'East Timor'),
-('TR', 'Turkey'),
+('TR', 'Türkiye'),
 ('TT', 'Trinidad & Tobago'),
 ('TV', 'Tuvalu'),
 ('TW', 'Taiwan, Province of China'),
@@ -2195,6 +2268,7 @@ INSERT INTO `hlstats_Countries` (`flag`, `name`) VALUES
 ('VU', 'Vanuatu'),
 ('WF', 'Wallis & Futuna Islands'),
 ('WS', 'Samoa'),
+('XK', 'Kosovo'),
 ('YD', 'Democratic Yemen (no longer exists)'),
 ('YE', 'Yemen'),
 ('YT', 'Mayotte'),
@@ -2219,8 +2293,9 @@ CREATE TABLE IF NOT EXISTS `hlstats_Events_Admin` (
   `type` varchar(64) NOT NULL default 'Unknown',
   `message` varchar(255) NOT NULL default '',
   `playerName` varchar(64) NOT NULL default '',
-  PRIMARY KEY  (`id`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  PRIMARY KEY  (`id`),
+  KEY `idx_eventTime` (`eventTime`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 
@@ -2237,8 +2312,9 @@ CREATE TABLE IF NOT EXISTS `hlstats_Events_ChangeName` (
   `oldName` varchar(64) NOT NULL default '',
   `newName` varchar(64) NOT NULL default '',
   PRIMARY KEY  (`id`),
-  KEY `playerId` (`playerId`)
-) ENGINE=MyISAM  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  KEY `playerId` (`playerId`),
+  KEY `idx_eventTime` (`eventTime`)
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
 -- --------------------------------------------------------
@@ -2255,8 +2331,9 @@ CREATE TABLE IF NOT EXISTS `hlstats_Events_ChangeRole` (
   `playerId` int(10) unsigned NOT NULL default '0',
   `role` varchar(64) NOT NULL default '',
   PRIMARY KEY  (`id`),
-  KEY `playerId` (`playerId`)
-) ENGINE=MyISAM  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  KEY `playerId` (`playerId`),
+  KEY `idx_eventTime` (`eventTime`)
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 
@@ -2272,8 +2349,9 @@ CREATE TABLE IF NOT EXISTS `hlstats_Events_ChangeTeam` (
   `playerId` int(10) unsigned NOT NULL default '0',
   `team` varchar(64) NOT NULL default '',
   PRIMARY KEY  (`id`),
-  KEY `playerId` (`playerId`)
-) ENGINE=MyISAM  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  KEY `playerId` (`playerId`),
+  KEY `idx_eventTime` (`eventTime`)
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 
@@ -2290,10 +2368,11 @@ CREATE TABLE IF NOT EXISTS `hlstats_Events_Chat` (
   `message_mode` tinyint(2) NOT NULL default '0',
   `message` varchar(128) NOT NULL default '',
   PRIMARY KEY  (`id`),
-  KEY `playerId` (`playerId`),
-  KEY `serverId` (`serverId`),
+  KEY `idx_player_time` (`playerId`, `eventTime`),
+  KEY `idx_server_time` (`serverId`, `eventTime`),
+  KEY `idx_eventTime` (`eventTime`),
   FULLTEXT KEY `message` (`message`)
-) ENGINE=MyISAM  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 
@@ -2312,8 +2391,9 @@ CREATE TABLE IF NOT EXISTS `hlstats_Events_Connects` (
   `hostgroup` varchar(255) NOT NULL default '',
   `eventTime_Disconnect` datetime default NULL,
   PRIMARY KEY  (`id`),
-  KEY `playerId` (`playerId`)
-) ENGINE=MyISAM  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  KEY `playerId` (`playerId`),
+  KEY `idx_eventTime` (`eventTime`)
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 
@@ -2327,8 +2407,10 @@ CREATE TABLE IF NOT EXISTS `hlstats_Events_Disconnects` (
   `serverId` int(10) unsigned NOT NULL default '0',
   `map` varchar(64) NOT NULL default '',
   `playerId` int(10) unsigned NOT NULL default '0',
-  PRIMARY KEY  (`id`)
-) ENGINE=MyISAM  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  PRIMARY KEY  (`id`),
+  KEY `playerId` (`playerId`),
+  KEY `idx_eventTime` (`eventTime`)
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 
@@ -2343,8 +2425,9 @@ CREATE TABLE IF NOT EXISTS `hlstats_Events_Entries` (
   `map` varchar(64) NOT NULL default '',
   `playerId` int(10) unsigned NOT NULL default '0',
   PRIMARY KEY  (`id`),
-  KEY `playerId` (`playerId`)
-) ENGINE=MyISAM  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  KEY `playerId` (`playerId`),
+  KEY `idx_eventTime` (`eventTime`)
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 
@@ -2370,14 +2453,14 @@ CREATE TABLE IF NOT EXISTS `hlstats_Events_Frags` (
   `pos_victim_y` MEDIUMINT default NULL,
   `pos_victim_z` MEDIUMINT default NULL,
   PRIMARY KEY  (`id`),
-  KEY `killerId` (`killerId`),
   KEY `victimId` (`victimId`),
-  KEY `serverId` (`serverId`),
-  KEY `headshot` (`headshot`),
   KEY `map` (`map`(5)),
   KEY `weapon16` (`weapon`(16)),
-  KEY `killerRole` (`killerRole`(8))
-) ENGINE=MyISAM  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  KEY `killerRole` (`killerRole`(8)),
+  KEY `idx_eventTime` (`eventTime`),
+  KEY `idx_killer_time` (`killerId`, `eventTime`),
+  KEY `idx_server_time` (`serverId`, `eventTime`)
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 
@@ -2393,8 +2476,9 @@ CREATE TABLE IF NOT EXISTS `hlstats_Events_Latency` (
   `playerId` int(10) unsigned NOT NULL default '0',
   `ping` int(32) unsigned NOT NULL default '0',
   PRIMARY KEY  (`id`),
-  KEY `playerId` (`playerId`)
-) ENGINE=MyISAM  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  KEY `playerId` (`playerId`),
+  KEY `idx_eventTime` (`eventTime`)
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 
@@ -2415,8 +2499,9 @@ CREATE TABLE IF NOT EXISTS `hlstats_Events_PlayerActions` (
   `pos_z` MEDIUMINT default NULL,
   PRIMARY KEY  (`id`),
   KEY `playerId` (`playerId`),
-  KEY `actionId` (`actionId`)
-) ENGINE=MyISAM  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  KEY `idx_action_player` (`actionId`, `playerId`),
+  KEY `idx_eventTime` (`eventTime`)
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 
@@ -2441,9 +2526,11 @@ CREATE TABLE IF NOT EXISTS `hlstats_Events_PlayerPlayerActions` (
   `pos_victim_z` MEDIUMINT default NULL,
   PRIMARY KEY  (`id`),
   KEY `playerId` (`playerId`),
-  KEY `actionId` (`actionId`),
-	KEY `victimId` (`victimId`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  KEY `victimId` (`victimId`),
+  KEY `idx_action_victim` (`actionId`, `victimId`),
+  KEY `idx_action_player` (`actionId`, `playerId`),
+  KEY `idx_eventTime` (`eventTime`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 
@@ -2460,8 +2547,9 @@ CREATE TABLE IF NOT EXISTS `hlstats_Events_Rcon` (
   `remoteIp` varchar(32) NOT NULL default '',
   `password` varchar(128) NOT NULL default '',
   `command` varchar(255) NOT NULL default '',
-  PRIMARY KEY  (`id`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  PRIMARY KEY  (`id`),
+  KEY `idx_eventTime` (`eventTime`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 
@@ -2484,8 +2572,9 @@ CREATE TABLE IF NOT EXISTS `hlstats_Events_Statsme` (
   `deaths` int(6) unsigned NOT NULL default '0',
   PRIMARY KEY  (`id`),
   KEY `playerId` (`playerId`),
-  KEY `weapon` (`weapon`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  KEY `weapon` (`weapon`),
+  KEY `idx_eventTime` (`eventTime`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 
@@ -2501,6 +2590,7 @@ CREATE TABLE IF NOT EXISTS `hlstats_Events_Statsme2` (
   `playerId` int(10) unsigned NOT NULL default '0',
   `weapon` varchar(64) NOT NULL default '',
   `head` int(6) unsigned NOT NULL default '0',
+  `neck` int(6) unsigned NOT NULL default '0',
   `chest` int(6) unsigned NOT NULL default '0',
   `stomach` int(6) unsigned NOT NULL default '0',
   `leftarm` int(6) unsigned NOT NULL default '0',
@@ -2510,8 +2600,9 @@ CREATE TABLE IF NOT EXISTS `hlstats_Events_Statsme2` (
   `generic` int(6) unsigned NOT NULL default '0',
   PRIMARY KEY  (`id`),
   KEY `playerId` (`playerId`),
-  KEY `weapon` (`weapon`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  KEY `weapon` (`weapon`),
+  KEY `idx_eventTime` (`eventTime`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 
@@ -2527,8 +2618,9 @@ CREATE TABLE IF NOT EXISTS `hlstats_Events_StatsmeLatency` (
   `playerId` int(10) unsigned NOT NULL default '0',
   `ping` int(6) unsigned NOT NULL default '0',
   PRIMARY KEY  (`id`),
-  KEY `playerId` (`playerId`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  KEY `playerId` (`playerId`),
+  KEY `idx_eventTime` (`eventTime`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 
@@ -2544,8 +2636,9 @@ CREATE TABLE IF NOT EXISTS `hlstats_Events_StatsmeTime` (
   `playerId` int(10) unsigned NOT NULL default '0',
   `time` time NOT NULL default '00:00:00',
   PRIMARY KEY  (`id`),
-  KEY `playerId` (`playerId`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  KEY `playerId` (`playerId`),
+  KEY `idx_eventTime` (`eventTime`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 
@@ -2564,8 +2657,9 @@ CREATE TABLE IF NOT EXISTS `hlstats_Events_Suicides` (
   `pos_y` MEDIUMINT default NULL,
   `pos_z` MEDIUMINT default NULL,
   PRIMARY KEY  (`id`),
-  KEY `playerId` (`playerId`)
-) ENGINE=MyISAM  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  KEY `playerId` (`playerId`),
+  KEY `idx_eventTime` (`eventTime`)
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 
@@ -2583,8 +2677,9 @@ CREATE TABLE IF NOT EXISTS `hlstats_Events_TeamBonuses` (
   `bonus` int(11) NOT NULL default '0',
   PRIMARY KEY  (`id`),
   KEY `playerId` (`playerId`),
-  KEY `actionId` (`actionId`)
-) ENGINE=MyISAM  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  KEY `actionId` (`actionId`),
+  KEY `idx_eventTime` (`eventTime`)
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 
@@ -2607,8 +2702,9 @@ CREATE TABLE IF NOT EXISTS `hlstats_Events_Teamkills` (
   `pos_victim_y` MEDIUMINT default NULL,
   `pos_victim_z` MEDIUMINT default NULL,
   PRIMARY KEY  (`id`),
-  KEY `killerId` (`killerId`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  KEY `killerId` (`killerId`),
+  KEY `idx_eventTime` (`eventTime`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 
@@ -2622,7 +2718,7 @@ CREATE TABLE IF NOT EXISTS `hlstats_Games` (
   `hidden` enum('0','1') NOT NULL default '0',
   `realgame` varchar(32) NOT NULL default 'hl2mp',
   PRIMARY KEY  (`code`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
 -- Dumping data for table `hlstats_Games`
@@ -2631,8 +2727,8 @@ CREATE TABLE IF NOT EXISTS `hlstats_Games` (
 INSERT INTO `hlstats_Games` (`code`, `name`, `realgame`, `hidden`) VALUES
 ('css','Counter-Strike: Source','css','1'),
 ('hl2mp','Half-Life 2 Multiplayer','hl2mp','1'),
+('hl2ctf','Half-Life 2 Capture the flag','hl2ctf','1'),
 ('tf','Team Fortress 2','tf','0'),
-('hl2ctf','Half-Life 2 Capture the flag','hl2mp','1'),
 ('dods','Day of Defeat: Source','dods','1'),
 ('insmod','Insurgency: Modern Infantry Combat','insmod','1'),
 ('ff', 'Fortress Forever','ff','1'),
@@ -2644,7 +2740,7 @@ INSERT INTO `hlstats_Games` (`code`, `name`, `realgame`, `hidden`) VALUES
 ('dod','Day of Defeat','dod','1'),
 ('ns','Natural Selection','ns','1'),
 ('l4d', 'Left 4 Dead', 'l4d', '1'),
-('l4d2', 'Left 4 Dead 2', 'l4d', '1'),
+('l4d2', 'Left 4 Dead 2', 'l4d2', '1'),
 ('fof', 'Fistful of Frags', 'fof', '1'),
 ('ges', 'GoldenEye: Source', 'ges', '1'),
 ('bg2', 'Battle Grounds 2', 'bg2', '1'),
@@ -2665,7 +2761,7 @@ CREATE TABLE IF NOT EXISTS `hlstats_Games_Defaults` (
   `parameter` varchar(50) NOT NULL,
   `value` varchar(128) NOT NULL,
   PRIMARY KEY  (`code`,`parameter`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
 -- Dumping data for table `hlstats_Games_Defaults`
@@ -3005,6 +3101,31 @@ INSERT INTO `hlstats_Games_Defaults` (`code`, `parameter`, `value`) VALUES
 ('hl2mp', 'TKPenalty', '25'),
 ('hl2mp', 'TrackServerLoad', '1'),
 ('hl2mp', 'UpdateHostname', '1'),
+('hl2ctf', 'Admins', ''),
+('hl2ctf', 'AutoBanRetry', '0'),
+('hl2ctf', 'AutoTeamBalance', '0'),
+('hl2ctf', 'BonusRoundIgnore', '0'),
+('hl2ctf', 'BonusRoundTime', '0'),
+('hl2ctf', 'BroadCastEvents', '1'),
+('hl2ctf', 'BroadCastPlayerActions', '1'),
+('hl2ctf', 'ConnectAnnounce', '1'),
+('hl2ctf', 'DefaultDisplayEvents', '1'),
+('hl2ctf', 'DisplayResultsInBrowser', '1'),
+('hl2ctf', 'EnablePublicCommands', '1'),
+('hl2ctf', 'GameEngine', '3'),
+('hl2ctf', 'GameType', '0'),
+('hl2ctf', 'HLStatsURL', 'http://yoursite.com/hlstats'),
+('hl2ctf', 'IgnoreBots', '1'),
+('hl2ctf', 'MinimumPlayersRank', '0'),
+('hl2ctf', 'MinPlayers', '4'),
+('hl2ctf', 'PlayerEvents', '1'),
+('hl2ctf', 'ShowStats', '1'),
+('hl2ctf', 'SkillMode', '0'),
+('hl2ctf', 'SuicidePenalty', '5'),
+('hl2ctf', 'SwitchAdmins', '0'),
+('hl2ctf', 'TKPenalty', '25'),
+('hl2ctf', 'TrackServerLoad', '1'),
+('hl2ctf', 'UpdateHostname', '1'),
 ('insmod', 'Admins', ''),
 ('insmod', 'AutoBanRetry', '0'),
 ('insmod', 'AutoTeamBalance', '0'),
@@ -3057,6 +3178,32 @@ INSERT INTO `hlstats_Games_Defaults` (`code`, `parameter`, `value`) VALUES
 ('l4d', 'TKPenalty', '25'),
 ('l4d', 'TrackServerLoad', '1'),
 ('l4d', 'UpdateHostname', '1'),
+('l4d2', 'Admins', ''),
+('l4d2', 'AutoBanRetry', '0'),
+('l4d2', 'AutoTeamBalance', '0'),
+('l4d2', 'BonusRoundIgnore', '0'),
+('l4d2', 'BonusRoundTime', '0'),
+('l4d2', 'BroadCastEvents', '0'),
+('l4d2', 'BroadCastPlayerActions', '0'),
+('l4d2', 'ConnectAnnounce', '1'),
+('l4d2', 'DefaultDisplayEvents', '0'),
+('l4d2', 'DisplayResultsInBrowser', '0'),
+('l4d2', 'EnablePublicCommands', '0'),
+('l4d2', 'GameEngine', '3'),
+('l4d2', 'GameType', '0'),
+('l4d2', 'HLStatsURL', 'http://yoursite.com/hlstats'),
+('l4d2', 'IgnoreBots', '0'),
+('l4d2', 'MinimumPlayersRank', '0'),
+('l4d2', 'MinPlayers', '1'),
+('l4d2', 'PlayerEvents', '1'),
+('l4d2', 'PlayerEventsCommandHint', ''),
+('l4d2', 'ShowStats', '1'),
+('l4d2', 'SkillMode', '0'),
+('l4d2', 'SuicidePenalty', '5'),
+('l4d2', 'SwitchAdmins', '0'),
+('l4d2', 'TKPenalty', '25'),
+('l4d2', 'TrackServerLoad', '1'),
+('l4d2', 'UpdateHostname', '1'),
 ('ns', 'Admins', ''),
 ('ns', 'AutoBanRetry', '0'),
 ('ns', 'AutoTeamBalance', '0'),
@@ -3370,7 +3517,7 @@ CREATE TABLE IF NOT EXISTS `hlstats_Games_Supported` (
   `code` varchar(32) NOT NULL,
   `name` varchar(128) NOT NULL,
   PRIMARY KEY  (`code`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
 -- Dumping data for table `hlstats_Games_Supported`
@@ -3380,6 +3527,7 @@ INSERT INTO `hlstats_Games_Supported` (`code`, `name`) VALUES
 ('csp', 'CSPromod'),
 ('css', 'Counter-Strike: Source'),
 ('hl2mp', 'Half-Life 2 Multiplayer'),
+('hl2ctf', 'Half-Life 2 CTF'),
 ('tf', 'Team Fortress 2'),
 ('dods', 'Day of Defeat: Source'),
 ('insmod', 'Insurgency'),
@@ -3391,7 +3539,8 @@ INSERT INTO `hlstats_Games_Supported` (`code`, `name`) VALUES
 ('tfc', 'Team Fortress Classic'),
 ('dod', 'Day of Defeat'),
 ('ns', 'Natural Selection'),
-('l4d', 'Left 4 Dead (Orig. & 2)'),
+('l4d', 'Left 4 Dead'),
+('l4d2', 'Left 4 Dead 2'),
 ('fof', 'Fistful of Frags'),
 ('ges', 'GoldenEye: Source'),
 ('bg2', 'Battle Grounds 2'),
@@ -3406,7 +3555,7 @@ INSERT INTO `hlstats_Games_Supported` (`code`, `name`) VALUES
 ('cs2', 'Counter-Strike 2');
 
 CREATE TABLE IF NOT EXISTS `hlstats_Heatmap_Config` (
-  `id` int(255) NOT NULL auto_increment,
+  `id` int(10) unsigned NOT NULL auto_increment,
   `map` varchar(64) NOT NULL,
   `game` varchar(32) NOT NULL,
   `xoffset` float NOT NULL,
@@ -3426,7 +3575,7 @@ CREATE TABLE IF NOT EXISTS `hlstats_Heatmap_Config` (
   `cropy2` int(11) NOT NULL default '0',
   PRIMARY KEY  (`id`),
   UNIQUE KEY `gamemap` (`map`, `game`)
-) ENGINE=MyISAM  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
 -- Dumping data for table `hlstats_Heatmap_Config`
@@ -3852,29 +4001,29 @@ INSERT INTO `hlstats_Heatmap_Config` (`map`, `game`, `xoffset`, `yoffset`, `flip
 ('de_shorttrain', 'csgo', 2226, 2618, 0, 1, 30, 'small', 4.1, 10, 0.170312, 0.170312, 0, 0, 0, 0),
 ('de_stmarc', 'csgo', 9206, 8383, 0, 1, 30, 'small', 3, 10, 0.170312, 0.170312, 0, 0, 0, 0),
 ('de_sugarcane', 'csgo', 4204, 1359, 0, 1, 30, 'small', 4.3, 10, 0.170312, 0.170312, 0, 0, 0, 0),
-('c1m1_hotel', 'l4d', 1829, 8518, 0, 1, 30, 'small', 5, 10, 0.170312, 0.170312, 0, 0, 0, 0),
-('c1m2_streets', 'l4d', 13470, 7954, 0, 1, 30, 'small', 14, 10, 0.170312, 0.170312, 0, 0, 0, 0),
-('c1m3_mall', 'l4d', 2976, 1695, 0, 1, 30, 'small', 8, 10, 0.170312, 0.170312, 0, 0, 0, 0),
-('c1m4_atrium', 'l4d', 7604, -416, 0, 1, 30, 'small', 5, 10, 0.170312, 0.170312, 0, 0, 0, 0),
-('c2m1_highway', 'l4d', 8585, 13642, 0, 1, 30, 'small', 20, 10, 0.170312, 0.170312, 0, 0, 0, 0),
-('c2m2_fairgrounds', 'l4d', 8423, 5363, 0, 1, 30, 'small', 14, 10, 0.170312, 0.170312, 0, 0, 0, 0),
-('c2m3_coaster', 'l4d', 8935, 6928, 0, 1, 30, 'small', 11, 10, 0.170312, 0.170312, 0, 0, 0, 0),
-('c2m4_barns', 'l4d', 7466, 8596, 0, 1, 30, 'small', 12, 10, 0.170312, 0.170312, 0, 0, 0, 0),
-('c2m5_concert', 'l4d', 5267, 5568, 0, 1, 30, 'small', 5, 10, 0.170312, 0.170312, 0, 0, 0, 0),
-('c3m1_plankcountry', 'l4d', 13418, 12468, 0, 1, 30, 'small', 12, 10, 0.170312, 0.170312, 0, 0, 0, 0),
-('c3m2_swamp', 'l4d', 12741, 13698, 0, 1, 30, 'small', 20, 10, 0.170312, 0.170312, 0, 0, 0, 0),
-('c3m3_shantytown', 'l4d', 7582, 3647, 0, 1, 30, 'small', 10, 10, 0.170312, 0.170312, 0, 0, 0, 0),
-('c3m4_plantation', 'l4d', 6625, 4589, 0, 1, 30, 'small', 10, 10, 0.170312, 0.170312, 0, 0, 0, 0),
-('c4m1_milltown_a', 'l4d', 9457, 10870, 0, 1, 30, 'small', 14, 10, 0.170312, 0.170312, 0, 0, 0, 0),
-('c4m2_sugarmill_a', 'l4d', 10459, 2124, 0, 1, 30, 'small', 18, 10, 0.170312, 0.170312, 0, 0, 0, 0),
-('c4m3_sugarmill_b', 'l4d', 10156, 1946, 0, 1, 30, 'small', 18, 10, 0.170312, 0.170312, 0, 0, 0, 0),
-('c4m4_milltown_b', 'l4d', 11414, 11943, 0, 1, 30, 'small', 16, 10, 0.170312, 0.170312, 0, 0, 0, 0),
-('c4m5_milltown_escape', 'l4d', 11073, 11978, 0, 1, 30, 'small', 16, 10, 0.170312, 0.170312, 0, 0, 0, 0),
-('c5m1_waterfront', 'l4d', 7786, 4019, 0, 1, 30, 'small', 9, 10, 0.170312, 0.170312, 0, 0, 0, 0),
-('c5m2_park', 'l4d', 15435, 2762, 0, 1, 30, 'small', 15, 10, 0.170312, 0.170312, 0, 0, 0, 0),
-('c5m3_cemetery', 'l4d', 7513, 11200, 0, 1, 30, 'small', 22, 10, 0.170312, 0.170312, 0, 0, 0, 0),
-('c5m4_quarter', 'l4d', 7494, 5735, 0, 1, 30, 'small', 10, 10, 0.170312, 0.170312, 0, 0, 0, 0),
-('c5m5_bridge', 'l4d', 14466, 16658, 0, 1, 30, 'small', 22, 10, 0.170312, 0.170312, 0, 0, 0, 0);
+('c1m1_hotel', 'l4d2', 1829, 8518, 0, 1, 30, 'small', 5, 10, 0.170312, 0.170312, 0, 0, 0, 0),
+('c1m2_streets', 'l4d2', 13470, 7954, 0, 1, 30, 'small', 14, 10, 0.170312, 0.170312, 0, 0, 0, 0),
+('c1m3_mall', 'l4d2', 2976, 1695, 0, 1, 30, 'small', 8, 10, 0.170312, 0.170312, 0, 0, 0, 0),
+('c1m4_atrium', 'l4d2', 7604, -416, 0, 1, 30, 'small', 5, 10, 0.170312, 0.170312, 0, 0, 0, 0),
+('c2m1_highway', 'l4d2', 8585, 13642, 0, 1, 30, 'small', 20, 10, 0.170312, 0.170312, 0, 0, 0, 0),
+('c2m2_fairgrounds', 'l4d2', 8423, 5363, 0, 1, 30, 'small', 14, 10, 0.170312, 0.170312, 0, 0, 0, 0),
+('c2m3_coaster', 'l4d2', 8935, 6928, 0, 1, 30, 'small', 11, 10, 0.170312, 0.170312, 0, 0, 0, 0),
+('c2m4_barns', 'l4d2', 7466, 8596, 0, 1, 30, 'small', 12, 10, 0.170312, 0.170312, 0, 0, 0, 0),
+('c2m5_concert', 'l4d2', 5267, 5568, 0, 1, 30, 'small', 5, 10, 0.170312, 0.170312, 0, 0, 0, 0),
+('c3m1_plankcountry', 'l4d2', 13418, 12468, 0, 1, 30, 'small', 12, 10, 0.170312, 0.170312, 0, 0, 0, 0),
+('c3m2_swamp', 'l4d2', 12741, 13698, 0, 1, 30, 'small', 20, 10, 0.170312, 0.170312, 0, 0, 0, 0),
+('c3m3_shantytown', 'l4d2', 7582, 3647, 0, 1, 30, 'small', 10, 10, 0.170312, 0.170312, 0, 0, 0, 0),
+('c3m4_plantation', 'l4d2', 6625, 4589, 0, 1, 30, 'small', 10, 10, 0.170312, 0.170312, 0, 0, 0, 0),
+('c4m1_milltown_a', 'l4d2', 9457, 10870, 0, 1, 30, 'small', 14, 10, 0.170312, 0.170312, 0, 0, 0, 0),
+('c4m2_sugarmill_a', 'l4d2', 10459, 2124, 0, 1, 30, 'small', 18, 10, 0.170312, 0.170312, 0, 0, 0, 0),
+('c4m3_sugarmill_b', 'l4d2', 10156, 1946, 0, 1, 30, 'small', 18, 10, 0.170312, 0.170312, 0, 0, 0, 0),
+('c4m4_milltown_b', 'l4d2', 11414, 11943, 0, 1, 30, 'small', 16, 10, 0.170312, 0.170312, 0, 0, 0, 0),
+('c4m5_milltown_escape', 'l4d2', 11073, 11978, 0, 1, 30, 'small', 16, 10, 0.170312, 0.170312, 0, 0, 0, 0),
+('c5m1_waterfront', 'l4d2', 7786, 4019, 0, 1, 30, 'small', 9, 10, 0.170312, 0.170312, 0, 0, 0, 0),
+('c5m2_park', 'l4d2', 15435, 2762, 0, 1, 30, 'small', 15, 10, 0.170312, 0.170312, 0, 0, 0, 0),
+('c5m3_cemetery', 'l4d2', 7513, 11200, 0, 1, 30, 'small', 22, 10, 0.170312, 0.170312, 0, 0, 0, 0),
+('c5m4_quarter', 'l4d2', 7494, 5735, 0, 1, 30, 'small', 10, 10, 0.170312, 0.170312, 0, 0, 0, 0),
+('c5m5_bridge', 'l4d2', 14466, 16658, 0, 1, 30, 'small', 22, 10, 0.170312, 0.170312, 0, 0, 0, 0);
 
 --
 -- Table structure for table `hlstats_HostGroups`
@@ -3885,7 +4034,7 @@ CREATE TABLE IF NOT EXISTS `hlstats_HostGroups` (
   `pattern` varchar(255) NOT NULL default '',
   `name` varchar(255) NOT NULL default '',
   PRIMARY KEY  (`id`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci AUTO_INCREMENT=1 ;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci AUTO_INCREMENT=1 ;
 
 -- --------------------------------------------------------
 
@@ -3894,8 +4043,8 @@ CREATE TABLE IF NOT EXISTS `hlstats_HostGroups` (
 --
 
 CREATE TABLE IF NOT EXISTS `hlstats_Livestats` (
-  `player_id` int(10) NOT NULL default '0',
-  `server_id` int(10) NOT NULL default '0',
+  `player_id` int(10) unsigned NOT NULL default '0',
+  `server_id` int(10) unsigned NOT NULL default '0', 
   `cli_address` varchar(32) NOT NULL default '',
   `cli_city` varchar(64) NOT NULL default '',
   `cli_country` varchar(64) NOT NULL default '',
@@ -3915,13 +4064,14 @@ CREATE TABLE IF NOT EXISTS `hlstats_Livestats` (
   `is_dead` tinyint(1) NOT NULL default '0',
   `has_bomb` int(1) NOT NULL default '0',
   `ping` int(6) NOT NULL default '0',
-  `connected` int(10) NOT NULL default '0',
+  `connected` int(10) unsigned NOT NULL DEFAULT 0,
   `skill_change` int(10) NOT NULL default '0',
   `skill` int(10) NOT NULL default '0',
-  PRIMARY KEY  (`player_id`)
+  PRIMARY KEY  (`player_id`),
+  KEY `idx_server_team_conn` (`server_id`, `connected`, `team`)
 ) ENGINE=MEMORY DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE `hlstats_Maps_Counts` (
+CREATE TABLE IF NOT EXISTS `hlstats_Maps_Counts` (
   `rowId` int(11) NOT NULL auto_increment,
   `game` varchar(32) NOT NULL,
   `map` varchar(64) NOT NULL,
@@ -3929,14 +4079,78 @@ CREATE TABLE `hlstats_Maps_Counts` (
   `headshots` int(11) NOT NULL,
   PRIMARY KEY  (`game`,`map`),
   INDEX ( `rowId` )
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `hlstats_Map_Regions`
+--
+
+CREATE TABLE IF NOT EXISTS `hlstats_Map_Regions` (
+  `region_id` int(10) unsigned NOT NULL auto_increment,
+  `code` varchar(64) NOT NULL,
+  `name` varchar(128) NOT NULL,
+  `lat` decimal(8,4) NOT NULL default '0.0000',
+  `lng` decimal(8,4) NOT NULL default '0.0000',
+  `zoom` tinyint(2) unsigned NOT NULL default '4',
+  PRIMARY KEY (`region_id`),
+  UNIQUE KEY `code` (`code`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Dumping data for table `hlstats_Map_Regions`
+--
+
+INSERT INTO `hlstats_Map_Regions` (`code`, `name`, `lat`, `lng`, `zoom`) VALUES
+('EUROPE', 'Europe', 48.8000, 8.5000, 3),
+('NORTH AMERICA', 'North America', 45.0000, -97.0000, 3),
+('SOUTH AMERICA', 'South America', -14.8000, -61.2000, 3),
+('NORTH AFRICA', 'North Africa', 25.4000, 8.4000, 4),
+('SOUTH AFRICA', 'South Africa', -29.0000, 23.7000, 5),
+('NORTH EUROPE', 'North Europe', 62.6000, 15.4000, 4),
+('EAST EUROPE', 'East Europe', 51.9000, 31.8000, 4),
+('CANADA', 'Canada', 60.0000, -97.0000, 3),
+('GERMANY', 'Germany', 51.1000, 10.1000, 5),
+('FRANCE', 'France', 47.2000, 2.4000, 5),
+('SPAIN', 'Spain', 40.3000, -4.0000, 5),
+('UNITED KINGDOM', 'United Kingdom', 54.0000, -4.3000, 5),
+('DENMARK', 'Denmark', 56.1000, 9.2000, 6),
+('SWEDEN', 'Sweden', 63.2000, 16.3000, 4),
+('NORWAY', 'Norway', 65.6000, 13.1000, 4),
+('FINLAND', 'Finland', 65.1000, 26.6000, 4),
+('NETHERLANDS', 'Netherlands', 52.3000, 5.4000, 7),
+('BELGIUM', 'Belgium', 50.7000, 4.5000, 7),
+('POLAND', 'Poland', 52.1000, 19.3000, 6),
+('SUISSE', 'Suisse', 46.8000, 8.2000, 7),
+('AUSTRIA', 'Austria', 47.7000, 14.1000, 7),
+('ITALY', 'Italy', 42.6000, 12.7000, 5),
+('TURKEY', 'Turkey', 39.0000, 34.9000, 6),
+('ROMANIA', 'Romania', 45.9400, 24.9600, 6),
+('HUNGARY', 'Hungary', 47.1600, 19.5000, 7),
+('BRAZIL', 'Brazil', -12.0000, -53.1000, 4),
+('ARGENTINA', 'Argentina', -34.3000, -65.7000, 3),
+('RUSSIA', 'Russia', 65.7000, 98.8000, 3),
+('ASIA', 'Asia', 20.4000, 95.6000, 3),
+('CHINA', 'China', 36.2000, 104.0000, 4),
+('JAPAN', 'Japan', 36.2000, 136.8000, 5),
+('SOUTH KOREA', 'South Korea', 36.6000, 127.8000, 6),
+('TAIWAN', 'Taiwan', 23.6000, 121.0000, 7),
+('AUSTRALIA', 'Australia', -26.1000, 134.8000, 4),
+('WORLD', 'World', 25.0000, 8.5000, 2);
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `hlstats_Mods_Defaults`
+--
 
 CREATE TABLE IF NOT EXISTS `hlstats_Mods_Defaults` (
   `code` varchar(32) NOT NULL,
   `parameter` varchar(50) NOT NULL,
   `value` varchar(128) NOT NULL,
   PRIMARY KEY  (`code`,`parameter`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
 -- Dumping data for table `hlstats_Mods_Defaults`
@@ -3985,7 +4199,7 @@ CREATE TABLE IF NOT EXISTS `hlstats_Mods_Supported` (
   `code` varchar(32) NOT NULL,
   `name` varchar(128) NOT NULL,
   PRIMARY KEY  (`code`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
 -- Dumping data for table `hlstats_Mods_Supported`
@@ -4010,7 +4224,7 @@ CREATE TABLE IF NOT EXISTS `hlstats_Options` (
   `opttype` TINYINT NOT NULL DEFAULT '1',
   PRIMARY KEY  (`keyname`),
   INDEX ( `opttype` )
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
 -- Dumping data for table `hlstats_Options`
@@ -4092,7 +4306,7 @@ CREATE TABLE IF NOT EXISTS `hlstats_Options_Choices` (
   `isDefault` tinyint(1) NOT NULL default '0',
   PRIMARY KEY  (`keyname`,`value`),
   KEY `keyname` (`keyname`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
 INSERT INTO `hlstats_Options_Choices` (`keyname`, `value`, `text`, `isDefault`) VALUES
@@ -4124,6 +4338,7 @@ INSERT INTO `hlstats_Options_Choices` (`keyname`, `value`, `text`, `isDefault`) 
 ('google_map_region', 'SOUTH AFRICA', 'South Africa', 0),
 ('google_map_region', 'NORTH EUROPE', 'North Europe', 0),
 ('google_map_region', 'EAST EUROPE', 'East Europe', 0),
+('google_map_region', 'CANADA', 'Canada', 0),
 ('google_map_region', 'GERMANY', 'Germany', 0),
 ('google_map_region', 'FRANCE', 'France', 0),
 ('google_map_region', 'SPAIN', 'Spain', 0),
@@ -4140,6 +4355,7 @@ INSERT INTO `hlstats_Options_Choices` (`keyname`, `value`, `text`, `isDefault`) 
 ('google_map_region', 'ITALY', 'Italy', 0),
 ('google_map_region', 'TURKEY', 'Turkey', 0),
 ('google_map_region', 'ROMANIA', 'Romania', 0),
+('google_map_region', 'HUNGARY', 'Hungary', 0),
 ('google_map_region', 'BRAZIL', 'Brazil', 0),
 ('google_map_region', 'ARGENTINA', 'Argentina', 0),
 ('google_map_region', 'RUSSIA', 'Russia', 0),
@@ -4214,7 +4430,7 @@ CREATE TABLE IF NOT EXISTS `hlstats_PlayerNames` (
   `hits` int(11) unsigned NOT NULL default '0',
   PRIMARY KEY  (`playerId`,`name`),
   KEY `name16` (`name`(16))
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
 -- Table structure for table `hlstats_Players`
@@ -4222,7 +4438,7 @@ CREATE TABLE IF NOT EXISTS `hlstats_PlayerNames` (
 
 CREATE TABLE IF NOT EXISTS `hlstats_Players` (
   `playerId` int(10) unsigned NOT NULL auto_increment,
-  `last_event` int(11) NOT NULL default '0',
+  `last_event` int(10) unsigned NOT NULL DEFAULT 0,
   `connection_time` int(11) unsigned NOT NULL default '0',
   `lastName` varchar(64) NOT NULL default '',
   `lastAddress` varchar(32) NOT NULL default '',
@@ -4254,14 +4470,15 @@ CREATE TABLE IF NOT EXISTS `hlstats_Players` (
   `death_streak` int(6) NOT NULL default '0',
   `blockavatar` int(1) unsigned NOT NULL default '0',
   `activity` int(11) NOT NULL default '100',
-  `createdate` int(11) NOT NULL default'0',
+  `createdate` int(10) unsigned NOT NULL DEFAULT 0,
   PRIMARY KEY  (`playerId`),
   KEY `playerclan` (`clan`,`playerId`),
   KEY `skill` (`skill`),
-  KEY `game` (`game`),
   KEY `kills` (`kills`),
-  KEY `hideranking` (`hideranking`)
-) ENGINE=MyISAM  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  KEY `idx_last_event` (`last_event`),
+  KEY `idx_game_rank_skill` (`game`, `hideranking`, `skill`),
+  KEY `idx_game_rank_kills` (`game`, `hideranking`, `kills`)
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 
@@ -4276,7 +4493,7 @@ CREATE TABLE IF NOT EXISTS `hlstats_Players_Awards` (
   `count` int(11) unsigned NOT NULL default '0',
   `game` varchar(32) NOT NULL,
   PRIMARY KEY  (`awardTime`,`awardId`,`playerId`,`game`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 
@@ -4302,7 +4519,7 @@ CREATE TABLE IF NOT EXISTS `hlstats_Players_History` (
   `skill_change` int(11) NOT NULL default '0',
   UNIQUE KEY `eventTime` (`eventTime`,`playerId`,`game`),
   KEY `playerId` (`playerId`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 
@@ -4313,8 +4530,10 @@ CREATE TABLE IF NOT EXISTS `hlstats_Players_History` (
 CREATE TABLE IF NOT EXISTS `hlstats_Players_Ribbons` (
   `playerId` int(11) unsigned NOT NULL default '0',
   `ribbonId` int(11) unsigned NOT NULL default '0',
-  `game` varchar(32) NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  `game` varchar(32) NOT NULL default '',
+  PRIMARY KEY (`playerId`, `ribbonId`, `game`),
+  KEY `idx_ribbon` (`ribbonId`, `game`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 
@@ -4329,7 +4548,7 @@ CREATE TABLE IF NOT EXISTS `hlstats_PlayerUniqueIds` (
   `merge` int(10) unsigned default NULL,
   PRIMARY KEY  (`uniqueId`,`game`),
   KEY `playerId` (`playerId`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 
@@ -4347,92 +4566,92 @@ CREATE TABLE IF NOT EXISTS `hlstats_Ranks` (
   PRIMARY KEY  (`rankId`),
   UNIQUE KEY `rankgame` (`image`,`game`),
   KEY `game` (`game`(8))
-) ENGINE=MyISAM  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci AUTO_INCREMENT=1 ;
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci AUTO_INCREMENT=1 ;
 
 --
 -- Dumping data for table `hlstats_Ranks`
 --
 
 INSERT INTO `hlstats_Ranks` (`game`, `image`, `minKills`, `maxKills`, `rankName`)
-(SELECT `code`, 'recruit', 0, 49, 'Recruit' FROM `hlstats_Games`);
+SELECT `code`, 'recruit', 0, 49, 'Recruit' FROM `hlstats_Games`;
 INSERT INTO `hlstats_Ranks` (`game`, `image`, `minKills`, `maxKills`, `rankName`)
-(SELECT `code`, 'private', 50, 99, 'Private' FROM `hlstats_Games`);
+SELECT `code`, 'private', 50, 99, 'Private' FROM `hlstats_Games`;
 INSERT INTO `hlstats_Ranks` (`game`, `image`, `minKills`, `maxKills`, `rankName`)
-(SELECT `code`, 'private-first-class', 100, 199, 'Private First Class' FROM `hlstats_Games`);
+SELECT `code`, 'private-first-class', 100, 199, 'Private First Class' FROM `hlstats_Games`;
 INSERT INTO `hlstats_Ranks` (`game`, `image`, `minKills`, `maxKills`, `rankName`)
-(SELECT `code`, 'lance-corporal', 200, 299, 'Lance Corporal' FROM `hlstats_Games`);
+SELECT `code`, 'lance-corporal', 200, 299, 'Lance Corporal' FROM `hlstats_Games`;
 INSERT INTO `hlstats_Ranks` (`game`, `image`, `minKills`, `maxKills`, `rankName`)
-(SELECT `code`, 'corporal', 300, 399, 'Corporal' FROM `hlstats_Games`);
+SELECT `code`, 'corporal', 300, 399, 'Corporal' FROM `hlstats_Games`;
 INSERT INTO `hlstats_Ranks` (`game`, `image`, `minKills`, `maxKills`, `rankName`)
-(SELECT `code`, 'sergeant', 400, 499, 'Sergeant' FROM `hlstats_Games`);
+SELECT `code`, 'sergeant', 400, 499, 'Sergeant' FROM `hlstats_Games`;
 INSERT INTO `hlstats_Ranks` (`game`, `image`, `minKills`, `maxKills`, `rankName`)
-(SELECT `code`, 'staff-sergeant', 500, 599, 'Staff Sergeant' FROM `hlstats_Games`);
+SELECT `code`, 'staff-sergeant', 500, 599, 'Staff Sergeant' FROM `hlstats_Games`;
 INSERT INTO `hlstats_Ranks` (`game`, `image`, `minKills`, `maxKills`, `rankName`)
-(SELECT `code`, 'gunnery-sergeant', 600, 699, 'Gunnery Sergeant' FROM `hlstats_Games`);
+SELECT `code`, 'gunnery-sergeant', 600, 699, 'Gunnery Sergeant' FROM `hlstats_Games`;
 INSERT INTO `hlstats_Ranks` (`game`, `image`, `minKills`, `maxKills`, `rankName`)
-(SELECT `code`, 'master-sergeant', 700, 799, 'Master Sergeant' FROM `hlstats_Games`);
+SELECT `code`, 'master-sergeant', 700, 799, 'Master Sergeant' FROM `hlstats_Games`;
 INSERT INTO `hlstats_Ranks` (`game`, `image`, `minKills`, `maxKills`, `rankName`)
-(SELECT `code`, 'first-sergeant', 800, 899, 'First Sergeant' FROM `hlstats_Games`);
+SELECT `code`, 'first-sergeant', 800, 899, 'First Sergeant' FROM `hlstats_Games`;
 INSERT INTO `hlstats_Ranks` (`game`, `image`, `minKills`, `maxKills`, `rankName`)
-(SELECT `code`, 'master-chief', 900, 999, 'Master Chief' FROM `hlstats_Games`);
+SELECT `code`, 'master-chief', 900, 999, 'Master Chief' FROM `hlstats_Games`;
 INSERT INTO `hlstats_Ranks` (`game`, `image`, `minKills`, `maxKills`, `rankName`)
-(SELECT `code`, 'sergeant-major', 1000, 1199, 'Sergeant Major' FROM `hlstats_Games`);
+SELECT `code`, 'sergeant-major', 1000, 1199, 'Sergeant Major' FROM `hlstats_Games`;
 INSERT INTO `hlstats_Ranks` (`game`, `image`, `minKills`, `maxKills`, `rankName`)
-(SELECT `code`, 'ensign', 1200, 1399, 'Ensign' FROM `hlstats_Games`);
+SELECT `code`, 'ensign', 1200, 1399, 'Ensign' FROM `hlstats_Games`;
 INSERT INTO `hlstats_Ranks` (`game`, `image`, `minKills`, `maxKills`, `rankName`)
-(SELECT `code`, 'third-lieutenant', 1400, 1599, 'Third Lieutenant' FROM `hlstats_Games`);
+SELECT `code`, 'third-lieutenant', 1400, 1599, 'Third Lieutenant' FROM `hlstats_Games`;
 INSERT INTO `hlstats_Ranks` (`game`, `image`, `minKills`, `maxKills`, `rankName`)
-(SELECT `code`, 'second-lieutenant', 1600, 1799, 'Second Lieutenant' FROM `hlstats_Games`);
+SELECT `code`, 'second-lieutenant', 1600, 1799, 'Second Lieutenant' FROM `hlstats_Games`;
 INSERT INTO `hlstats_Ranks` (`game`, `image`, `minKills`, `maxKills`, `rankName`)
-(SELECT `code`, 'first-lieutenant', 1800, 1999, 'First Lieutenant' FROM `hlstats_Games`);
+SELECT `code`, 'first-lieutenant', 1800, 1999, 'First Lieutenant' FROM `hlstats_Games`;
 INSERT INTO `hlstats_Ranks` (`game`, `image`, `minKills`, `maxKills`, `rankName`)
-(SELECT `code`, 'captain', 2000, 2249, 'Captain' FROM `hlstats_Games`);
+SELECT `code`, 'captain', 2000, 2249, 'Captain' FROM `hlstats_Games`;
 INSERT INTO `hlstats_Ranks` (`game`, `image`, `minKills`, `maxKills`, `rankName`)
-(SELECT `code`, 'group-captain', 2250, 2499, 'Group Captain' FROM `hlstats_Games`);
+SELECT `code`, 'group-captain', 2250, 2499, 'Group Captain' FROM `hlstats_Games`;
 INSERT INTO `hlstats_Ranks` (`game`, `image`, `minKills`, `maxKills`, `rankName`)
-(SELECT `code`, 'senior-captain', 2500, 2749, 'Senior Captain' FROM `hlstats_Games`);
+SELECT `code`, 'senior-captain', 2500, 2749, 'Senior Captain' FROM `hlstats_Games`;
 INSERT INTO `hlstats_Ranks` (`game`, `image`, `minKills`, `maxKills`, `rankName`)
-(SELECT `code`, 'lieutenant-major', 2750, 2999, 'Lieutenant Major' FROM `hlstats_Games`);
+SELECT `code`, 'lieutenant-major', 2750, 2999, 'Lieutenant Major' FROM `hlstats_Games`;
 INSERT INTO `hlstats_Ranks` (`game`, `image`, `minKills`, `maxKills`, `rankName`)
-(SELECT `code`, 'major', 3000, 3499, 'Major' FROM `hlstats_Games`);
+SELECT `code`, 'major', 3000, 3499, 'Major' FROM `hlstats_Games`;
 INSERT INTO `hlstats_Ranks` (`game`, `image`, `minKills`, `maxKills`, `rankName`)
-(SELECT `code`, 'group-major', 3500, 3999, 'Group Major' FROM `hlstats_Games`);
+SELECT `code`, 'group-major', 3500, 3999, 'Group Major' FROM `hlstats_Games`;
 INSERT INTO `hlstats_Ranks` (`game`, `image`, `minKills`, `maxKills`, `rankName`)
-(SELECT `code`, 'lieutenant-commander', 4000, 4499, 'Lieutenant Commander' FROM `hlstats_Games`);
+SELECT `code`, 'lieutenant-commander', 4000, 4499, 'Lieutenant Commander' FROM `hlstats_Games`;
 INSERT INTO `hlstats_Ranks` (`game`, `image`, `minKills`, `maxKills`, `rankName`)
-(SELECT `code`, 'commander', 4500, 4999, 'Commander' FROM `hlstats_Games`);
+SELECT `code`, 'commander', 4500, 4999, 'Commander' FROM `hlstats_Games`;
 INSERT INTO `hlstats_Ranks` (`game`, `image`, `minKills`, `maxKills`, `rankName`)
-(SELECT `code`, 'group-commander', 5000, 5749, 'Group Commander' FROM `hlstats_Games`);
+SELECT `code`, 'group-commander', 5000, 5749, 'Group Commander' FROM `hlstats_Games`;
 INSERT INTO `hlstats_Ranks` (`game`, `image`, `minKills`, `maxKills`, `rankName`)
-(SELECT `code`, 'lieutenant-colonel', 5750, 6499, 'Lieutenant Colonel' FROM `hlstats_Games`);
+SELECT `code`, 'lieutenant-colonel', 5750, 6499, 'Lieutenant Colonel' FROM `hlstats_Games`;
 INSERT INTO `hlstats_Ranks` (`game`, `image`, `minKills`, `maxKills`, `rankName`)
-(SELECT `code`, 'colonel', 6500, 7249, 'Colonel' FROM `hlstats_Games`);
+SELECT `code`, 'colonel', 6500, 7249, 'Colonel' FROM `hlstats_Games`;
 INSERT INTO `hlstats_Ranks` (`game`, `image`, `minKills`, `maxKills`, `rankName`)
-(SELECT `code`, 'brigadier', 7250, 7999, 'Brigadier' FROM `hlstats_Games`);
+SELECT `code`, 'brigadier', 7250, 7999, 'Brigadier' FROM `hlstats_Games`;
 INSERT INTO `hlstats_Ranks` (`game`, `image`, `minKills`, `maxKills`, `rankName`)
-(SELECT `code`, 'brigadier-general', 8000, 8999, 'Brigadier General' FROM `hlstats_Games`);
+SELECT `code`, 'brigadier-general', 8000, 8999, 'Brigadier General' FROM `hlstats_Games`;
 INSERT INTO `hlstats_Ranks` (`game`, `image`, `minKills`, `maxKills`, `rankName`)
-(SELECT `code`, 'major-general', 9000, 9999, 'Major General' FROM `hlstats_Games`);
+SELECT `code`, 'major-general', 9000, 9999, 'Major General' FROM `hlstats_Games`;
 INSERT INTO `hlstats_Ranks` (`game`, `image`, `minKills`, `maxKills`, `rankName`)
-(SELECT `code`, 'lieutenant-general', 10000, 12499, 'Lieutenant General' FROM `hlstats_Games`);
+SELECT `code`, 'lieutenant-general', 10000, 12499, 'Lieutenant General' FROM `hlstats_Games`;
 INSERT INTO `hlstats_Ranks` (`game`, `image`, `minKills`, `maxKills`, `rankName`)
-(SELECT `code`, 'general', 12500, 14999, 'General' FROM `hlstats_Games`);
+SELECT `code`, 'general', 12500, 14999, 'General' FROM `hlstats_Games`;
 INSERT INTO `hlstats_Ranks` (`game`, `image`, `minKills`, `maxKills`, `rankName`)
-(SELECT `code`, 'commander-general', 15000, 17499, 'Commander General' FROM `hlstats_Games`);
+SELECT `code`, 'commander-general', 15000, 17499, 'Commander General' FROM `hlstats_Games`;
 INSERT INTO `hlstats_Ranks` (`game`, `image`, `minKills`, `maxKills`, `rankName`)
-(SELECT `code`, 'field-vice-marshal', 17500, 19999, 'Field Vice Marshal' FROM `hlstats_Games`);
+SELECT `code`, 'field-vice-marshal', 17500, 19999, 'Field Vice Marshal' FROM `hlstats_Games`;
 INSERT INTO `hlstats_Ranks` (`game`, `image`, `minKills`, `maxKills`, `rankName`)
-(SELECT `code`, 'field-marshal', 20000, 22499, 'Field Marshal' FROM `hlstats_Games`);
+SELECT `code`, 'field-marshal', 20000, 22499, 'Field Marshal' FROM `hlstats_Games`;
 INSERT INTO `hlstats_Ranks` (`game`, `image`, `minKills`, `maxKills`, `rankName`)
-(SELECT `code`, 'vice-commander-of-the-army', 22500, 24999, 'Vice Commander of the Army' FROM `hlstats_Games`);
+SELECT `code`, 'vice-commander-of-the-army', 22500, 24999, 'Vice Commander of the Army' FROM `hlstats_Games`;
 INSERT INTO `hlstats_Ranks` (`game`, `image`, `minKills`, `maxKills`, `rankName`)
-(SELECT `code`, 'commander-of-the-army', 25000, 27499, 'Commander of the Army' FROM `hlstats_Games`);
+SELECT `code`, 'commander-of-the-army', 25000, 27499, 'Commander of the Army' FROM `hlstats_Games`;
 INSERT INTO `hlstats_Ranks` (`game`, `image`, `minKills`, `maxKills`, `rankName`)
-(SELECT `code`, 'high-commander', 27500, 29999, 'High Commander' FROM `hlstats_Games`);
+SELECT `code`, 'high-commander', 27500, 29999, 'High Commander' FROM `hlstats_Games`;
 INSERT INTO `hlstats_Ranks` (`game`, `image`, `minKills`, `maxKills`, `rankName`)
-(SELECT `code`, 'supreme-commander', 30000, 34999, 'Supreme Commander' FROM `hlstats_Games`);
+SELECT `code`, 'supreme-commander', 30000, 34999, 'Supreme Commander' FROM `hlstats_Games`;
 INSERT INTO `hlstats_Ranks` (`game`, `image`, `minKills`, `maxKills`, `rankName`)
-(SELECT `code`, 'terminator', 35000, 9999999, 'Terminator' FROM `hlstats_Games`);
+SELECT `code`, 'terminator', 35000, 9999999, 'Terminator' FROM `hlstats_Games`;
 
 DELETE FROM `hlstats_Ranks` WHERE `game` = 'nd';
 OPTIMIZE TABLE `hlstats_Ranks`;
@@ -4516,7 +4735,7 @@ CREATE TABLE IF NOT EXISTS `hlstats_Ribbons` (
   `ribbonName` varchar(50) NOT NULL,
   PRIMARY KEY  (`ribbonId`),
   UNIQUE KEY `award` (`awardCode`,`awardCount`,`game`, `special`)
-) ENGINE=MyISAM  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
 -- Dumping data for table `hlstats_Ribbons`
@@ -4829,9 +5048,6 @@ INSERT INTO `hlstats_Ribbons` (`awardCode`, `awardCount`, `special`, `game`, `im
 ('minigun',1,0,'tf','1_minigun.png','Bronze Minigun'),
 ('minigun',5,0,'tf','2_minigun.png','Silver Minigun'),
 ('minigun',10,0,'tf','3_minigun.png','Gold Minigun'),
-('obj_sentrygun',1,0,'tf','1_obj_sentrygun.png','Bronze Sentry Gun'),
-('obj_sentrygun',5,0,'tf','2_obj_sentrygun.png','Silver Sentry Gun'),
-('obj_sentrygun',10,0,'tf','3_obj_sentrygun.png','Gold Sentry Gun'),
 ('knife',1,0,'tf','1_knife.png','Bronze Knife'),
 ('knife',5,0,'tf','2_knife.png','Silver Knife'),
 ('knife',10,0,'tf','3_knife.png','Gold Knife'),
@@ -5611,7 +5827,7 @@ INSERT INTO `hlstats_Ribbons` (`awardCode`, `awardCount`, `special`, `game`, `im
 ('deagle',20,0,'cstrike','4_deagle.png','Gold Desert Eagle'),
 ('elite',20,0,'cstrike','4_elite.png','Gold Dual Beretta Elites'),
 ('famas',20,0,'cstrike','4_famas.png','Gold Fusil Automatique'),
-('galil',20,0,'cstrike','4_galil.png','GoldGalil'),
+('galil',20,0,'cstrike','4_galil.png','Gold Galil'),
 ('glock18',20,0,'cstrike','4_glock.png','Gold Glock'),
 ('grenade',20,0,'cstrike','4_hegrenade.png','Gold Grenade'),
 ('knife',20,0,'cstrike','4_knife.png','Gold Combat Knife'),
@@ -5633,8 +5849,8 @@ INSERT INTO `hlstats_Ribbons` (`awardCode`, `awardCount`, `special`, `game`, `im
 ('galil',30,0,'cstrike','5_galil.png','Platinum Galil'),
 ('glock18',30,0,'cstrike','5_glock.png','Platinum Glock'),
 ('grenade',30,0,'cstrike','5_hegrenade.png','Platinum Grenade'),
-('knife',30,0,'cstrike','5_knife.png','PlatinumCombat Knife'),
-('latency',30,0,'cstrike','5_latency.png','PlatinumLowpinger'),
+('knife',30,0,'cstrike','5_knife.png','Platinum Combat Knife'),
+('latency',30,0,'cstrike','5_latency.png','Platinum Lowpinger'),
 ('m3',30,0,'cstrike','5_m3.png','Platinum M3 Super'),
 ('m4a1',30,0,'cstrike','5_m4a1.png','Platinum Colt M4A1'),
 ('p90',30,0,'cstrike','5_p90.png','Platinum P90'),
@@ -5646,7 +5862,7 @@ INSERT INTO `hlstats_Ribbons` (`awardCode`, `awardCount`, `special`, `game`, `im
 ('Assassinated_The_VIP',30,0,'cstrike','5_killed_a_hostage.png','Platinum Top Assassin'),
 ('ak47',50,0,'cstrike','6_ak47.png','Supreme AK47'),
 ('awp',50,0,'cstrike','6_awp.png','Supreme AWP Sniper'),
-('deagle',50,0,'cstrike','6_deagle.png','Supremef Desert Eagle'),
+('deagle',50,0,'cstrike','6_deagle.png','Supreme Desert Eagle'),
 ('elite',50,0,'cstrike','6_elite.png','Supreme Dual Beretta Elites'),
 ('famas',50,0,'cstrike','6_famas.png','Supreme Fusil Automatique'),
 ('galil',50,0,'cstrike','6_galil.png','Supreme Galil'),
@@ -5656,7 +5872,7 @@ INSERT INTO `hlstats_Ribbons` (`awardCode`, `awardCount`, `special`, `game`, `im
 ('latency',50,0,'cstrike','6_latency.png','Supreme Lowpinger'),
 ('m3',50,0,'cstrike','6_m3.png','Supreme M3 Super'),
 ('m4a1',50,0,'cstrike','6_m4a1.png','Supreme Colt M4A1'),
-('p90',50,0,'cstrike','6_p90.png','Supremef P90'),
+('p90',50,0,'cstrike','6_p90.png','Supreme P90'),
 ('scout',50,0,'cstrike','6_scout.png','Supreme Scout Elite'),
 ('usp',50,0,'cstrike','6_usp.png','Supreme USP'),
 ('Defused_The_Bomb',50,0,'cstrike','6_defused_the_bomb.png','Supreme Bomb Defuser'),
@@ -5805,11 +6021,11 @@ INSERT INTO `hlstats_Ribbons` (`awardCode`, `awardCount`, `special`, `game`, `im
 ('galil', 30, 0, 'csp', '5_galil.png', 'Platinum Galil'),
 ('galil', 50, 0, 'csp', '6_galil.png', 'Supreme Galil'),
 ('famas', 1, 0, 'csp', '1_famas.png', 'Award of Famas'),
-('famas', 5, 0, 'csp', '2_famas.png', 'Award of Famas'),
-('famas', 12, 0, 'csp', '3_famas.png', 'Award of Famas'),
-('famas', 20, 0, 'csp', '4_famas.png', 'Award of Famas'),
-('famas', 30, 0, 'csp', '5_famas.png', 'Award of Famas'),
-('famas', 50, 0, 'csp', '6_famas.png', 'Award of Famas'),
+('famas', 5, 0, 'csp', '2_famas.png', 'Bronze Famas'),
+('famas', 12, 0, 'csp', '3_famas.png', 'Silver Famas'),
+('famas', 20, 0, 'csp', '4_famas.png', 'Gold Famas'),
+('famas', 30, 0, 'csp', '5_famas.png', 'Platinum Famas'),
+('famas', 50, 0, 'csp', '6_famas.png', 'Supreme Famas'),
 ('latency', 1, 0, 'csp', '1_latency.png', 'Award of Lowpinger'),
 ('latency', 5, 0, 'csp', '2_latency.png', 'Bronze Lowpinger'),
 ('latency', 12, 0, 'csp', '3_latency.png', 'Silver Lowpinger'),
@@ -6085,7 +6301,7 @@ INSERT INTO `hlstats_Ribbons` (`awardCode`, `awardCount`, `special`, `game`, `im
 ('galilar', 1, 0, 'csgo', '1_galilar.png', 'Award of Galilar'),
 ('glock', 1, 0, 'csgo', '1_glock.png', 'Award of Glock'),
 ('hegrenade', 1, 0, 'csgo', '1_hegrenade.png', 'Award of HE Grenades'),
-('P2000', 1, 0, 'csgo', '1_hkp2000.png', 'Award of P2000'),
+('hkp2000', 1, 0, 'csgo', '1_hkp2000.png', 'Award of P2000'),
 ('knife', 1, 0, 'csgo', '1_knife.png', 'Award of Combat Knife'),
 ('m4a1', 1, 0, 'csgo', '1_m4a1.png', 'Award of M4A4'),
 ('m249', 1, 0, 'csgo', '1_m249.png', 'Award of M249'),
@@ -6100,7 +6316,7 @@ INSERT INTO `hlstats_Ribbons` (`awardCode`, `awardCount`, `special`, `game`, `im
 ('sawedoff', 1, 0, 'csgo', '1_sawedoff.png', 'Award of Sawed-Off'),
 ('scar20', 1, 0, 'csgo', '1_scar20.png', 'Award of SCAR-20'),
 ('sg556', 1, 0, 'csgo', '1_sg553.png', 'Award of SG 553'),
-('sg08', 1, 0, 'csgo', '1_sg08.png', 'Award of SG 08'),
+('ssg08', 1, 0, 'csgo', '1_sg08.png', 'Award of SG 08'),
 ('taser', 1, 0, 'csgo', '1_taser.png', 'Award of Zeus x27'),
 ('tec9', 1, 0, 'csgo', '1_tec9.png', 'Award of Tec9'),
 ('ump45', 1, 0, 'csgo', '1_ump45.png', 'Award of UMP-45'),
@@ -6116,7 +6332,7 @@ INSERT INTO `hlstats_Ribbons` (`awardCode`, `awardCount`, `special`, `game`, `im
 ('galilar', 5, 0, 'csgo', '2_galilar.png', 'Bronze Galilar'),
 ('glock', 5, 0, 'csgo', '2_glock.png', 'Bronze Glock'),
 ('hegrenade', 5, 0, 'csgo', '2_hegrenade.png', 'Bronze HE Grenades'),
-('P2000', 5, 0, 'csgo', '2_hkp2000.png', 'Bronze P2000'),
+('hkp2000', 5, 0, 'csgo', '2_hkp2000.png', 'Bronze P2000'),
 ('knife', 5, 0, 'csgo', '2_knife.png', 'Bronze Combat Knife'),
 ('m4a1', 5, 0, 'csgo', '2_m4a1.png', 'Bronze M4A4'),
 ('m249', 5, 0, 'csgo', '2_m249.png', 'Bronze M249'),
@@ -6131,7 +6347,7 @@ INSERT INTO `hlstats_Ribbons` (`awardCode`, `awardCount`, `special`, `game`, `im
 ('sawedoff', 5, 0, 'csgo', '2_sawedoff.png', 'Bronze Sawed-Off'),
 ('scar20', 5, 0, 'csgo', '2_scar20.png', 'Bronze SCAR-20'),
 ('sg556', 5, 0, 'csgo', '2_sg553.png', 'Bronze SG 553'),
-('sg08', 5, 0, 'csgo', '2_sg08.png', 'Bronze SG 08'),
+('ssg08', 5, 0, 'csgo', '2_sg08.png', 'Bronze SG 08'),
 ('taser', 5, 0, 'csgo', '2_taser.png', 'Bronze Zeus x27'),
 ('tec9', 5, 0, 'csgo', '2_tec9.png', 'Bronze Tec9'),
 ('ump45', 5, 0, 'csgo', '2_ump45.png', 'Bronze UMP-45'),
@@ -6147,7 +6363,7 @@ INSERT INTO `hlstats_Ribbons` (`awardCode`, `awardCount`, `special`, `game`, `im
 ('galilar', 12, 0, 'csgo', '3_galilar.png', 'Silver Galilar'),
 ('glock', 12, 0, 'csgo', '3_glock.png', 'Silver Glock'),
 ('hegrenade', 12, 0, 'csgo', '3_hegrenade.png', 'Silver HE Grenades'),
-('P2000', 12, 0, 'csgo', '3_hkp2000.png', 'Silver P2000'),
+('hkp2000', 12, 0, 'csgo', '3_hkp2000.png', 'Silver P2000'),
 ('knife', 12, 0, 'csgo', '3_knife.png', 'Silver Combat Knife'),
 ('m4a1', 12, 0, 'csgo', '3_m4a1.png', 'Silver M4A4'),
 ('m249', 12, 0, 'csgo', '3_m249.png', 'Silver M249'),
@@ -6162,7 +6378,7 @@ INSERT INTO `hlstats_Ribbons` (`awardCode`, `awardCount`, `special`, `game`, `im
 ('sawedoff', 12, 0, 'csgo', '3_sawedoff.png', 'Silver Sawed-Off'),
 ('scar20', 12, 0, 'csgo', '3_scar20.png', 'Silver SCAR-20'),
 ('sg556', 12, 0, 'csgo', '3_sg553.png', 'Silver SG 553'),
-('sg08', 12, 0, 'csgo', '3_sg08.png', 'Silver SG 08'),
+('ssg08', 12, 0, 'csgo', '3_sg08.png', 'Silver SG 08'),
 ('taser', 12, 0, 'csgo', '3_taser.png', 'Silver Zeus x27'),
 ('tec9', 12, 0, 'csgo', '3_tec9.png', 'Silver Tec9'),
 ('ump45', 12, 0, 'csgo', '3_ump45.png', 'Silver UMP-45'),
@@ -6178,7 +6394,7 @@ INSERT INTO `hlstats_Ribbons` (`awardCode`, `awardCount`, `special`, `game`, `im
 ('galilar', 20, 0, 'csgo', '4_galilar.png', 'Gold Galilar'),
 ('glock', 20, 0, 'csgo', '4_glock.png', 'Gold Glock'),
 ('hegrenade', 20, 0, 'csgo', '4_hegrenade.png', 'Gold HE Grenades'),
-('P2000', 20, 0, 'csgo', '4_hkp2000.png', 'Gold P2000'),
+('hkp2000', 20, 0, 'csgo', '4_hkp2000.png', 'Gold P2000'),
 ('knife', 20, 0, 'csgo', '4_knife.png', 'Gold Combat Knife'),
 ('m4a1', 20, 0, 'csgo', '4_m4a1.png', 'Gold M4A4'),
 ('m249', 20, 0, 'csgo', '4_m249.png', 'Gold M249'),
@@ -6193,7 +6409,7 @@ INSERT INTO `hlstats_Ribbons` (`awardCode`, `awardCount`, `special`, `game`, `im
 ('sawedoff', 20, 0, 'csgo', '4_sawedoff.png', 'Gold Sawed-Off'),
 ('scar20', 20, 0, 'csgo', '4_scar20.png', 'Gold SCAR-20'),
 ('sg556', 20, 0, 'csgo', '4_sg553.png', 'Gold SG 553'),
-('sg08', 20, 0, 'csgo', '4_sg08.png', 'Gold SG 08'),
+('ssg08', 20, 0, 'csgo', '4_sg08.png', 'Gold SG 08'),
 ('taser', 20, 0, 'csgo', '4_taser.png', 'Gold Zeus x27'),
 ('tec9', 20, 0, 'csgo', '4_tec9.png', 'Gold Tec9'),
 ('ump45', 20, 0, 'csgo', '4_ump45.png', 'Gold UMP-45'),
@@ -6209,7 +6425,7 @@ INSERT INTO `hlstats_Ribbons` (`awardCode`, `awardCount`, `special`, `game`, `im
 ('galilar', 30, 0, 'csgo', '5_galilar.png', 'Platinum Galilar'),
 ('glock', 30, 0, 'csgo', '5_glock.png', 'Platinum Glock'),
 ('hegrenade', 30, 0, 'csgo', '5_hegrenade.png', 'Platinum HE Grenades'),
-('P2000', 30, 0, 'csgo', '5_hkp2000.png', 'Platinum P2000'),
+('hkp2000', 30, 0, 'csgo', '5_hkp2000.png', 'Platinum P2000'),
 ('knife', 30, 0, 'csgo', '5_knife.png', 'Platinum Combat Knife'),
 ('m4a1', 30, 0, 'csgo', '5_m4a1.png', 'Platinum M4A4'),
 ('m249', 30, 0, 'csgo', '5_m249.png', 'Platinum M249'),
@@ -6224,7 +6440,7 @@ INSERT INTO `hlstats_Ribbons` (`awardCode`, `awardCount`, `special`, `game`, `im
 ('sawedoff', 30, 0, 'csgo', '5_sawedoff.png', 'Platinum Sawed-Off'),
 ('scar20', 30, 0, 'csgo', '5_scar20.png', 'Platinum SCAR-20'),
 ('sg556', 30, 0, 'csgo', '5_sg553.png', 'Platinum SG 553'),
-('sg08', 30, 0, 'csgo', '5_sg08.png', 'Platinum SG 08'),
+('ssg08', 30, 0, 'csgo', '5_sg08.png', 'Platinum SG 08'),
 ('taser', 30, 0, 'csgo', '5_taser.png', 'Platinum Zeus x27'),
 ('tec9', 30, 0, 'csgo', '5_tec9.png', 'Platinum Tec9'),
 ('ump45', 30, 0, 'csgo', '5_ump45.png', 'Platinum UMP-45'),
@@ -6240,7 +6456,7 @@ INSERT INTO `hlstats_Ribbons` (`awardCode`, `awardCount`, `special`, `game`, `im
 ('galilar', 50, 0, 'csgo', '6_galilar.png', 'Supreme Galilar'),
 ('glock', 50, 0, 'csgo', '6_glock.png', 'Supreme Glock'),
 ('hegrenade', 50, 0, 'csgo', '6_hegrenade.png', 'Supreme HE Grenades'),
-('P2000', 50, 0, 'csgo', '6_hkp2000.png', 'Supreme P2000'),
+('hkp2000', 50, 0, 'csgo', '6_hkp2000.png', 'Supreme P2000'),
 ('knife', 50, 0, 'csgo', '6_knife.png', 'Supreme Combat Knife'),
 ('m4a1', 50, 0, 'csgo', '6_m4a1.png', 'Supreme M4A4'),
 ('m249', 50, 0, 'csgo', '6_m249.png', 'Supreme M249'),
@@ -6255,7 +6471,7 @@ INSERT INTO `hlstats_Ribbons` (`awardCode`, `awardCount`, `special`, `game`, `im
 ('sawedoff', 50, 0, 'csgo', '6_sawedoff.png', 'Supreme Sawed-Off'),
 ('scar20', 50, 0, 'csgo', '6_scar20.png', 'Supreme SCAR-20'),
 ('sg556', 50, 0, 'csgo', '6_sg553.png', 'Supreme SG 553'),
-('sg08', 50, 0, 'csgo', '6_sg08.png', 'Supreme SG 08'),
+('ssg08', 50, 0, 'csgo', '6_sg08.png', 'Supreme SG 08'),
 ('taser', 50, 0, 'csgo', '6_taser.png', 'Supreme Zeus x27'),
 ('tec9', 50, 0, 'csgo', '6_tec9.png', 'Supreme Tec9'),
 ('ump45', 50, 0, 'csgo', '6_ump45.png', 'Supreme UMP-45'),
@@ -6789,7 +7005,7 @@ CREATE TABLE IF NOT EXISTS `hlstats_Roles` (
   `deaths` int(6) unsigned NOT NULL default '0',
   PRIMARY KEY  (`roleId`),
   UNIQUE KEY `gamecode` (`game`,`code`)
-) ENGINE=MyISAM  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
 -- Dumping data for table `hlstats_Roles`
@@ -6988,7 +7204,7 @@ CREATE TABLE IF NOT EXISTS `hlstats_Servers` (
   `map_rounds` int(6) NOT NULL default '0',
   `map_ct_wins` int(10) NOT NULL default '0',
   `map_ts_wins` int(10) NOT NULL default '0',
-  `map_started` int(10) NOT NULL default '0',
+  `map_started` int(10) unsigned NOT NULL DEFAULT 0,
   `map_changes` int(10) NOT NULL default '0',
   `ct_shots` int(11) NOT NULL default '0',
   `ct_hits` int(11) NOT NULL default '0',
@@ -7005,7 +7221,7 @@ CREATE TABLE IF NOT EXISTS `hlstats_Servers` (
   `last_event` int(10) unsigned NOT NULL default '0',
   PRIMARY KEY  (`serverId`),
   UNIQUE KEY `addressport` (`address`,`port`)
-) ENGINE=MyISAM  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci PACK_KEYS=0;
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci PACK_KEYS=0;
 
 -- --------------------------------------------------------
 
@@ -7020,7 +7236,7 @@ CREATE TABLE IF NOT EXISTS `hlstats_Servers_Config` (
   `serverConfigId` int(11) unsigned NOT NULL auto_increment,
   PRIMARY KEY  (`serverId`,`parameter`),
   KEY `serverConfigId` (`serverConfigId`)
-) ENGINE=MyISAM  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 
@@ -7033,7 +7249,7 @@ CREATE TABLE IF NOT EXISTS `hlstats_Servers_Config_Default` (
   `value` varchar(128) NOT NULL,
   `description` mediumtext,
   PRIMARY KEY  (`parameter`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
 -- Dumping data for table `hlstats_Servers_Config_Default`
@@ -7089,7 +7305,7 @@ CREATE TABLE IF NOT EXISTS `hlstats_Servers_VoiceComm` (
   `serverType` tinyint(4) NOT NULL default '0',
   PRIMARY KEY  (`serverId`),
   UNIQUE KEY `address` (`addr`,`UDPPort`,`queryPort`)
-) ENGINE=MyISAM  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 
@@ -7098,17 +7314,17 @@ CREATE TABLE IF NOT EXISTS `hlstats_Servers_VoiceComm` (
 --
 
 CREATE TABLE IF NOT EXISTS `hlstats_server_load` (
-  `server_id` int(10) NOT NULL default '0',
-  `timestamp` int(11) NOT NULL default '0',
+  `server_id` int(10) unsigned NOT NULL default '0',
+  `timestamp` int(10) unsigned NOT NULL DEFAULT 0,
   `act_players` tinyint(2) NOT NULL default '0',
   `min_players` tinyint(2) NOT NULL default '0',
   `max_players` tinyint(2) NOT NULL default '0',
   `map` varchar(64) default NULL,
   `uptime` varchar(10) NOT NULL default '0',
   `fps` varchar(10) NOT NULL default '0',
-  KEY `server_id` (`server_id`),
+  KEY `idx_server_timestamp` (`server_id`, `timestamp`),
   KEY `timestamp` (`timestamp`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 
@@ -7127,7 +7343,7 @@ CREATE TABLE IF NOT EXISTS `hlstats_Teams` (
   `playerlist_index` tinyint(3) unsigned NOT NULL default '0',
   PRIMARY KEY  (`teamId`),
   UNIQUE KEY `gamecode` (`game`,`code`)
-) ENGINE=MyISAM  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
 -- Dumping data for table `hlstats_Teams`
@@ -7140,8 +7356,8 @@ INSERT INTO `hlstats_Teams` (`game`, `code`, `name`, `hidden`, `playerlist_bgcol
 ('css','CT','Counter-Terrorist','0','#D2E8F7','#0080C0',2),
 ('hl2mp','Combine','The Combine','0','#D2E8F7','#0080C0',1),
 ('hl2mp','Rebels','Rebel Forces','0','#FFD5D5','#FF2D2D',2),
-('tf','Red','The RED','','#FFD5D5','#FF2D2D',2),
-('tf','Blue','The BLU','','#D2E8F7','#0080C0',1),
+('tf','Red','The RED','0','#FFD5D5','#FF2D2D',2),
+('tf','Blue','The BLU','0','#D2E8F7','#0080C0',1),
 ('hl2ctf','Combine','Combine','0','#D2E8F7','#0080C0',1),
 ('hl2ctf','Rebels','Rebels','0','#FFD5D5','#FF2D2D',2),
 ('dods','Allies','Allies','0','#C1FFC1','#006600',2),
@@ -7158,8 +7374,8 @@ INSERT INTO `hlstats_Teams` (`game`, `code`, `name`, `hidden`, `playerlist_bgcol
 ('hidden','IRIS','I.R.I.S.', '0', '#D2E8F7','#0080C0', 2),
 ('zps','Undead','Undead', '0', '#F7FF89', '#808700', 1),
 ('zps','Survivor','Survivors', '0', '#D2E8F7','#0080C0', 2),
-('aoc','The Mason Order','The Mason Order','','#FFD5D5','#FF2D2D',2),
-('aoc','Agathia Knights','Agathia Knights','','#D2E8F7','#0080C0',1),
+('aoc','The Mason Order','The Mason Order','0','#FFD5D5','#FF2D2D',2),
+('aoc','Agathia Knights','Agathia Knights','0','#D2E8F7','#0080C0',1),
 ('cstrike','TERRORIST','Terrorist','0','#FFD5D5','#FF2D2D',1),
 ('cstrike','CT','Counter-Terrorist','0','#D2E8F7','#0080C0',2),
 ('tfc','Blue','Blue','0','#D2E8F7','#0080C0',1),
@@ -7181,12 +7397,12 @@ INSERT INTO `hlstats_Teams` (`game`, `code`, `name`, `hidden`, `playerlist_bgcol
 ('fof', 'VIGILANTES', 'Vigilantes', '0', '#FFD5D5','#FF2D2D', 2),
 ('ges', 'MI6', 'MI6', '0', '#D2E8F7','#0080C0', 1),
 ('ges', 'Janus', 'Janus', '0', '#FFD5D5','#FF2D2D', 2),
-('bg2','British','The British','','#FFD5D5','#FF2D2D',2),
-('bg2','Americans','The Americans','','#D2E8F7','#0080C0',1),
-('sgtls','Goa''uld','Goa''uld','','#FFD5D5','#FF2D2D',2),
-('sgtls','Tau''ri','Tau''ri','','#D2E8F7','#0080C0',1),
-('dystopia','Punks','Punks','','#FFD5D5','#FF2D2D',2),
-('dystopia','Corps','Corps','','#D2E8F7','#0080C0',1),
+('bg2','British','The British','0','#FFD5D5','#FF2D2D',2),
+('bg2','Americans','The Americans','0','#D2E8F7','#0080C0',1),
+('sgtls','Goa''uld','Goa''uld','0','#FFD5D5','#FF2D2D',2),
+('sgtls','Tau''ri','Tau''ri','0','#D2E8F7','#0080C0',1),
+('dystopia','Punks','Punks','0','#FFD5D5','#FF2D2D',2),
+('dystopia','Corps','Corps','0','#D2E8F7','#0080C0',1),
 ('nts','Jinrai','Jinrai','0','#9AFF9A','#447044',1),
 ('nts','NSF','NSF','0','#7EA5CC','#4F677F',2),
 ('pvkii', 'Pirates', 'Pirates', '0', '#FFD5D5', '#FF2D2D', 1),
@@ -7210,7 +7426,7 @@ INSERT INTO `hlstats_Teams` (`game`, `code`, `name`, `hidden`, `playerlist_bgcol
 --
 
 CREATE TABLE IF NOT EXISTS `hlstats_Trend` (
-  `timestamp` int(11) NOT NULL default '0',
+  `timestamp` int(10) unsigned NOT NULL DEFAULT 0,
   `game` varchar(32) NOT NULL default '',
   `players` int(11) NOT NULL default '0',
   `kills` int(11) NOT NULL default '0',
@@ -7218,9 +7434,9 @@ CREATE TABLE IF NOT EXISTS `hlstats_Trend` (
   `servers` int(11) NOT NULL default '0',
   `act_slots` int(11) NOT NULL default '0',
   `max_slots` int(11) NOT NULL default '0',
-  KEY `game` (`game`),
+  KEY `idx_game_timestamp` (`game`, `timestamp`),
   KEY `timestamp` (`timestamp`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 
@@ -7232,9 +7448,9 @@ CREATE TABLE IF NOT EXISTS `hlstats_Users` (
   `username` varchar(32) NOT NULL default '',
   `password` varchar(255) NOT NULL default '',
   `acclevel` int(11) NOT NULL default '0',
-  `playerId` int(11) NOT NULL default '0',
+  `playerId` int(10) unsigned NOT NULL default '0',
   PRIMARY KEY  (`username`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
 -- Dumping data for table `hlstats_Users`
@@ -7260,7 +7476,7 @@ CREATE TABLE IF NOT EXISTS `hlstats_Weapons` (
   UNIQUE KEY `gamecode` (`game`,`code`),
   KEY `code` (`code`),
   KEY `modifier` (`modifier`)
-) ENGINE=MyISAM  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
 -- Dumping data for table `hlstats_Weapons`
@@ -7492,14 +7708,14 @@ INSERT INTO `hlstats_Weapons` (`game`, `code`, `name`, `modifier`) VALUES
 ('hl2mp','slam','Slam',4.60),
 ('hl2mp','physcannon','Physics Cannon',2.70),
 ('hl2ctf','stunstick','Stun Stick',2.50),
-('hl2ctf','Crowbar','Crowbar',2.50),
+('hl2ctf','crowbar','Crowbar',2.50),
 ('hl2ctf','crossbow_bolt','Crossbow',1.75),
-('hl2ctf','Slam','S.L.A.M',1.80),
-('hl2ctf','Pistol','USP Match',1.75),
+('hl2ctf','slam','S.L.A.M',1.80),
+('hl2ctf','pistol','USP Match',1.75),
 ('hl2ctf','grenade_frag','Grenade',1.75),
 ('hl2ctf','combine_ball','Combine Ball',1.50),
 ('hl2ctf','physcannon','Gravity Gun',1.15),
-('hl2ctf','Shotgun','Shotgun',1.10),
+('hl2ctf','shotgun','Shotgun',1.10),
 ('hl2ctf','357','.357 Magnum',1.10),
 ('hl2ctf','rpg_missile','Rocket Propelled Grenade',1.00),
 ('hl2ctf','ar2','Combine Assault Rifle',1.00),
@@ -7714,73 +7930,73 @@ INSERT INTO `hlstats_Weapons` (`game`, `code`, `name`, `modifier`) VALUES
 ('tfc','caltrop','Caltrops',2.00),
 ('tfc','railgun','Rail Gun',1.85),
 ('tfc','building_dispenser','Dispenser',2.00),
-('dod', 'k43', 'Karbiner 43', '1.50'),
-('dod', 'luger', 'Luger 08 Pistol', '1.50'),
-('dod', 'kar', 'Mauser Kar 98k', '1.30'),
-('dod', 'mp40', 'MP40 Machine Pistol', '1.25'),
-('dod', 'scopedkar', 'Mauser Karbiner 98k Sniper Rifle', '1.50'),
-('dod', 'mp44', 'MP44 Assault Rifle', '1.35'),
-('dod', 'colt', 'Colt .45 model 1911', '1.60'),
-('dod', 'garand', 'M1 Garand Rifle', '1.30'),
-('dod', 'thompson', 'Thompson Submachine Gun', '1.25'),
-('dod', 'spring', 'Springfield Rifle with Scope', '1.50'),
-('dod', 'bar', 'BAR Browning Automatic Rifle', '1.20'),
-('dod', 'grenade', 'U.S. Grenade', '1.00'),
-('dod', 'enf_bayonet', 'Enfield Bayonet', '2.50'),
-('dod', 'bren', 'Bren Machine Gun', '1.25'),
-('dod', 'm1carbine', 'M1 Carbine', '1.20'),
-('dod', 'greasegun', 'Greasegun', '1.30'),
-('dod', '30cal', '.30 Caliber Machine Gun', '1.25'),
-('dod', 'mg42', 'MG42 Machine Gun', '1.20'),
-('dod', 'grenade2', 'German Grenade', '1.00'),
-('dod', 'spade', 'Spade Entrenchment Tool', '3.00'),
-('dod', 'gerknife', 'German Knife', '3.00'),
-('dod', 'fg42', 'FG42 Paratroop Rifle', '1.25'),
-('dod', 'world', 'worldspawn', '0.00'),
-('dod', 'amerknife', 'U.S. Issue Knife', '3.00'),
-('dod', 'bayonet', 'Karbiner Bayonet', '2.40'),
-('dod', 'mg34', 'MG34 Machine Gun', '1.20'),
-('dod', 'brit_knife', 'British Knife', '3.00'),
-('dod', 'mortar', 'Mortar', '1.00'),
-('dod', 'fcarbine', 'F1 Carbine', '1.35'),
-('dod', 'scoped_fg42', 'Scoped FG42', '1.30'),
-('dod', 'bazooka', 'Bazooka', '2.25'),
-('dod', 'enfield', 'Enfield Rifle', '1.35'),
-('dod', 'garandbutt', 'Butt Stock Hit', '3.00'),
-('dod', 'mills_bomb', 'British Grenade', '1.00'),
-('dod', 'piat', 'Piat', '2.25'),
-('dod', 'pschreck', 'Panzerschreck', '2.25'),
-('dod', 'scoped_enfield', 'Scoped Enfield', '1.50'),
-('dod', 'sten', 'Sten Submachine Gun', '1.25'),
-('dod', 'webley', 'Webley Revolver', '1.60'),
-('ns','welder','Marine Welder','3.00'),
-('ns','item_mine','Marine Mine','1.00'),
-('ns','handgrenade','Marine Hand Grenade','1.00'),
-('ns','grenade','Marine Grenade Launcher','1.00'),
-('ns','knife','Marine Knife','4.00'),
-('ns','pistol','Marine Pistol','2.00'),
-('ns','machinegun','Marine Light Machine Gun','1.25'),
-('ns','shotgun','Marine Shotgun','1.00'),
-('ns','heavymachinegun','Marine Heavy Machine Gun','1.00'),
-('ns','turret','Marine Turret','.75'),
-('ns','siegeturret','Marine Siege Turret','1.00'),
-('ns','resourcetower','Electrified Marine Resource Tower','2.00'),
-('ns','team_turretfactor','Electric Marine Turret Factory','2.00'),
-('ns','team_advturretfactor','Electrified Marine Advance Turret Factory','2.00'),
-('ns','acidrocket','Fade Acid Rocket','1.00'),
-('ns','bitegun','Skulk Bite','1.25'),
-('ns','charge','Onos Charge','1.00'),
-('ns','claws','Onos Gore','1.00'),
-('ns','divinewind','Skulk Xenocide','1.00'),
-('ns','leap','Skulk Leap','2.00'),
-('ns','bite2gun','Lerk Bite','2.00'),
-('ns','spitgunspit','Gorge Spit','2.00'),
-('ns','sporegunprojectile','Lerk Spores','1.00'),
-('ns','swipe','Fade Slash','1.00'),
-('ns','healingspray','Gorge Health Spray','3.00'),
-('ns','parasite','Skulk Parasite','3.00'),
-('ns','devour','Onos Devour','2.00'),
-('ns','offensechamber','Offense Chamber','1.00'),
+('dod', 'k43', 'Karbiner 43', 1.50),
+('dod', 'luger', 'Luger 08 Pistol', 1.50),
+('dod', 'kar', 'Mauser Kar 98k', 1.30),
+('dod', 'mp40', 'MP40 Machine Pistol', 1.25),
+('dod', 'scopedkar', 'Mauser Karbiner 98k Sniper Rifle', 1.50),
+('dod', 'mp44', 'MP44 Assault Rifle', 1.35),
+('dod', 'colt', 'Colt .45 model 1911', 1.60),
+('dod', 'garand', 'M1 Garand Rifle', 1.30),
+('dod', 'thompson', 'Thompson Submachine Gun', 1.25),
+('dod', 'spring', 'Springfield Rifle with Scope', 1.50),
+('dod', 'bar', 'BAR Browning Automatic Rifle', 1.20),
+('dod', 'grenade', 'U.S. Grenade', 1.00),
+('dod', 'enf_bayonet', 'Enfield Bayonet', 2.50),
+('dod', 'bren', 'Bren Machine Gun', 1.25),
+('dod', 'm1carbine', 'M1 Carbine', 1.20),
+('dod', 'greasegun', 'Greasegun', 1.30),
+('dod', '30cal', '.30 Caliber Machine Gun', 1.25),
+('dod', 'mg42', 'MG42 Machine Gun', 1.20),
+('dod', 'grenade2', 'German Grenade', 1.00),
+('dod', 'spade', 'Spade Entrenchment Tool', 3.00),
+('dod', 'gerknife', 'German Knife', 3.00),
+('dod', 'fg42', 'FG42 Paratroop Rifle', 1.25),
+('dod', 'world', 'worldspawn', 0.00),
+('dod', 'amerknife', 'U.S. Issue Knife', 3.00),
+('dod', 'bayonet', 'Karbiner Bayonet', 2.40),
+('dod', 'mg34', 'MG34 Machine Gun', 1.20),
+('dod', 'brit_knife', 'British Knife', 3.00),
+('dod', 'mortar', 'Mortar', 1.00),
+('dod', 'fcarbine', 'F1 Carbine', 1.35),
+('dod', 'scoped_fg42', 'Scoped FG42', 1.30),
+('dod', 'bazooka', 'Bazooka', 2.25),
+('dod', 'enfield', 'Enfield Rifle', 1.35),
+('dod', 'garandbutt', 'Butt Stock Hit', 3.00),
+('dod', 'mills_bomb', 'British Grenade', 1.00),
+('dod', 'piat', 'Piat', 2.25),
+('dod', 'pschreck', 'Panzerschreck', 2.25),
+('dod', 'scoped_enfield', 'Scoped Enfield', 1.50),
+('dod', 'sten', 'Sten Submachine Gun', 1.25),
+('dod', 'webley', 'Webley Revolver', 1.60),
+('ns','welder','Marine Welder', 3.00),
+('ns','item_mine','Marine Mine', 1.00),
+('ns','handgrenade','Marine Hand Grenade', 1.00),
+('ns','grenade','Marine Grenade Launcher', 1.00),
+('ns','knife','Marine Knife', 4.00),
+('ns','pistol','Marine Pistol', 2.00),
+('ns','machinegun','Marine Light Machine Gun', 1.25),
+('ns','shotgun','Marine Shotgun', 1.00),
+('ns','heavymachinegun','Marine Heavy Machine Gun', 1.00),
+('ns','turret','Marine Turret', 0.75),
+('ns','siegeturret','Marine Siege Turret', 1.00),
+('ns','resourcetower','Electrified Marine Resource Tower', 2.00),
+('ns','team_turretfactor','Electric Marine Turret Factory', 2.00),
+('ns','team_advturretfactor','Electrified Marine Advance Turret Factory', 2.00),
+('ns','acidrocket','Fade Acid Rocket', 1.00),
+('ns','bitegun','Skulk Bite', 1.25),
+('ns','charge','Onos Charge', 1.00),
+('ns','claws','Onos Gore', 1.00),
+('ns','divinewind','Skulk Xenocide', 1.00),
+('ns','leap','Skulk Leap', 2.00),
+('ns','bite2gun','Lerk Bite', 2.00),
+('ns','spitgunspit','Gorge Spit', 2.00),
+('ns','sporegunprojectile','Lerk Spores', 1.00),
+('ns','swipe','Fade Slash', 1.00),
+('ns','healingspray','Gorge Health Spray', 3.00),
+('ns','parasite','Skulk Parasite', 3.00),
+('ns','devour','Onos Devour', 2.00),
+('ns','offensechamber','Offense Chamber', 1.00),
 ('l4d', 'rifle', 'M16 Assault Rifle', 1.00),
 ('l4d', 'autoshotgun', 'Auto Shotgun', 1.00),
 ('l4d', 'pumpshotgun', 'Pump Shotgun', 1.30),
@@ -8108,7 +8324,6 @@ INSERT INTO `hlstats_Weapons` (`game`, `code`, `name`, `modifier`) VALUES
 ('csgo', 'galilar', 'Galil', 1.10),
 ('csgo', 'glock', 'Glock-18', 1.40),
 ('csgo', 'bizon', 'PP-Bizon', 1.30),
-('csgo', 'galil', 'Galil', 1.10),
 ('csgo', 'p90', 'FN P90', 1.20),
 ('csgo', 'aug', 'Steyr Aug', 1.00),
 ('csgo', 'mp7', 'MP7', 1.30),
@@ -8153,6 +8368,8 @@ INSERT INTO `hlstats_Weapons` (`game`, `code`, `name`, `modifier`) VALUES
 ('csgo', 'inferno', 'Incendiary Grenade', 1.80),
 ('csgo', 'taser', 'Zeus x27', 1.00),
 ('csgo', 'mp5sd', 'MP5-SD', 1.00),
+('csgo', 'usp_silencer', 'USP-S', 1.40),
+('csgo', 'cz75a', 'CZ75-Auto', 1.00),
 ('dinodday', 'fists', 'Berserk Punch', 1.30),
 ('dinodday', 'flechette', 'Flechette Gun', 1.40),
 ('dinodday', 'jackrabbit', 'Jackrabbit', 1.40),

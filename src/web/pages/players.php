@@ -4,7 +4,7 @@ HLstatsX Community Edition - Real-time player and clan rankings and statistics
 Copyleft (L) 2008-20XX Nicholas Hastings (nshastings@gmail.com)
 http://www.hlxcommunity.com
 
-HLstatsX Community Edition is a continuation of 
+HLstatsX Community Edition is a continuation of
 ELstatsNEO - Real-time player and clan rankings and statistics
 Copyleft (L) 2008-20XX Malte Bayer (steam@neo-soft.org)
 http://ovrsized.neo-soft.org/
@@ -18,7 +18,7 @@ HLstatsX is an enhanced version of HLstats made by Simon Garner
 HLstats - Real-time player and clan rankings and statistics for Half-Life
 http://sourceforge.net/projects/hlstats/
 Copyright (C) 2001  Simon Garner
-            
+
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
 as published by the Free Software Foundation; either version 2
@@ -40,405 +40,425 @@ For support and installation notes visit http://www.hlxcommunity.com
         die('Do not access this file directly.');
     }
 
-    // Security: Escape game variable
+// Initialize variables
+    $game = isset($game) ? (string)$game : '';
     $game_esc = $db->escape($game);
+    $game_url = urlencode($game);
+    $scripturl = htmlspecialchars((string)($g_options['scripturl'] ?? ''), ENT_QUOTES, 'UTF-8');
 
     // Player Rankings
     $db->query("
-	SELECT
-	    hlstats_Games.name
-	FROM
-	    hlstats_Games
-	WHERE
-	    hlstats_Games.code = '$game_esc'
+        SELECT
+            hlstats_Games.name
+        FROM
+            hlstats_Games
+        WHERE
+            hlstats_Games.code = '$game_esc'
     ");
 
     if ($db->num_rows() < 1) {
-        error("No such game '$game'.");
+        error("No such game '" . htmlspecialchars($game, ENT_QUOTES, 'UTF-8') . "'.");
     }
 
-    // PHP 8 Fix: Replace list()
     $row = $db->fetch_row();
-    $gamename = ($row) ? $row[0] : '';
-
+    $gamename = ($row) ? (string)$row[0] : '';
     $db->free_result();
 
+    $minkills = 1;
     if (isset($_GET['minkills'])) {
-        // PHP 8 Fix: Safe casting
-	$minkills = valid_request((int)$_GET['minkills'], true);
-    } else {
-	$minkills = 1;
+        $minkills = max(0, (int)$_GET['minkills']);
     }
 
     pageHeader
     (
-	array ($gamename, 'Player Rankings'),
-	array ($gamename=>"%s?game=$game", 'Player Rankings'=>'')
+        array ($gamename, 'Player Rankings'),
+        array ($gamename=>"%s?game=$game_url", 'Player Rankings'=>'')
     );
 
     $rank_type = 0;
     if (isset($_GET['rank_type'])) {
-	$rank_type = valid_request((string)$_GET['rank_type'], false);
+        $rank_type = (int)$_GET['rank_type'];
     }
 
 // Autocomplete function below implemented by KingJ. Heavy modified to use HTML request instead of JSON.
 ?>
 
 <div class="block">
-    <?php printSectionTitle('Player Rankings');	?>
+    <?php printSectionTitle('Player Rankings'); ?>
     <div class="subblock">
-	<div style="float:left;">
-	    <script type="text/javascript" src="<?php echo INCLUDE_PATH; ?>/js/Observer.js"></script>
-	    <script type="text/javascript" src="<?php echo INCLUDE_PATH; ?>/js/Autocompleter.js"></script>
-	    <script type="text/javascript" src="<?php echo INCLUDE_PATH; ?>/js/Autocompleter.Request.js"></script>
-	    <script type="text/javascript">
-		document.addEvent('domready', function() {
-		    new Autocompleter.Request.HTML('playersearch', 'autocomplete.php?game=<?php echo $game; ?>', {
-			'indicatorClass': 'autocompleter-loading'
-		    });
-		});
-	    </script>
+        <div style="float:left;">
+            <script type="text/javascript" src="<?php echo INCLUDE_PATH; ?>/js/Observer.js"></script>
+            <script type="text/javascript" src="<?php echo INCLUDE_PATH; ?>/js/Autocompleter.js"></script>
+            <script type="text/javascript" src="<?php echo INCLUDE_PATH; ?>/js/Autocompleter.Request.js"></script>
+            <script type="text/javascript">
+                document.addEvent('domready', function() {
+                    new Autocompleter.Request.HTML('playersearch', 'autocomplete.php?game=<?php echo $game_url; ?>', {
+                        'indicatorClass': 'autocompleter-loading'
+                    });
+                });
+            </script>
 
-	    <form method="get" action="<?php echo $g_options['scripturl']; ?>" style="margin:0px;padding:0px;">
-		<input type="hidden" name="mode" value="search" />
-		<input type="hidden" name="game" value="<?php echo $game; ?>" />
-		<input type="hidden" name="st" value="player" />
-		<strong>&#8226;</strong> Find a player:
-		<input type="text" name="q" size="20" maxlength="64" class="textbox" id="playersearch" />
-		<input type="submit" value="Search" class="smallsubmit" />
-	    </form>
-	</div>
-	<div style="float:right;">
-	    <form method="get" action="<?php echo $g_options['scripturl']; ?>" style="margin:0px;padding:0px;">
-		<input type="hidden" name="mode" value="players" />
-		<input type="hidden" name="game" value="<?php echo $game; ?>" />
-		<strong>&#8226;</strong> Ranking View
-		<?php
-		    $result = $db->query
-		    ("
-			SELECT
-			    hlstats_Players_History.eventTime
-			FROM
-			    hlstats_Players_History
-			GROUP BY
-			    hlstats_Players_History.eventTime
-			ORDER BY
-			    hlstats_Players_History.eventTime DESC
-			LIMIT
-			    0,
-			    50
-		    ");
-		    echo '<select name="rank_type"><option value="0">Total Ranking</option>';
-		    echo '<option value="-1">Last Week</option>';
-		    echo '<option value="-2">Last Month</option>';
-		    $i = 1;
-		    $dates = array ();
-		    while ($rowdata = $db->fetch_array())
-		    {
-			$dates[] = $rowdata; 
-			if ($rank_type == $i) 
-			    echo '<option value="'.$i.'" selected>'.$rowdata['eventTime'].'</option>';
-			else
-			    echo '<option value="'.$i.'">'.$rowdata['eventTime'].'</option>';
-			$i++;
-		    }
-		    echo '</select>';
-		?>
-		<input type="submit" value="View" class="smallsubmit" />
-	    </form>
-	</div>
-	<div style="clear:both;"></div><br /><br />
+            <form method="get" action="<?php echo $scripturl; ?>" style="margin:0px;padding:0px;">
+                <input type="hidden" name="mode" value="search" />
+                <input type="hidden" name="game" value="<?php echo htmlspecialchars($game, ENT_QUOTES, 'UTF-8'); ?>" />
+                <input type="hidden" name="st" value="player" />
+                <strong>&#8226;</strong> Find a player:
+                <input type="text" name="q" size="20" maxlength="64" class="textbox" id="playersearch" />
+                <input type="submit" value="Search" class="smallsubmit" />
+            </form>
+        </div>
+        <div style="float:right;">
+            <form method="get" action="<?php echo $scripturl; ?>" style="margin:0px;padding:0px;">
+                <input type="hidden" name="mode" value="players" />
+                <input type="hidden" name="game" value="<?php echo htmlspecialchars($game, ENT_QUOTES, 'UTF-8'); ?>" />
+                <strong>&#8226;</strong> Ranking View
+                <?php
+                    $result = $db->query
+                    ("
+                        SELECT
+                            hlstats_Players_History.eventTime
+                        FROM
+                            hlstats_Players_History
+                        WHERE
+                            hlstats_Players_History.game = '$game_esc'
+                        GROUP BY
+                            hlstats_Players_History.eventTime
+                        ORDER BY
+                            hlstats_Players_History.eventTime DESC
+                        LIMIT
+                            0,
+                            50
+                    ");
+                    echo '<select name="rank_type"><option value="0"' . ($rank_type === 0 ? ' selected="selected"' : '') . '>Total Ranking</option>';
+                    echo '<option value="-1"' . ($rank_type === -1 ? ' selected="selected"' : '') . '>Last Week</option>';
+                    echo '<option value="-2"' . ($rank_type === -2 ? ' selected="selected"' : '') . '>Last Month</option>';
+                    $i = 1;
+                    $dates = array ();
+                    while ($rowdata = $db->fetch_array($result))
+                    {
+                        $dates[] = $rowdata;
+                        $formatted_date = htmlspecialchars((string)$rowdata['eventTime'], ENT_QUOTES, 'UTF-8');
+                        $selected = ($rank_type === $i) ? ' selected="selected"' : '';
+                        echo '<option value="' . $i . '"' . $selected . '>' . $formatted_date . '</option>';
+                        $i++;
+                    }
+                    $db->free_result($result);
+                    echo '</select>';
+                ?>
+                <input type="submit" value="View" class="smallsubmit" />
+            </form>
+        </div>
+        <div style="clear:both;"></div><br /><br />
     </div>
     <?php
-	if ($g_options['rankingtype']!='kills')
-	{
-	    $table = new Table
-	    (
-		array
-		(
-		    new TableColumn
-		    (
-			'lastName',
-			'Player',
-			'width=26&flag=1&link=' . urlencode('mode=playerinfo&amp;player=%k')
-		    ),
+        if ($g_options['rankingtype']!='kills')
+        {
+            $table = new Table
+            (
+                array
+                (
+                    new TableColumn
+                    (
+                        'lastName',
+                        'Player',
+                        'width=26&flag=1&link=' . urlencode('mode=playerinfo&player=%k')
+                    ),
                                         new TableColumn
                                         (
                                                 'mmrank',
                                                 'Rank',
                                                 'width=4&type=elorank'
                                         ),
-		    new TableColumn
-		    (
-			'skill',
-			'Points',
-			'width=7&align=right&skill_change=1'
-		    ),
-		    new TableColumn
-		    (
-			'activity',
-			'Activity',
-			'width=10&sort=no&type=bargraph'
-		    ),
-		    new TableColumn
-		    (
-			'connection_time',
-			'Connection Time',
-			'width=10&align=right&type=timestamp'
-		    ),
-		    new TableColumn
-		    (
-			'kills',
-			'Kills',
-			'width=7&align=right'
-		    ),
-		    new TableColumn
-		    (
-			'deaths',
-			'Deaths',
-			'width=7&align=right'
-		    ),
-		    new TableColumn
-		    (
-			'kpd',
-			'K:D',
-			'width=6&align=right'
-		    ),
-		    new TableColumn
-		    (
-			'headshots',
-			'Headshots',
-			'width=6&align=right'
-		    ),
-		    new TableColumn
-		    (
-			'hpk',
-			'HS:K',
-			'width=6&align=right'
-		    ),
-		    new TableColumn
-		    (
-			'acc',
-			'Accuracy',
-			'width=6&align=right&append=' . urlencode('%')
-		    )
-		),
-		'playerId',
-		$g_options['rankingtype'],
-		'kpd',
-		true
-	    );
-	}
-	else
-	{
-	    $table = new Table
-	    (
-		array
-		(
-		    new TableColumn
-		    (
-			'lastName',
-			'Player',
-			'width=30&flag=1&link=' . urlencode('mode=playerinfo&amp;player=%k')
-		    ),
-		    new TableColumn
-		    (
-			'activity',
-			'Activity',
-			'width=10&sort=no&type=bargraph'
-			),
-		    new TableColumn
-		    (
-			'kills',
-			'Kills',
-			'width=7&align=right'
-		    ),
-		    new TableColumn
-		    (
-			'deaths',
-			'Deaths',
-			'width=7&align=right'
-		    ),
-		    new TableColumn
-		    (
-			'kpd',
-			'K:D',
-			'width=6&align=right'
-		    ),
-		    new TableColumn
-		    (
-			'headshots',
-			'Headshots',
-			'width=6&align=right'
-		    ),
-		    new TableColumn
-		    (
-			'hpk',
-			'HS:K',
-			'width=6&align=right'
-		    ),
-		    new TableColumn
-		    (
-			'acc',
-			'Accuracy',
-			'width=6&align=right&append=' . urlencode('%')
-		    ),
-		    new TableColumn
-		    (
-			'skill',
-			'Points',
-			'width=7&align=right&skill_change=1'
-		    ),
-		    new TableColumn
-		    (
-			'connection_time',
-			'Connection Time',
-			'width=10&align=right&type=timestamp'
-		    )
-		),
-	    'playerId',
-	    $g_options['rankingtype'],
-	    'kpd',
-	    true
-	    );
-	}
-	if ($rank_type == "0")
-	{
-	    $result = $db->query
-	    ("
-		SELECT
-		    SQL_CALC_FOUND_ROWS
-		    hlstats_Players.playerId,
-		    hlstats_Players.connection_time,
+                    new TableColumn
+                    (
+                        'skill',
+                        'Points',
+                        'width=7&align=right&skill_change=1'
+                    ),
+                    new TableColumn
+                    (
+                        'activity',
+                        'Activity',
+                        'width=10&sort=no&type=bargraph'
+                    ),
+                    new TableColumn
+                    (
+                        'connection_time',
+                        'Connection Time',
+                        'width=10&align=right&type=timestamp'
+                    ),
+                    new TableColumn
+                    (
+                        'kills',
+                        'Kills',
+                        'width=7&align=right'
+                    ),
+                    new TableColumn
+                    (
+                        'deaths',
+                        'Deaths',
+                        'width=7&align=right'
+                    ),
+                    new TableColumn
+                    (
+                        'kpd',
+                        'K:D',
+                        'width=6&align=right'
+                    ),
+                    new TableColumn
+                    (
+                        'headshots',
+                        'Headshots',
+                        'width=6&align=right'
+                    ),
+                    new TableColumn
+                    (
+                        'hpk',
+                        'HS:K',
+                        'width=6&align=right'
+                    ),
+                    new TableColumn
+                    (
+                        'acc',
+                        'Accuracy',
+                        'width=6&align=right&append=' . urlencode('%')
+                    )
+                ),
+                'playerId',
+                $g_options['rankingtype'],
+                'kpd',
+                true
+            );
+        }
+        else
+        {
+            $table = new Table
+            (
+                array
+                (
+                    new TableColumn
+                    (
+                        'lastName',
+                        'Player',
+                        'width=30&flag=1&link=' . urlencode('mode=playerinfo&player=%k')
+                    ),
+                    new TableColumn
+                    (
+                        'activity',
+                        'Activity',
+                        'width=10&sort=no&type=bargraph'
+                        ),
+                    new TableColumn
+                    (
+                        'kills',
+                        'Kills',
+                        'width=7&align=right'
+                    ),
+                    new TableColumn
+                    (
+                        'deaths',
+                        'Deaths',
+                        'width=7&align=right'
+                    ),
+                    new TableColumn
+                    (
+                        'kpd',
+                        'K:D',
+                        'width=6&align=right'
+                    ),
+                    new TableColumn
+                    (
+                        'headshots',
+                        'Headshots',
+                        'width=6&align=right'
+                    ),
+                    new TableColumn
+                    (
+                        'hpk',
+                        'HS:K',
+                        'width=6&align=right'
+                    ),
+                    new TableColumn
+                    (
+                        'acc',
+                        'Accuracy',
+                        'width=6&align=right&append=' . urlencode('%')
+                    ),
+                    new TableColumn
+                    (
+                        'skill',
+                        'Points',
+                        'width=7&align=right&skill_change=1'
+                    ),
+                    new TableColumn
+                    (
+                        'connection_time',
+                        'Connection Time',
+                        'width=10&align=right&type=timestamp'
+                    )
+                ),
+            'playerId',
+            $g_options['rankingtype'],
+            'kpd',
+            true
+            );
+        }
+        if ($rank_type == 0)
+        {
+            $result = $db->query
+            ("
+                SELECT
+                    SQL_CALC_FOUND_ROWS
+                    hlstats_Players.playerId,
+                    hlstats_Players.connection_time,
                                         unhex(replace(hex(hlstats_Players.lastName), 'E280AE', '')) as lastName,
-		    hlstats_Players.flag,
-		    hlstats_Players.country,
-		    hlstats_Players.skill,
-		    hlstats_Players.mmrank,
-		    hlstats_Players.kills,
-		    hlstats_Players.deaths,
-		    hlstats_Players.last_skill_change,
-		    ROUND(hlstats_Players.kills/(IF(hlstats_Players.deaths=0, 1, hlstats_Players.deaths)), 2) AS kpd,
-		    hlstats_Players.headshots,
-		    ROUND(hlstats_Players.headshots/(IF(hlstats_Players.kills=0, 1, hlstats_Players.kills)), 2) AS hpk,
-		    IFNULL(ROUND((hlstats_Players.hits / hlstats_Players.shots * 100), 1), 0) AS acc,
-		    activity
-		FROM
-		    hlstats_Players
-		WHERE
-		    hlstats_Players.game = '$game_esc'
-		    AND hlstats_Players.hideranking = 0
-		    AND hlstats_Players.kills >= $minkills
-		ORDER BY
-		    $table->sort $table->sortorder,
-		    $table->sort2 $table->sortorder,
-		    hlstats_Players.lastName ASC
-		LIMIT
-		    $table->startitem,
-		    $table->numperpage
-	    ");
-	    
-	    $resultCount = $db->query("SELECT FOUND_ROWS()");
+                    hlstats_Players.flag,
+                    hlstats_Players.country,
+                    hlstats_Players.skill,
+                    hlstats_Players.mmrank,
+                    hlstats_Players.kills,
+                    hlstats_Players.deaths,
+                    hlstats_Players.last_skill_change,
+                    ROUND(hlstats_Players.kills/(IF(hlstats_Players.deaths=0, 1, hlstats_Players.deaths)), 2) AS kpd,
+                    hlstats_Players.headshots,
+                    ROUND(hlstats_Players.headshots/(IF(hlstats_Players.kills=0, 1, hlstats_Players.kills)), 2) AS hpk,
+                    IFNULL(ROUND((hlstats_Players.hits / IF(hlstats_Players.shots = 0, 1, hlstats_Players.shots) * 100), 1), 0) AS acc,
+                    activity
+                FROM
+                    hlstats_Players
+                WHERE
+                    hlstats_Players.game = '$game_esc'
+                    AND hlstats_Players.hideranking = 0
+                    AND hlstats_Players.kills >= $minkills
+                ORDER BY
+                    $table->sort $table->sortorder,
+                    $table->sort2 $table->sortorder,
+                    hlstats_Players.lastName ASC
+                LIMIT
+                    $table->startitem,
+                    $table->numperpage
+            ");
+
+            $resultCount = $db->query("SELECT FOUND_ROWS()");
             // PHP 8 Fix: Replace list()
-	    $row = $db->fetch_row($resultCount);
-            $numitems = ($row) ? $row[0] : 0;
-	}
-	else
-	{
-	    if ($rank_type == "-1")
-	    {
-		$maxEvent = mktime(0, 0, 0, (int)date("m"), (int)date("d"), (int)date("Y"));
-		$minEvent = $maxEvent - (86400 * 7);
-	    }
-	    if ($rank_type == "-2")
-	    {
-		$maxEvent = mktime(0, 0, 0, (int)date("m"), (int)date("d"), (int)date("Y"));
-		$minEvent = $maxEvent - (86400 * 30);
-	    }
-	    if (!isset($minEvent))
-	    {
-                if (isset($dates[$rank_type-1]['eventTime'])) {
-		    $minEventParts = explode("-", $dates[$rank_type-1]['eventTime']);
-		    $minEvent = mktime(0, 0, 0, (int)$minEventParts[1], (int)$minEventParts[2], (int)$minEventParts[0]);
-		    $maxEvent = $minEvent + 86400;
+            $row = $db->fetch_row($resultCount);
+            $db->free_result($resultCount);
+            $numitems = ($row) ? (int)$row[0] : 0;
+        }
+        else
+        {
+            if ($rank_type === -1)
+            {
+                $maxEvent = mktime(23, 59, 59, (int)date("m"), (int)date("d"), (int)date("Y"));
+                $minEvent = $maxEvent - (86400 * 7);
+            }
+            elseif ($rank_type === -2)
+            {
+                $maxEvent = mktime(23, 59, 59, (int)date("m"), (int)date("d"), (int)date("Y"));
+                $minEvent = $maxEvent - (86400 * 30);
+            }
+            else
+            {
+                $targetIndex = $rank_type - 1;
+                if ($targetIndex >= 0 && isset($dates[$targetIndex]['eventTime'])) {
+                    $minEventParts = explode("-", (string)$dates[$targetIndex]['eventTime']);
+                    if (count($minEventParts) === 3) {
+                        $minEvent = mktime(0, 0, 0, (int)$minEventParts[1], (int)$minEventParts[2], (int)$minEventParts[0]);
+                        $maxEvent = $minEvent + 86399;
+                    } else {
+                        $minEvent = 0;
+                        $maxEvent = time();
+                    }
                 } else {
-                    $minEvent = time();
+                    $minEvent = 0;
                     $maxEvent = time();
                 }
-	    }
-	    $result = $db->query
-	    ("
-		SELECT
-		    SQL_CALC_FOUND_ROWS
-		    hlstats_Players_History.playerId,
-		    hlstats_Players.lastName,
-		    hlstats_Players.flag,
-		    hlstats_Players.country,
-		    hlstats_Players.mmrank,
-		    SUM(hlstats_Players_History.connection_time) AS connection_time,
-		    SUM(hlstats_Players_History.skill_change) AS skill,
-		    SUM(hlstats_Players_History.skill_change) AS skill_change,
-		    SUM(hlstats_Players_History.skill_change) AS last_skill_change,
-		    SUM(hlstats_Players_History.kills) AS kills,
-		    SUM(hlstats_Players_History.deaths) AS deaths,
-		    ROUND(SUM(hlstats_Players_History.kills) / IF(SUM(hlstats_Players_History.deaths) = 0, 1, SUM(hlstats_Players_History.deaths)), 2) AS kpd,
-		    SUM(hlstats_Players_History.headshots) AS headshots,
-		    ROUND(SUM(hlstats_Players_History.headshots) / SUM(hlstats_Players_History.kills), 2) AS hpk,
-		    IFNULL(ROUND((SUM(hlstats_Players_History.hits) / SUM(hlstats_Players_History.shots) * 100), 1), 0) AS acc,
-		    activity
-		FROM
-		    hlstats_Players_History
-		INNER JOIN
-		    hlstats_Players
-		ON
-		    hlstats_Players_History.playerId = hlstats_Players.playerId
-		WHERE
-		    hlstats_Players_History.game = '$game_esc'
-		    AND hlstats_Players.hideranking = 0
-		    AND activity > 0
-		    AND UNIX_TIMESTAMP(hlstats_Players_History.eventTime) >= $minEvent
-		    AND UNIX_TIMESTAMP(hlstats_Players_History.eventTime) <= $maxEvent
-		GROUP BY
-		    hlstats_Players_History.playerId
-		HAVING
-		    SUM(hlstats_Players_History.kills) >= $minkills
-		ORDER BY
-		    $table->sort $table->sortorder,
-		    $table->sort2 $table->sortorder,
-		    hlstats_Players.lastName ASC
-		LIMIT
-		    $table->startitem,
-		    $table->numperpage
-	    ");
-	    $resultCount = $db->query("SELECT FOUND_ROWS()");
+            }
+
+            $minEvent = (int)$minEvent;
+            $maxEvent = (int)$maxEvent;
+
+            $result = $db->query
+            ("
+                SELECT
+                    SQL_CALC_FOUND_ROWS
+                    hlstats_Players_History.playerId,
+                    unhex(replace(hex(hlstats_Players.lastName), 'E280AE', '')) AS lastName,
+                    hlstats_Players.flag,
+                    hlstats_Players.country,
+                    hlstats_Players.mmrank,
+                    SUM(hlstats_Players_History.connection_time) AS connection_time,
+                    SUM(hlstats_Players_History.skill_change) AS skill,
+                    SUM(hlstats_Players_History.skill_change) AS skill_change,
+                    SUM(hlstats_Players_History.skill_change) AS last_skill_change,
+                    SUM(hlstats_Players_History.kills) AS kills,
+                    SUM(hlstats_Players_History.deaths) AS deaths,
+                    ROUND(SUM(hlstats_Players_History.kills) / IF(SUM(hlstats_Players_History.deaths) = 0, 1, SUM(hlstats_Players_History.deaths)), 2) AS kpd,
+                    SUM(hlstats_Players_History.headshots) AS headshots,
+                    ROUND(SUM(hlstats_Players_History.headshots) / IF(SUM(hlstats_Players_History.kills) = 0, 1, SUM(hlstats_Players_History.kills)), 2) AS hpk,
+                    IFNULL(ROUND((SUM(hlstats_Players_History.hits) / IF(SUM(hlstats_Players_History.shots) = 0, 1, SUM(hlstats_Players_History.shots)) * 100), 1), 0) AS acc,
+                    activity
+                FROM
+                    hlstats_Players_History
+                INNER JOIN
+                    hlstats_Players
+                ON
+                    hlstats_Players_History.playerId = hlstats_Players.playerId
+                WHERE
+                    hlstats_Players_History.game = '$game_esc'
+                    AND hlstats_Players.hideranking = 0
+                    AND activity > 0
+                    AND UNIX_TIMESTAMP(hlstats_Players_History.eventTime) >= $minEvent
+                    AND UNIX_TIMESTAMP(hlstats_Players_History.eventTime) <= $maxEvent
+                GROUP BY
+                    hlstats_Players_History.playerId,
+                    hlstats_Players.lastName,
+                    hlstats_Players.flag,
+                    hlstats_Players.country,
+                    hlstats_Players.mmrank,
+                    hlstats_Players.activity
+                HAVING
+                    SUM(hlstats_Players_History.kills) >= $minkills
+                ORDER BY
+                    $table->sort $table->sortorder,
+                    $table->sort2 $table->sortorder,
+                    hlstats_Players.lastName ASC
+                LIMIT
+                    $table->startitem,
+                    $table->numperpage
+            ");
+            $resultCount = $db->query("SELECT FOUND_ROWS()");
             // PHP 8 Fix: Replace list()
-	    $row = $db->fetch_row($resultCount);
-            $numitems = ($row) ? $row[0] : 0;
-	}
-	$table->draw($result, $numitems, 95);
+            $row = $db->fetch_row($resultCount);
+            $db->free_result($resultCount);
+            $numitems = ($row) ? (int)$row[0] : 0;
+        }
+        $table->draw($result, $numitems, 95);
     ?><br /><br />
     <div class="subblock">
-	<div style="float:left;">
-	    <form method="get" action="<?php echo $g_options['scripturl']; ?>">
-		<?php					
-		    foreach ($_GET as $k=>$v) {
-                        // PHP 8 Fix: Safe casting
+        <div style="float:left;">
+            <form method="get" action="<?php echo $scripturl; ?>">
+                <?php
+                    foreach ($_GET as $k => $v) {
+                        if (is_array($v)) {
+                            continue;
+                        }
                         $k = (string)$k;
                         $v = (string)$v;
-			$v = valid_request($v, false);
 
-                        if ($k != 'minkills') {
-			    echo "<input type=\"hidden\" name=\"" . htmlspecialchars($k) . "\" value=\"" . htmlspecialchars($v) . "\" />\n";
-			}
-		    }
-		?>
-		<strong>&#8226;</strong> Only show players with
-		    <input type="text" name="minkills" size="4" maxlength="2" value="<?php echo $minkills; ?>" class="textbox" /> or more kills.
-		    <input type="submit" value="Apply" class="smallsubmit" />
-	    </form>
-	</div>
-	<div style="float:right;">
-	    Go to: <a href="<?php echo $g_options["scripturl"] . "?mode=clans&amp;game=$game"; ?>">Clan Rankings</a>
-	</div>	
+                        if ($k !== 'minkills') {
+                            echo "<input type=\"hidden\" name=\"" . htmlspecialchars($k, ENT_QUOTES, 'UTF-8') . "\" value=\"" . htmlspecialchars($v, ENT_QUOTES, 'UTF-8') . "\" />\n";
+                        }
+                    }
+                ?>
+                <strong>&#8226;</strong> Only show players with
+                    <input type="text" name="minkills" size="6" maxlength="6" value="<?php echo (int)$minkills; ?>" class="textbox" /> or more kills.
+                    <input type="submit" value="Apply" class="smallsubmit" />
+            </form>
+        </div>
+        <div style="float:right;">
+            Go to: <a href="<?php echo $scripturl . '?mode=clans&amp;game=' . $game_url; ?>">Clan Rankings</a>
+        </div>
+        <div style="clear:both;"></div>
     </div>
 </div>

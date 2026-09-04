@@ -43,7 +43,7 @@ For support and installation notes visit http://www.hlxcommunity.com
 
     // Initialize variables
     $player = isset($player) ? (int)$player : 0;
-    $game = isset($game) ? $game : '';
+    $game = isset($game) ? (string)$game : '';
     $game_esc = $db->escape($game);
     $game_url = urlencode($game);
 
@@ -67,9 +67,10 @@ For support and installation notes visit http://www.hlxcommunity.com
 
     $fname = array();
     while ($rowdata = $db->fetch_row($result)) {
-	$code = $rowdata[0];
-	$fname[strtolower($code)] = htmlspecialchars((string)$rowdata[1]);
+        $code = $rowdata[0];
+        $fname[strtolower($code)] = htmlspecialchars((string)$rowdata[1], ENT_QUOTES, 'UTF-8');
     }
+    $db->free_result();
 
     $tblWeapons = new Table
     (
@@ -79,7 +80,7 @@ For support and installation notes visit http://www.hlxcommunity.com
 	    (
 		'weapon',
 		'Weapon',
-		'width=15&type=weaponimg&align=center&link=' . urlencode("mode=weaponinfo&amp;weapon=%k&amp;game=$game_url"),
+		'width=15&type=weaponimg&align=center&link=' . urlencode("mode=weaponinfo&weapon=%k&game=$game_url"),
 		$fname
 	    ),
 	    new TableColumn
@@ -195,7 +196,7 @@ For support and installation notes visit http://www.hlxcommunity.com
 	    (
 		'smweapon',
 		'Weapon',
-		'width=15&type=weaponimg&align=center&link=' . urlencode("mode=weaponinfo&amp;weapon=%k&amp;game=$game_url"),
+		'width=15&type=weaponimg&align=center&link=' . urlencode("mode=weaponinfo&weapon=%k&game=$game_url"),
 		$fname
 	    ),
 	    new TableColumn
@@ -226,19 +227,19 @@ For support and installation notes visit http://www.hlxcommunity.com
 	    (
 		'smkills',
 		'Kills',
-		'width=7&align=right'
+		'width=8&align=right'
 	    ),
 	    new TableColumn
 	    (
 		'smkdr',
 		'K:D',
-		'width=12&align=right'
+		'width=10&align=right'
 	    ),
 	    new TableColumn
 	    (
 		'smaccuracy',
 		'Accuracy',
-		'width=8&align=right&append=' . urlencode('%')
+		'width=10&align=right&append=' . urlencode('%')
 	    ),
 	    new TableColumn
 	    (
@@ -250,7 +251,7 @@ For support and installation notes visit http://www.hlxcommunity.com
 	    (
 		'smspk',
 		'Shots per Kill',
-		'width=11&align=right'
+		'width=10&align=right'
 	    )
 	),
 	'smweapon',
@@ -282,7 +283,7 @@ For support and installation notes visit http://www.hlxcommunity.com
 	FROM
 	    hlstats_Events_Statsme
 	WHERE
-	    hlstats_Events_Statsme.PlayerId = $player
+	    hlstats_Events_Statsme.playerId = $player
 	GROUP BY
 	    hlstats_Events_Statsme.weapon
 	HAVING
@@ -294,7 +295,7 @@ For support and installation notes visit http://www.hlxcommunity.com
 
     $numitems = $db->num_rows($result);
     if ($numitems > 0) {
-	printSectionTitle('Weapon Statistics *');
+	printSectionTitle('Weapon Stats *');
 	$tblWeaponstats->draw($result, $numitems, 95); ?>
 	<br /><br />
 <!-- End of StatsMe Addon 1.0 by JustinHoMi@aol.com -->
@@ -302,446 +303,458 @@ For support and installation notes visit http://www.hlxcommunity.com
 <?php
     }
     flush();
-    if (isset($g_options['show_weapon_target_flash']) && $g_options['show_weapon_target_flash'] == 1)
-    {
-	$tblWeaponstats2 = new Table
-	(
-	    array
-	    (
-		new TableColumn
-		(
-		    'smweapon',
-		    'Weapon',
-		    'width=35&type=weaponimg&align=center&link='.urlencode("javascript:switch_weapon('%k');"),
-		    $fname
-		),
-		new TableColumn
-		(
-		    'smhits',
-		    'Hits',
-		    'width=15&align=right'
-		),
-		new TableColumn
-		(
-		    'smleft',
-		    'Left',
-		    'width=15&align=right&append=' . urlencode('%')
-		),
-		new TableColumn
-		(
-		    'smmiddle',
-		    'Middle',
-		    'width=15&align=right&append=' . urlencode('%')
-		),
-		new TableColumn
-		(
-		    'smright',
-		    'Right',
-		    'width=15&align=right&append=' . urlencode('%')
-		)
-	    ),
-	    'smweapon',
-	    'smhits',
-	    'smweapon',
-	    true,
-	    9999,
-	    'weap_page',
-	    'weap_sort',
-	    'weap_sortorder',
-	    'tabweapons',
-	    'desc',
-	    true
-	);
+    // Defensive schema check: Ensure compatibility with un-migrated legacy databases
+    static $has_neck_col = null;
+    static $has_generic_col = null;
+    if ($has_neck_col === null) {
+        $res = $db->query("SHOW COLUMNS FROM `hlstats_Events_Statsme2` LIKE 'neck'");
+        $has_neck_col = ($res && $db->num_rows($res) > 0);
     }
-    else
-    {
-    $tblWeaponstats2 = new Table
-    (
-	array(
-	    new TableColumn
-	    (
-		'smweapon',
-		'Weapon',
-		'width=13&type=weaponimg&align=center&link=' . urlencode("mode=weaponinfo&amp;weapon=%k&amp;game=$game_url"),
-		$fname
-	    ),
-	    new TableColumn
-	    (
-		'smhits',
-		'Hits',
-		'width=7&align=right'
-	    ),
-	    new TableColumn
-	    (
-		'smhead',
-		'Head',
-		'width=6&align=right'
-	    ),
-	    new TableColumn
-	    (
-		'smchest',
-		'Chest',
-		'width=6&align=right'
-	    ),
-	    new TableColumn
-	    (
-		'smstomach',
-		'Stomach',
-		'width=6&align=right'
-	    ),
-	    new TableColumn
-	    (
-		'smleftarm',
-		'Left Arm',
-		'width=6&align=right'
-	    ),
-	    new TableColumn
-	    (
-		'smrightarm',
-		'Right Arm',
-		'width=6&align=right'
-	    ),
-	    new TableColumn
-	    (
-		'smleftleg',
-		'Left Leg',
-		'width=6&align=right'
-	    ),
-	    new TableColumn
-	    (
-		'smrightleg',
-		'Right Leg',
-		'width=6&align=right'
-	    ),
-	    new TableColumn
-	    (
-		'smgeneric',
-		'Body',
-		'width=6&align=right'
-	    ),
-	    new TableColumn
-	    (
-		'smleft',
-		'Left',
-		'width=9&align=right&append=' . urlencode('%')
-	    ),
-	    new TableColumn
-	    (
-		'smmiddle',
-		'Middle',
-		'width=9&align=right&append=' . urlencode('%')
-	    ),
-	    new TableColumn
-	    (
-		'smright',
-		'Right',
-		'width=9&align=right&append=' . urlencode('%')
-	    )
-	),
-	'smweapon',
-	'smhits',
-	'smweapon',
-	true,
-	9999,
-	'weap_page',
-	'weap_sort',
-	'weap_sortorder',
-	'weaponstats2',
-	'desc',
-	true
-	);
+    if ($has_generic_col === null) {
+        $res = $db->query("SHOW COLUMNS FROM `hlstats_Events_Statsme2` LIKE 'generic'");
+        $has_generic_col = ($res && $db->num_rows($res) > 0);
     }
+
+    // Dynamic field replacement: Use column if exists, fallback to 0 if missing in DB
+    $neck_sel    = $has_neck_col ? "SUM(hlstats_Events_Statsme2.neck)" : "0";
+    $generic_sel = $has_generic_col ? "SUM(hlstats_Events_Statsme2.generic)" : "0";
+
+    $raw_sort    = $_GET['weaponstats2_sort'] ?? $_GET['weap_sort'] ?? 'smhits';
+    $raw_order   = $_GET['weaponstats2_sortorder'] ?? $_GET['weap_sortorder'] ?? 'desc';
+
+    $allowed_sorts = array('smweapon', 'smhits', 'smhead', 'smneck', 'smchest', 'smstomach', 'smleftarm', 'smrightarm', 'smleftleg', 'smrightleg', 'smgeneric', 'smleft', 'smright', 'smmiddle');
+    $sort_field    = in_array($raw_sort, $allowed_sorts, true) ? $raw_sort : 'smhits';
+    $sort_order    = (strtolower((string)$raw_order) === 'asc') ? 'ASC' : 'DESC';
+
+    // Query weapon targets with self-healing column fallbacks & dynamic sorting
     $query = "
-	SELECT
-	    hlstats_Events_Statsme2.weapon AS smweapon,
-	    SUM(hlstats_Events_Statsme2.head) AS smhead,
-	    SUM(hlstats_Events_Statsme2.chest) AS smchest,
-	    SUM(hlstats_Events_Statsme2.stomach) AS smstomach,
-	    SUM(hlstats_Events_Statsme2.leftarm) AS smleftarm,
-	    SUM(hlstats_Events_Statsme2.rightarm) AS smrightarm,
-	    SUM(hlstats_Events_Statsme2.leftleg) AS smleftleg,
-	    SUM(hlstats_Events_Statsme2.rightleg) AS smrightleg,
-	    SUM(hlstats_Events_Statsme2.generic) AS smgeneric,
-	    SUM(hlstats_Events_Statsme2.head)
-		+ SUM(hlstats_Events_Statsme2.chest)
-		+ SUM(hlstats_Events_Statsme2.stomach)
-		+ SUM(hlstats_Events_Statsme2.leftarm)
-		+ SUM(hlstats_Events_Statsme2.rightarm)
-		+ SUM(hlstats_Events_Statsme2.leftleg)
-		+ SUM(hlstats_Events_Statsme2.rightleg)
-		+ SUM(hlstats_Events_Statsme2.generic) AS smhits,
-	    IFNULL(ROUND((SUM(hlstats_Events_Statsme2.leftarm) + SUM(hlstats_Events_Statsme2.leftleg)) / (SUM(hlstats_Events_Statsme2.head) + SUM(hlstats_Events_Statsme2.chest) + SUM(hlstats_Events_Statsme2.stomach) + SUM(hlstats_Events_Statsme2.leftarm ) + SUM(hlstats_Events_Statsme2.rightarm) + SUM(hlstats_Events_Statsme2.leftleg) + SUM(hlstats_Events_Statsme2.rightleg) + SUM(hlstats_Events_Statsme2.generic)) * 100, 1), 0.0) AS smleft,
-	    IFNULL(ROUND((SUM(hlstats_Events_Statsme2.rightarm) + SUM(hlstats_Events_Statsme2.rightleg)) / (SUM(hlstats_Events_Statsme2.head) + SUM(hlstats_Events_Statsme2.chest) + SUM(hlstats_Events_Statsme2.stomach) + SUM(hlstats_Events_Statsme2.leftarm ) + SUM(hlstats_Events_Statsme2.rightarm) + SUM(hlstats_Events_Statsme2.leftleg) + SUM(hlstats_Events_Statsme2.rightleg) + SUM(hlstats_Events_Statsme2.generic)) * 100, 1), 0.0) AS smright,
-	    IFNULL(ROUND((SUM(hlstats_Events_Statsme2.head) + SUM(hlstats_Events_Statsme2.chest) + SUM(hlstats_Events_Statsme2.stomach) + SUM(hlstats_Events_Statsme2.generic)) / (SUM(hlstats_Events_Statsme2.head) + SUM(hlstats_Events_Statsme2.chest) + SUM(hlstats_Events_Statsme2.stomach) + SUM(hlstats_Events_Statsme2.leftarm ) + SUM(hlstats_Events_Statsme2.rightarm) + SUM(hlstats_Events_Statsme2.leftleg) + SUM(hlstats_Events_Statsme2.rightleg) + SUM(hlstats_Events_Statsme2.generic)) * 100, 1), 0.0) AS smmiddle
-	FROM
-	    hlstats_Events_Statsme2
-	WHERE
-	    hlstats_Events_Statsme2.PlayerId = $player
-	GROUP BY
-	    hlstats_Events_Statsme2.weapon
-	HAVING
-	    smhits > 0
-	ORDER BY
-	    $tblWeaponstats2->sort $tblWeaponstats2->sortorder,
-	    $tblWeaponstats2->sort2 $tblWeaponstats2->sortorder
+        SELECT
+            hlstats_Events_Statsme2.weapon AS smweapon,
+            SUM(hlstats_Events_Statsme2.head) AS smhead,
+            {$neck_sel} AS smneck,
+            SUM(hlstats_Events_Statsme2.chest) AS smchest,
+            SUM(hlstats_Events_Statsme2.stomach) AS smstomach,
+            SUM(hlstats_Events_Statsme2.leftarm) AS smleftarm,
+            SUM(hlstats_Events_Statsme2.rightarm) AS smrightarm,
+            SUM(hlstats_Events_Statsme2.leftleg) AS smleftleg,
+            SUM(hlstats_Events_Statsme2.rightleg) AS smrightleg,
+            {$generic_sel} AS smgeneric,
+            SUM(hlstats_Events_Statsme2.head)
+                + {$neck_sel}
+                + SUM(hlstats_Events_Statsme2.chest)
+                + SUM(hlstats_Events_Statsme2.stomach)
+                + SUM(hlstats_Events_Statsme2.leftarm)
+                + SUM(hlstats_Events_Statsme2.rightarm)
+                + SUM(hlstats_Events_Statsme2.leftleg)
+                + SUM(hlstats_Events_Statsme2.rightleg)
+                + {$generic_sel} AS smhits,
+            IFNULL(ROUND((SUM(hlstats_Events_Statsme2.leftarm) + SUM(hlstats_Events_Statsme2.leftleg)) / (SUM(hlstats_Events_Statsme2.head) + {$neck_sel} + SUM(hlstats_Events_Statsme2.chest) + SUM(hlstats_Events_Statsme2.stomach) + SUM(hlstats_Events_Statsme2.leftarm) + SUM(hlstats_Events_Statsme2.rightarm) + SUM(hlstats_Events_Statsme2.leftleg) + SUM(hlstats_Events_Statsme2.rightleg) + {$generic_sel}) * 100, 1), 0.0) AS smleft,
+            IFNULL(ROUND((SUM(hlstats_Events_Statsme2.rightarm) + SUM(hlstats_Events_Statsme2.rightleg)) / (SUM(hlstats_Events_Statsme2.head) + {$neck_sel} + SUM(hlstats_Events_Statsme2.chest) + SUM(hlstats_Events_Statsme2.stomach) + SUM(hlstats_Events_Statsme2.leftarm) + SUM(hlstats_Events_Statsme2.rightarm) + SUM(hlstats_Events_Statsme2.leftleg) + SUM(hlstats_Events_Statsme2.rightleg) + {$generic_sel}) * 100, 1), 0.0) AS smright,
+            IFNULL(ROUND((SUM(hlstats_Events_Statsme2.head) + {$neck_sel} + SUM(hlstats_Events_Statsme2.chest) + SUM(hlstats_Events_Statsme2.stomach) + {$generic_sel}) / (SUM(hlstats_Events_Statsme2.head) + {$neck_sel} + SUM(hlstats_Events_Statsme2.chest) + SUM(hlstats_Events_Statsme2.stomach) + SUM(hlstats_Events_Statsme2.leftarm) + SUM(hlstats_Events_Statsme2.rightarm) + SUM(hlstats_Events_Statsme2.leftleg) + SUM(hlstats_Events_Statsme2.rightleg) + {$generic_sel}) * 100, 1), 0.0) AS smmiddle
+        FROM
+            hlstats_Events_Statsme2
+        WHERE
+            hlstats_Events_Statsme2.playerId = $player
+        GROUP BY
+            hlstats_Events_Statsme2.weapon
+        HAVING
+            smhits > 0
+        ORDER BY
+            {$sort_field} {$sort_order}, smhits DESC
     ";
+
     $result = $db->query($query);
     if ($db->num_rows($result) != 0)
     {
-	printSectionTitle('Weapon Targets *');
-	if (isset($g_options['show_weapon_target_flash']) && $g_options['show_weapon_target_flash'] == 1)
-	{
+        printSectionTitle('Weapon Targets *');
+
+        if (isset($g_options['show_weapon_target_flash']) && $g_options['show_weapon_target_flash'] == 1)
+        {
+            $tblWeaponstats2 = new Table
+            (
+                array
+                (
+                    new TableColumn
+                    (
+                        'smweapon',
+                        'Weapon',
+                        'width=35&type=weaponimg&align=center&link='.urlencode("javascript:switch_weapon('%k');"),
+                        $fname
+                    ),
+                    new TableColumn
+                    (
+                        'smhits',
+                        'Hits',
+                        'width=15&align=right'
+                    ),
+                    new TableColumn
+                    (
+                        'smleft',
+                        'Left',
+                        'width=15&align=right&append=' . urlencode('%')
+                    ),
+                    new TableColumn
+                    (
+                        'smmiddle',
+                        'Middle',
+                        'width=15&align=right&append=' . urlencode('%')
+                    ),
+                    new TableColumn
+                    (
+                        'smright',
+                        'Right',
+                        'width=15&align=right&append=' . urlencode('%')
+                    )
+                ),
+                'smweapon',
+                'smhits',
+                'smweapon',
+                true,
+                9999,
+                'weap_page',
+                'weap_sort',
+                'weap_sortorder',
+                'tabweapons',
+                'desc',
+                true
+            );
 ?>
     <div class="subblock">
-	<div style="float:left;vertical-align:top;width:52%;">
-	    <script type="text/javascript">
-	    /* <![CDATA[ */
-	    <?php
-	    $weapon_data = array ();
-            // Initialize total array to avoid warnings
+        <div style="float:left;vertical-align:top;width:52%;">
+            <script type="text/javascript">
+            /* <![CDATA[ */
+            <?php
+            $weapon_data = array ();
             $weapon_data['total'] = array(
-                'head' => 0, 'leftarm' => 0, 'rightarm' => 0, 'chest' => 0, 
+                'head' => 0, 'leftarm' => 0, 'rightarm' => 0, 'chest' => 0,
                 'stomach' => 0, 'leftleg' => 0, 'rightleg' => 0, 'generic' => 0, 'model' => ''
             );
-            
-	    $css_models = array ('ct', 'ct2', 'ct3', 'ct4', 'ts', 'ts2', 'ts3', 'ts4');
-	    $css_ct_weapons = array ('usp', 'tmp', 'm4a1', 'aug', 'famas', 'sig550');
-	    $css_ts_weapons = array ('glock', 'elite', 'mac10', 'ak47', 'sg552', 'galil', 'g3sg1');
-	    $css_random_weapons = array ('knife', 'deagle', 'p228', 'm3', 'xm1014', 'mp5navy', 'p90', 'scout', 'awp', 'm249', 'hegrenade', 'flashbang', 'ump45', 'smokegrenade_projectile');
-	    $dods_models = array ('allies', 'axis');
-	    $dods_allies_weapons = array ('thompson', 'colt', 'spring', 'garand', 'riflegren_us', 'm1carbine', 'bar', 'amerknife', '30cal', 'bazooka', 'frag_us', 'riflegren_us', 'smoke_us');
-	    $dods_axis_weapons = array ('spade', 'riflegren_ger', 'k98', 'mp40', 'p38', 'frag_ger', 'smoke_ger', 'mp44', 'k98_scoped', 'mg42', 'pschreck', 'c96');
-	    $l4d_models = array ('zombie1', 'zombie2', 'zombie3');
-	    $insmod_models = array ('insmod1', 'insmod2');
-	    $fof_models = array ('fof1', 'fof2');
-	    $ges_models = array ('ges-bond', 'ges-boris');
-	    $dinodday_models			= array('ddd_allies', 'ddd_axis');
-	    $dinodday_allies_weapons	= array('garand', 'greasegun', 'thompson', 'shotgun', 'sten', 'carbine', 'bar', 'mosin', 'p38', 'piat', 'nagant', 'flechette', 'pistol', 'trigger');
-	    $dinodday_axis_weapons		= array('mp40', 'k98', 'mp44', 'k98sniper', 'luger', 'stygimoloch', 'mg42', 'trex');
-	    
+
+            $css_models = array ('ct', 'ct2', 'ct3', 'ct4', 'ts', 'ts2', 'ts3', 'ts4');
+            $css_ct_weapons = array ('usp', 'tmp', 'm4a1', 'aug', 'famas', 'sig550', 'm4a1_silencer', 'usp_silencer', 'mp9', 'mag7', 'scar20', 'fiveseven');
+            $css_ts_weapons = array ('glock', 'elite', 'mac10', 'ak47', 'sg552', 'galil', 'galilar', 'g3sg1', 'sg556', 'tec9', 'sawedoff');
+            $css_random_weapons = array ('knife', 'deagle', 'p228', 'm3', 'xm1014', 'mp5navy', 'p90', 'scout', 'awp', 'm249', 'hegrenade', 'flashbang', 'ump45', 'smokegrenade_projectile', 'ssg08', 'bizon', 'nova', 'p250', 'revolver', 'mp5sd', 'negev', 'taser', 'cz75a');
+            $dods_models = array ('allies', 'axis');
+            $dods_allies_weapons = array ('thompson', 'colt', 'spring', 'garand', 'riflegren_us', 'm1carbine', 'bar', 'amerknife', '30cal', 'bazooka', 'frag_us', 'smoke_us');
+            $dods_axis_weapons = array ('spade', 'riflegren_ger', 'k98', 'mp40', 'p38', 'frag_ger', 'smoke_ger', 'mp44', 'k98_scoped', 'mg42', 'pschreck', 'c96');
+            $l4d_models = array ('zombie1', 'zombie2', 'zombie3');
+            $insmod_models = array ('insmod1', 'insmod2');
+            $fof_models = array ('fof1', 'fof2');
+            $ges_models = array ('ges-bond', 'ges-boris');
+            $dinodday_models = array('ddd_allies', 'ddd_axis');
+            $dinodday_allies_weapons = array('garand', 'greasegun', 'thompson', 'shotgun', 'sten', 'carbine', 'bar', 'mosin', 'p38', 'piat', 'nagant', 'flechette', 'pistol', 'trigger');
+            $dinodday_axis_weapons = array('mp40', 'k98', 'mp44', 'k98sniper', 'luger', 'stygimoloch', 'mg42', 'trex');
+
             while ($rowdata = $db->fetch_array($result))
-	    {
-		$weapon_data['total']['head'] += $rowdata['smhead'];
-		$weapon_data['total']['leftarm'] += $rowdata['smleftarm'];
-		$weapon_data['total']['rightarm'] += $rowdata['smrightarm'];
-		$weapon_data['total']['chest'] += $rowdata['smchest'];
-		$weapon_data['total']['stomach'] += $rowdata['smstomach'];
-		$weapon_data['total']['leftleg'] += $rowdata['smleftleg'];
-		$weapon_data['total']['rightleg'] += $rowdata['smrightleg'];
-		$weapon_data['total']['generic'] += $rowdata['smgeneric'];
-		$weapon_data[$rowdata['smweapon']]['head'] = $rowdata['smhead'];
-		$weapon_data[$rowdata['smweapon']]['leftarm'] = $rowdata['smleftarm'];
-		$weapon_data[$rowdata['smweapon']]['rightarm'] = $rowdata['smrightarm'];
-		$weapon_data[$rowdata['smweapon']]['chest'] = $rowdata['smchest'];
-		$weapon_data[$rowdata['smweapon']]['stomach'] = $rowdata['smstomach'];
-		$weapon_data[$rowdata['smweapon']]['leftleg'] = $rowdata['smleftleg'];
-		$weapon_data[$rowdata['smweapon']]['rightleg'] = $rowdata['smrightleg'];
-		$weapon_data[$rowdata['smweapon']]['generic'] = $rowdata['smgeneric'];
-		switch ($realgame)
-		{
-		    case 'dods':
-			$weapon_data[$rowdata['smweapon']]['model'] = 'allies';
-			break;
-		    case 'l4d':
-			$weapon_data[$rowdata['smweapon']]['model'] = 'zombie1';
-			break;
-		    case 'hl2mp':
-			$weapon_data[$rowdata["smweapon"]]['model'] = 'alyx';
-			break;
-		    case 'insmod':
-			$weapon_data[$rowdata['smweapon']]['model'] = 'insmod1';
-			break;
-		    case 'zps':
-			$weapon_data[$rowdata["smweapon"]]['model'] = 'zps1';
-			break;
-		    case 'ges':
-			$weapon_data[$rowdata['smweapon']]['model'] = 'ges-bond';
-			break;
-		    case 'tfc':
-			$weapon_data[$rowdata["smweapon"]]['model'] = 'pyro';
-			break;
-		    case 'fof':
-			$weapon_data[$rowdata['smweapon']]['model'] = 'fof1';
-			break;
-		    case 'dinodday':
-			$weapon_data[$rowdata['smweapon']]['model'] = 'ddd_allies';
-			break;
-		    default:
-			$weapon_data[$rowdata['smweapon']]['model'] = 'ct';
-		}
-		if ($realgame == 'css' || $realgame == 'cstrike')
-		{
-		    if (in_array($rowdata['smweapon'], $css_random_weapons))
-		    {
-			$weapon_data[$rowdata['smweapon']]['model'] = $css_models[array_rand($css_models)];
-		    }
-		    elseif (in_array($rowdata['smweapon'], $css_ct_weapons))
-		    {
-			$weapon_data[$rowdata['smweapon']]['model'] = $css_models[rand(0, 2) + 3];
-		    }
-		    elseif (in_array($rowdata['smweapon'], $css_ts_weapons))
-		    {
-			$weapon_data[$rowdata['smweapon']]['model'] = $css_models[rand(0, 2)];
-		    }
-		}
-		elseif ($realgame == 'dods')
-		{
-		    if (in_array($rowdata['smweapon'], $dods_allies_weapons))
-		    {
-			$weapon_data[$rowdata['smweapon']]['model'] = $dods_models[1];
-		    }
-		    elseif (in_array($rowdata['smweapon'], $dods_axis_weapons))
-		    {
-			$weapon_data[$rowdata['smweapon']]['model'] = $dods_models[0];
-		    }
-		}
-		elseif ($realgame == 'dinodday')
-		{
-		    if (in_array($rowdata['smweapon'], $dinodday_allies_weapons))
-		    {
-			$weapon_data[$rowdata['smweapon']]['model'] = $dinodday_models[1];
-		    }
-		    elseif (in_array($rowdata['smweapon'], $dinodday_axis_weapons))
-		    {
-			$weapon_data[$rowdata['smweapon']]['model'] = $dinodday_models[0];
-		    }
-		}
-	    }
-	    switch ($realgame)
-	    {
-		case 'dods':
-		    $start_model = $dods_models[array_rand($dods_models)];
-		    break;
-		case 'l4d':
-		    $start_model = $l4d_models[array_rand($l4d_models)];
-		    break;
-		case 'hl2mp':
-		    $start_model = 'alyx';
-		    break;
-		case 'insmod':
-		    $start_model = $insmod_models[array_rand($insmod_models)];
-		    break;
-		case 'zps':
-		    $start_model = 'zps1';
-		    break;
-		case 'ges':
-		    $start_model = $ges_models[array_rand($ges_models)];
-		    break;
-		case 'tfc':
-		    $start_model = 'pyro';
-		    break;
-		case 'fof':
-		    $start_model = $fof_models[array_rand($fof_models)];
-		    break;
-		case 'dinodday':
-                    // PHP 8 Fix: Typo in variable name (dinoday -> dinodday)
-		    $start_model = $dinodday_models[array_rand($dinodday_models)];
-		    break;
-		default:
-		    $start_model   = $css_models[array_rand($css_models)];
-	    }
-	    $weapon_data['total']['model'] = $start_model;                               
-	    echo "var data_array = new Array();\n";
-	    $i = 1;
-	    foreach ($weapon_data as $key => $entry)
-	    {
-		if ($key == 'total')
-		    $key = 'All Weapons';
-                // PHP 8 Fix: Ensure array keys exist
-                $head = isset($entry['head']) ? $entry['head'] : 0;
-                $leftarm = isset($entry['leftarm']) ? $entry['leftarm'] : 0;
-                $rightarm = isset($entry['rightarm']) ? $entry['rightarm'] : 0;
-                $chest = isset($entry['chest']) ? $entry['chest'] : 0;
-                $stomach = isset($entry['stomach']) ? $entry['stomach'] : 0;
-                $leftleg = isset($entry['leftleg']) ? $entry['leftleg'] : 0;
-                $rightleg = isset($entry['rightleg']) ? $entry['rightleg'] : 0;
-		$generic = isset($entry['generic']) ? $entry['generic'] : 0;
-                $model = isset($entry['model']) ? $entry['model'] : '';
+            {
+                $weapon_data['total']['head'] += $rowdata['smhead'];
+                $weapon_data['total']['leftarm'] += $rowdata['smleftarm'];
+                $weapon_data['total']['rightarm'] += $rowdata['smrightarm'];
+                $weapon_data['total']['chest'] += ($rowdata['smchest'] + ($rowdata['smneck'] ?? 0));
+                $weapon_data['total']['stomach'] += $rowdata['smstomach'];
+                $weapon_data['total']['leftleg'] += $rowdata['smleftleg'];
+                $weapon_data['total']['rightleg'] += $rowdata['smrightleg'];
+                $weapon_data['total']['generic'] += $rowdata['smgeneric'];
+                $weapon_data[$rowdata['smweapon']]['head'] = $rowdata['smhead'];
+                $weapon_data[$rowdata['smweapon']]['leftarm'] = $rowdata['smleftarm'];
+                $weapon_data[$rowdata['smweapon']]['rightarm'] = $rowdata['smrightarm'];
+                $weapon_data[$rowdata['smweapon']]['chest'] = ($rowdata['smchest'] + ($rowdata['smneck'] ?? 0));
+                $weapon_data[$rowdata['smweapon']]['stomach'] = $rowdata['smstomach'];
+                $weapon_data[$rowdata['smweapon']]['leftleg'] = $rowdata['smleftleg'];
+                $weapon_data[$rowdata['smweapon']]['rightleg'] = $rowdata['smrightleg'];
+                $weapon_data[$rowdata['smweapon']]['generic'] = $rowdata['smgeneric'];
                 
-		echo "data_array['$key'] = ['".ucfirst($key)."',".$head.",".$leftarm.",".$rightarm.",".$chest.",".$stomach.",".$leftleg.",".$rightleg.",".$generic.",'".$model."'];\n";
-		$i++; 
-	    }
-            
+                switch ($realgame)
+                {
+                    case 'dods':
+                        $weapon_data[$rowdata['smweapon']]['model'] = 'allies';
+                        break;
+                    case 'l4d':
+                    case 'l4d2':
+                        $weapon_data[$rowdata['smweapon']]['model'] = 'zombie1';
+                        break;
+                    case 'hl2mp':
+                        $weapon_data[$rowdata["smweapon"]]['model'] = 'alyx';
+                        break;
+                    case 'insmod':
+                        $weapon_data[$rowdata['smweapon']]['model'] = 'insmod1';
+                        break;
+                    case 'zps':
+                        $weapon_data[$rowdata["smweapon"]]['model'] = 'zps1';
+                        break;
+                    case 'ges':
+                        $weapon_data[$rowdata['smweapon']]['model'] = 'ges-bond';
+                        break;
+                    case 'tfc':
+                        $weapon_data[$rowdata["smweapon"]]['model'] = 'pyro';
+                        break;
+                    case 'fof':
+                        $weapon_data[$rowdata['smweapon']]['model'] = 'fof1';
+                        break;
+                    case 'dinodday':
+                        $weapon_data[$rowdata['smweapon']]['model'] = 'ddd_allies';
+                        break;
+                    default:
+                        $weapon_data[$rowdata['smweapon']]['model'] = 'ct';
+                }
+                
+                if ($realgame == 'css' || $realgame == 'cstrike' || $realgame == 'csgo' || $realgame == 'cs2' || $realgame == 'csp')
+                {
+                    if (in_array($rowdata['smweapon'], $css_random_weapons))
+                    {
+                        $weapon_data[$rowdata['smweapon']]['model'] = $css_models[array_rand($css_models)];
+                    }
+                    elseif (in_array($rowdata['smweapon'], $css_ct_weapons))
+                    {
+                        $weapon_data[$rowdata['smweapon']]['model'] = $css_models[rand(0, 2) + 3];
+                    }
+                    elseif (in_array($rowdata['smweapon'], $css_ts_weapons))
+                    {
+                        $weapon_data[$rowdata['smweapon']]['model'] = $css_models[rand(0, 2)];
+                    }
+                }
+                elseif ($realgame == 'dods')
+                {
+                    if (in_array($rowdata['smweapon'], $dods_allies_weapons))
+                    {
+                        $weapon_data[$rowdata['smweapon']]['model'] = $dods_models[1];
+                    }
+                    elseif (in_array($rowdata['smweapon'], $dods_axis_weapons))
+                    {
+                        $weapon_data[$rowdata['smweapon']]['model'] = $dods_models[0];
+                    }
+                }
+                elseif ($realgame == 'dinodday')
+                {
+                    if (in_array($rowdata['smweapon'], $dinodday_allies_weapons))
+                    {
+                        $weapon_data[$rowdata['smweapon']]['model'] = $dinodday_models[1];
+                    }
+                    elseif (in_array($rowdata['smweapon'], $dinodday_axis_weapons))
+                    {
+                        $weapon_data[$rowdata['smweapon']]['model'] = $dinodday_models[0];
+                    }
+                }
+            }
+
+            switch ($realgame)
+            {
+                case 'dods':
+                    $start_model = $dods_models[array_rand($dods_models)];
+                    break;
+                case 'l4d':
+                    $start_model = $l4d_models[array_rand($l4d_models)];
+                    break;
+                case 'hl2mp':
+                    $start_model = 'alyx';
+                    break;
+                case 'insmod':
+                    $start_model = $insmod_models[array_rand($insmod_models)];
+                    break;
+                case 'zps':
+                    $start_model = 'zps1';
+                    break;
+                case 'ges':
+                    $start_model = $ges_models[array_rand($ges_models)];
+                    break;
+                case 'tfc':
+                    $start_model = 'pyro';
+                    break;
+                case 'fof':
+                    $start_model = $fof_models[array_rand($fof_models)];
+                    break;
+                case 'dinodday':
+                    $start_model = $dinodday_models[array_rand($dinodday_models)];
+                    break;
+                default:
+                    $start_model = $css_models[array_rand($css_models)];
+            }
+            $weapon_data['total']['model'] = $start_model;
+            echo "var data_array = new Array();\n";
+            $i = 1;
+            foreach ($weapon_data as $key => $entry)
+            {
+                if ($key == 'total')
+                    $key = 'All Weapons';
+                $head = isset($entry['head']) ? (int)$entry['head'] : 0;
+                $leftarm = isset($entry['leftarm']) ? (int)$entry['leftarm'] : 0;
+                $rightarm = isset($entry['rightarm']) ? (int)$entry['rightarm'] : 0;
+                $chest = isset($entry['chest']) ? (int)$entry['chest'] : 0;
+                $stomach = isset($entry['stomach']) ? (int)$entry['stomach'] : 0;
+                $leftleg = isset($entry['leftleg']) ? (int)$entry['leftleg'] : 0;
+                $rightleg = isset($entry['rightleg']) ? (int)$entry['rightleg'] : 0;
+                $generic = isset($entry['generic']) ? (int)$entry['generic'] : 0;
+                $model = isset($entry['model']) ? (string)$entry['model'] : '';
+
+                $safe_key = addcslashes((string)$key, "'\\\"\r\n");
+                $safe_title = addcslashes(ucfirst((string)$key), "'\\\"\r\n");
+                $safe_model = addcslashes($model, "'\\\"\r\n");
+
+                echo "data_array['$safe_key'] = ['".$safe_title."',".$head.",".$leftarm.",".$rightarm.",".$chest.",".$stomach.",".$leftleg.",".$rightleg.",".$generic.",'".$safe_model."'];\n";
+                $i++;
+            }
+
             // Reset result pointer for table drawing
             $db->data_seek(0, $result);
-	    ?>
-	    function switch_weapon(weapon)
-		{
-		    if (document.embeds && document.embeds.hitbox)
-		    {
-			if (document.embeds.hitbox.LoadMovie)
-			{
-			    document.embeds.hitbox.LoadMovie(0, '<?php echo IMAGE_PATH; ?>/hitbox.swf?wname='+data_array[weapon][0]
-				+'&head='+data_array[weapon][1]
-				+'&rightarm='+data_array[weapon][3] // PHP RArm index: 3
-				+'&leftarm='+data_array[weapon][2]  // PHP LArm index: 2
-				+'&chest='+data_array[weapon][4]
-				+'&stomach='+data_array[weapon][5]
-				+'&rightleg='+data_array[weapon][7] // PHP RLeg index: 7
-				+'&leftleg='+data_array[weapon][6]  // PHP LLeg index: 6
-				+'&generic='+data_array[weapon][8]  // Generic index: 8
-				+'&model='+data_array[weapon][9]    // Model index: 9
-				+'&numcolor_num=#<?php echo $g_options['graphtxt_load'] ?>&numcolor_pct=#<?php echo $g_options['graphtxt_load'] ?>&linecolor=#<?php echo $g_options['graphtxt_load'] ?>&barcolor=#FFFFFF&barbackground=#000000&textcolor=#FFFFFF&captioncolor=#FFFFFF&textcolor_total=#FFFFFF');
-			}
-		    }
-		    else if (document.getElementById)
-		    { 
-			var obj = document.getElementById('hitbox'); 
-			if (typeof obj.LoadMovie != 'undefined')
-			{ 
-			    obj.LoadMovie(0, '<?php echo IMAGE_PATH; ?>/hitbox.swf?wname='+data_array[weapon][0]
-				+'&head='+data_array[weapon][1]
-				+'&rightarm='+data_array[weapon][3]
-				+'&leftarm='+data_array[weapon][2]
-				+'&chest='+data_array[weapon][4]
-				+'&stomach='+data_array[weapon][5]
-				+'&rightleg='+data_array[weapon][7]
-				+'&leftleg='+data_array[weapon][6]
-				+'&generic='+data_array[weapon][8]
-				+'&model='+data_array[weapon][9]
-				+'&numcolor_num=#<?php echo $g_options['graphtxt_load'] ?>&numcolor_pct=#<?php echo $g_options['graphtxt_load'] ?>&linecolor=#<?php echo $g_options['graphtxt_load'] ?>&barcolor=#FFFFFF&barbackground=#000000&textcolor=#FFFFFF&captioncolor=#FFFFFF&textcolor_total=#FFFFFF');
-			}
-		    }
-		}
-	    /* ]]> */
-	</script>
+            $graphtxt_color = htmlspecialchars((string)($g_options['graphtxt_load'] ?? 'FFFFFF'), ENT_QUOTES, 'UTF-8');
+            $graphbg_color  = htmlspecialchars((string)($g_options['graphbg_load'] ?? '282828'), ENT_QUOTES, 'UTF-8');
+            $image_path_safe = htmlspecialchars((string)IMAGE_PATH, ENT_QUOTES, 'UTF-8');
+            ?>
+            function switch_weapon(weapon)
+                {
+                    if (document.embeds && document.embeds.hitbox)
+                    {
+                        if (document.embeds.hitbox.LoadMovie)
+                        {
+                            document.embeds.hitbox.LoadMovie(0, '<?php echo $image_path_safe; ?>/hitbox.swf?wname='+data_array[weapon][0]
+                                +'&head='+data_array[weapon][1]
+                                +'&rightarm='+data_array[weapon][3]
+                                +'&leftarm='+data_array[weapon][2]
+                                +'&chest='+data_array[weapon][4]
+                                +'&stomach='+data_array[weapon][5]
+                                +'&rightleg='+data_array[weapon][7]
+                                +'&leftleg='+data_array[weapon][6]
+                                +'&generic='+data_array[weapon][8]
+                                +'&model='+data_array[weapon][9]
+                                +'&numcolor_num=#<?php echo $graphtxt_color; ?>&numcolor_pct=#<?php echo $graphtxt_color; ?>&linecolor=#<?php echo $graphtxt_color; ?>&barcolor=#FFFFFF&barbackground=#000000&textcolor=#FFFFFF&captioncolor=#FFFFFF&textcolor_total=#FFFFFF');
+                        }
+                    }
+                    else if (document.getElementById)
+                    {
+                        var obj = document.getElementById('hitbox');
+                        if (typeof obj.LoadMovie != 'undefined')
+                        {
+                            obj.LoadMovie(0, '<?php echo $image_path_safe; ?>/hitbox.swf?wname='+data_array[weapon][0]
+                                +'&head='+data_array[weapon][1]
+                                +'&rightarm='+data_array[weapon][3]
+                                +'&leftarm='+data_array[weapon][2]
+                                +'&chest='+data_array[weapon][4]
+                                +'&stomach='+data_array[weapon][5]
+                                +'&rightleg='+data_array[weapon][7]
+                                +'&leftleg='+data_array[weapon][6]
+                                +'&generic='+data_array[weapon][8]
+                                +'&model='+data_array[weapon][9]
+                                +'&numcolor_num=#<?php echo $graphtxt_color; ?>&numcolor_pct=#<?php echo $graphtxt_color; ?>&linecolor=#<?php echo $graphtxt_color; ?>&barcolor=#FFFFFF&barbackground=#000000&textcolor=#FFFFFF&captioncolor=#FFFFFF&textcolor_total=#FFFFFF');
+                        }
+                    }
+                }
+            /* ]]> */
+        </script>
 <?php
-	    $tblWeaponstats2->draw($result, $db->num_rows($result), 100);
-	    $flashlink = IMAGE_PATH.'/hitbox.swf?wname=All+Weapons&amp;head='.$weapon_data['total']['head'].'&amp;rightarm='.$weapon_data['total']['rightarm'].'&amp;leftarm='.$weapon_data['total']['leftarm'].'&amp;chest='.$weapon_data['total']['chest'].'&amp;stomach='.$weapon_data['total']['stomach'].'&amp;rightleg='.$weapon_data['total']['rightleg'].'&amp;leftleg='.$weapon_data['total']['leftleg'].'&amp;generic='.$weapon_data['total']['generic'].'&amp;model='.$start_model.'&amp;numcolor_num=#'.$g_options['graphtxt_load'].'&amp;numcolor_pct=#'.$g_options['graphtxt_load'].'&amp;linecolor=#'.$g_options['graphtxt_load'].'&amp;barcolor=#FFFFFF&amp;barbackground=#000000&amp;textcolor=#FFFFFF&amp;captioncolor=#FFFFFF&amp;textcolor_total=#FFFFFF';
+            $tblWeaponstats2->draw($result, $db->num_rows($result), 100);
+            $flashlink = IMAGE_PATH.'/hitbox.swf?wname=All+Weapons&amp;head='.$weapon_data['total']['head'].'&amp;rightarm='.$weapon_data['total']['rightarm'].'&amp;leftarm='.$weapon_data['total']['leftarm'].'&amp;chest='.$weapon_data['total']['chest'].'&amp;stomach='.$weapon_data['total']['stomach'].'&amp;rightleg='.$weapon_data['total']['rightleg'].'&amp;leftleg='.$weapon_data['total']['leftleg'].'&amp;generic='.$weapon_data['total']['generic'].'&amp;model='.$start_model.'&amp;numcolor_num=#'.$graphtxt_color.'&amp;numcolor_pct=#'.$graphtxt_color.'&amp;linecolor=#'.$graphtxt_color.'&amp;barcolor=#FFFFFF&amp;barbackground=#000000&amp;textcolor=#FFFFFF&amp;captioncolor=#FFFFFF&amp;textcolor_total=#FFFFFF';
 ?>
     </div>
     <div style="float:right;vertical-align:top;width:480px;">
-	<table class="data-table">
-	    <tr class="data-table-head">
-		<td style="text-align:center;">Targets</td>
-	    </tr>
-	    <tr class="bg1">
-		<td style="text-align:center;">
-		    <object width="470" height="360" align="middle" id="hitbox" data="<?php echo $flashlink; ?>" type="application/x-shockwave-flash">
-			<param name="movie" value="<?php echo $flashlink; ?>" />
-			<param name="quality" value="high" />
-			<param name="wmode" value="opaque" />
-			<param name="bgcolor" value="#<?php echo $g_options['graphbg_load'] ?>" />
-			The hitbox display requires <a href="http://www.adobe.com" target="_blank">Adobe Flash Player</a> to view.
-		    </object>
-		</td>
-	    </tr>
-	    <tr class="bg2">
-		<td style="text-align:center;">
-		    <a href="javascript:switch_weapon('All Weapons');">Show total target statistics</a>
-		</td>
-	    </tr>
-	</table>
+        <table class="data-table">
+            <tr class="data-table-head">
+                <td style="text-align:center;">Targets</td>
+            </tr>
+            <tr class="bg1">
+                <td style="text-align:center;">
+                    <object width="470" height="360" align="middle" id="hitbox" data="<?php echo $flashlink; ?>" type="application/x-shockwave-flash">
+                        <param name="movie" value="<?php echo $flashlink; ?>" />
+                        <param name="quality" value="high" />
+                        <param name="wmode" value="opaque" />
+                        <param name="bgcolor" value="#<?php echo $graphbg_color; ?>" />
+                        The hitbox display requires <a href="http://www.adobe.com" target="_blank">Adobe Flash Player</a> to view.
+                    </object>
+                </td>
+            </tr>
+            <tr class="bg2">
+                <td style="text-align:center;">
+                    <a href="javascript:switch_weapon('All Weapons');">Show total target statistics</a>
+                </td>
+            </tr>
+        </table>
     </div>
+    <div style="clear:both;"></div>
+</div>
 <?php
-	}
-	else
-	{
-	    $tblWeaponstats2->draw($result, $db->num_rows($result), 95);
-	}
+        }
+        else
+        {
+            // Inspect rows for active neck and generic hits
+            $has_neck_data    = false;
+            $has_generic_data = false;
+
+            while ($row = $db->fetch_array($result))
+            {
+                if (!empty($row['smneck']) && (int)$row['smneck'] > 0)
+                {
+                    $has_neck_data = true;
+                }
+                if (!empty($row['smgeneric']) && (int)$row['smgeneric'] > 0)
+                {
+                    $has_generic_data = true;
+                }
+            }
+            $db->data_seek(0, $result);
+
+            // Calculate active zone count and balanced column widths
+            $zone_count = 7 + ($has_neck_data ? 1 : 0) + ($has_generic_data ? 1 : 0);
+
+            if ($zone_count == 9) {
+                $zone_w = 5; $l_w = 9; $m_w = 10; $r_w = 9;
+            } elseif ($zone_count == 8) {
+                $zone_w = 6; $l_w = 8; $m_w = 9;  $r_w = 8;
+            } else {
+                $zone_w = 7; $l_w = 8; $m_w = 8;  $r_w = 8;
+            }
+
+            // Build dynamic column list in anatomical order
+            $body_cols = array();
+            $body_cols[] = new TableColumn('smweapon', 'Weapon', 'width=15&type=weaponimg&align=center&link=' . urlencode("mode=weaponinfo&weapon=%k&game=$game_url"), $fname);
+            $body_cols[] = new TableColumn('smhits', 'Hits', 'width=7&align=right');
+
+            // Head
+            $body_cols[] = new TableColumn('smhead', 'Head', "width={$zone_w}&align=right");
+
+            // Neck (only if data exists)
+            if ($has_neck_data) {
+                $body_cols[] = new TableColumn('smneck', 'Neck', "width={$zone_w}&align=right");
+            }
+
+            // Torso & Limbs
+            $body_cols[] = new TableColumn('smchest', 'Chest', "width={$zone_w}&align=right");
+            $body_cols[] = new TableColumn('smstomach', 'Stomach', "width={$zone_w}&align=right");
+            $body_cols[] = new TableColumn('smleftarm', 'Left Arm', "width={$zone_w}&align=right");
+            $body_cols[] = new TableColumn('smrightarm', 'Right Arm', "width={$zone_w}&align=right");
+            $body_cols[] = new TableColumn('smleftleg', 'Left Leg', "width={$zone_w}&align=right");
+            $body_cols[] = new TableColumn('smrightleg', 'Right Leg', "width={$zone_w}&align=right");
+
+            // Body / Generic (only if data exists)
+            if ($has_generic_data) {
+                $body_cols[] = new TableColumn('smgeneric', 'Body', "width={$zone_w}&align=right");
+            }
+
+            // Directions
+            $body_cols[] = new TableColumn('smleft', 'Left', "width={$l_w}&align=right&append=" . urlencode('%'));
+            $body_cols[] = new TableColumn('smmiddle', 'Middle', "width={$m_w}&align=right&append=" . urlencode('%'));
+            $body_cols[] = new TableColumn('smright', 'Right', "width={$r_w}&align=right&append=" . urlencode('%'));
+
+            $tblWeaponstats2 = new Table(
+                $body_cols,
+                'smweapon',
+                'smhits',
+                'smweapon',
+                true,
+                9999,
+                'weap_page',
+                'weap_sort',
+                'weap_sortorder',
+                'weaponstats2',
+                'desc',
+                true
+            );
+
+            $tblWeaponstats2->draw($result, $db->num_rows($result), 95);
+        }
 ?>
     <br /><br />
-
+<div style="text-align: center; width: 95%;">
+    <p class="note"><b>Note:</b> The Weapon Targets table automatically displays the `Neck` and `Body` (Generic) hitgroups when hits are recorded. These hitgroups are supported by Source 2 games, such as Counter-Strike 2</p>
+</div>
 <?php
     }
 ?>

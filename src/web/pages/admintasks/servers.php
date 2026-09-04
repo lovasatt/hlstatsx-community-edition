@@ -4,7 +4,7 @@ HLstatsX Community Edition - Real-time player and clan rankings and statistics
 Copyleft (L) 2008-20XX Nicholas Hastings (nshastings@gmail.com)
 http://www.hlxcommunity.com
 
-HLstatsX Community Edition is a continuation of 
+HLstatsX Community Edition is a continuation of
 ELstatsNEO - Real-time player and clan rankings and statistics
 Copyleft (L) 2008-20XX Malte Bayer (steam@neo-soft.org)
 http://ovrsized.neo-soft.org/
@@ -18,7 +18,7 @@ HLstatsX is an enhanced version of HLstats made by Simon Garner
 HLstats - Real-time player and clan rankings and statistics for Half-Life
 http://sourceforge.net/projects/hlstats/
 Copyright (C) 2001  Simon Garner
-            
+
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
 as published by the Free Software Foundation; either version 2
@@ -46,21 +46,22 @@ For support and installation notes visit http://www.hlxcommunity.com
     if (($auth->userdata["acclevel"] ?? 0) < 80) {
         die ("Access denied!");
     }
-    
+
     function delete_server($server)
     {
-	global $db;
+        global $db;
         $server_esc = $db->escape($server);
-	$db->query("DELETE FROM `hlstats_Servers_Config` WHERE `serverId` = '$server_esc'");
-	$db->query("DELETE FROM `hlstats_server_load` WHERE `server_id`  = '$server_esc'");
+        $db->query("DELETE FROM `hlstats_Servers_Config` WHERE `serverId` = '$server_esc'");
+        $db->query("DELETE FROM `hlstats_server_load` WHERE `server_id`  = '$server_esc'");
     }
-    
+
     // Prepare variables for EditList
-    $gamecode_esc = $db->escape($gamecode);
-    $realgame = getRealGame($gamecode);
+    $gamecode_safe = $gamecode ?? '';
+    $gamecode_esc = $db->escape($gamecode_safe);
+    $realgame = getRealGame($gamecode_safe);
     $realgame_esc = $db->escape($realgame);
 
-    $edlist = new EditList("serverId", "hlstats_Servers", "server",true,true,"serversettings", 'delete_server');
+    $edlist = new EditList("serverId", "hlstats_Servers", "server", true, true, "serversettings", 'delete_server');
     $edlist->columns[] = new EditListColumn("address", "IP Address", 15, true, "ipaddress", "", 15);
     $edlist->columns[] = new EditListColumn("port", "Port", 5, true, "text", "27015", 5);
     $edlist->columns[] = new EditListColumn("name", "Server Name", 35, true, "text", "", 255);
@@ -68,39 +69,120 @@ For support and installation notes visit http://www.hlxcommunity.com
     $edlist->columns[] = new EditListColumn("publicaddress", "Public Address", 20, false, "text", "", 128);
     $edlist->columns[] = new EditListColumn("game", "Game", 20, true, "select", "hlstats_Games.name/code/realgame='$realgame_esc'");
     $edlist->columns[] = new EditListColumn("sortorder", "Sort Order", 2, true, "text", "", 255);
-    
+
     if (!empty($_POST))
     {
-	if ($edlist->update())
-	    message("success", "Operation successful.");
-	else
-	    message("warning", $edlist->error());
+        $validation_error = '';
+
+        // 1. Sanitize and validate numeric fields across submitted server rows
+        if (isset($_POST['rows']) && is_array($_POST['rows'])) {
+            foreach ($_POST['rows'] as $s_id) {
+                $s_id = (int)$s_id;
+
+                // Skip deleted servers
+                if (!empty($_POST[$s_id . '_delete'])) {
+                    continue;
+                }
+
+                $port_key      = $s_id . '_port';
+                $sortorder_key = $s_id . '_sortorder';
+
+                $port_val      = trim((string)($_POST[$port_key] ?? ''));
+                $sortorder_val = trim((string)($_POST[$sortorder_key] ?? ''));
+
+                // Validate Port
+                if ($port_val === '' || !ctype_digit($port_val) || (int)$port_val < 1 || (int)$port_val > 65535) {
+                    $validation_error = "Port must be an integer between 1 and 65535.";
+                    break;
+                }
+
+                // Validate Sort Order
+                if ($sortorder_val === '') {
+                    $_POST[$sortorder_key] = '0';
+                } elseif (!is_numeric($sortorder_val)) {
+                    $validation_error = "Sort order must be a valid number.";
+                    break;
+                }
+            }
+        }
+
+        // 2. Validate duplicate IP + Port entries across existing servers
+        if (empty($validation_error) && isset($_POST['rows']) && is_array($_POST['rows'])) {
+            $seen_pairs = array();
+
+            foreach ($_POST['rows'] as $s_id) {
+                $s_id = (int)$s_id;
+
+                if (!empty($_POST[$s_id . '_delete'])) {
+                    continue;
+                }
+
+                $addr = trim((string)($_POST[$s_id . '_address'] ?? ''));
+                $port = (int)($_POST[$s_id . '_port'] ?? 0);
+
+                if ($addr !== '' && $port > 0) {
+                    $pair_key = $addr . ':' . $port;
+
+                    if (in_array($pair_key, $seen_pairs, true)) {
+                        $validation_error = "Duplicate server address detected in the form: {$pair_key}.";
+                        break;
+                    }
+                    $seen_pairs[] = $pair_key;
+
+                    $addr_esc = $db->escape($addr);
+                    $check = $db->query("
+                        SELECT `name`
+                        FROM `hlstats_Servers`
+                        WHERE `address` = '$addr_esc'
+                          AND `port` = $port
+                          AND `serverId` != $s_id
+                        LIMIT 1
+                    ");
+
+                    if ($db->num_rows($check) > 0) {
+                        $existing = $db->fetch_array($check);
+                        $validation_error = "The address {$pair_key} is already assigned to another server: " . htmlspecialchars($existing['name']) . ".";
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (!empty($validation_error)) {
+            message("warning", $validation_error);
+        } else {
+            if ($edlist->update()) {
+                message("success", "Operation successful.");
+            } else {
+                message("warning", $edlist->error());
+            }
+        }
     }
-    
+
 ?>
 <br /><br />
 
 <?php
 
     $result = $db->query("
-	SELECT
-	    serverId,
-	    address,
-	    port,
-	    name,
-	    sortorder,
-	    publicaddress,
-	    game,
-	    IF(rcon_password='','','(encrypted)') AS rcon_password
-	FROM
-	    hlstats_Servers
-	WHERE
-	    game='$gamecode_esc'
-	ORDER BY
-	    address ASC,
-	    port ASC
+        SELECT
+            serverId,
+            address,
+            port,
+            name,
+            sortorder,
+            publicaddress,
+            game,
+            rcon_password
+        FROM
+            hlstats_Servers
+        WHERE
+            game='$gamecode_esc'
+        ORDER BY
+            address ASC,
+            port ASC
     ");
-    
+
     $edlist->draw($result, false);
 
 ?>

@@ -40,62 +40,62 @@ For support and installation notes visit http://www.hlxcommunity.com
         die('Do not access this file directly.');
     }
     // Weapon Details
-    
-    // PHP 8 Fix: Null coalescing and casting
-    $weapon_in = isset($_GET['weapon']) ? $_GET['weapon'] : '';
-    $weapon = valid_request((string)$weapon_in, false);
-    
+
+    $weapon_in = isset($_GET['weapon']) ? (string)$_GET['weapon'] : '';
+    $weapon = valid_request($weapon_in, false);
+
     if (!$weapon) {
         error('No weapon ID specified.');
     }
-    
-    // Security: Escape variables
-    $weapon_esc = $db->escape($weapon);
-    $game_esc = $db->escape($game);
-    
-    $db->query("
-	SELECT
-	    name
-	FROM
-	    hlstats_Weapons
-	WHERE
-	    code='$weapon_esc'
-	    AND game='$game_esc'
-    ");
-    
-    if ($db->num_rows() != 1)
-    {
-	$wep_name = ucfirst($weapon);
-    }
-    else
-    {
-	$weapondata = $db->fetch_array();
-	$db->free_result();
-	$wep_name = $weapondata['name'];
-    }
-    
-    $db->query("SELECT name FROM hlstats_Games WHERE code='$game_esc'");
-    if ($db->num_rows() != 1)
-    {
-	error('Invalid or no game specified.');
-    }
-    else
-    {
-        // PHP 8 Fix: Replace list()
-        $row = $db->fetch_row();
-	$gamename = ($row) ? $row[0] : '';
-    }
-	
-    pageHeader(
-	array($gamename, 'Weapon Details', htmlspecialchars($wep_name)),
-	array(
-	    $gamename=>$g_options['scripturl']."?game=$game",
-	    'Weapon Statistics' => $g_options['scripturl']."?mode=weapons&game=$game",
-	    'Weapon Details' => ''
-	),
-	$wep_name
-    );
 
+    // Initialize variables
+    $game = isset($game) ? (string)$game : '';
+    $game_esc = $db->escape($game);
+    $game_url = urlencode($game);
+    $weapon_esc = $db->escape((string)$weapon);
+    $scripturl = htmlspecialchars((string)($g_options['scripturl'] ?? ''), ENT_QUOTES, 'UTF-8');
+    $deletedays = (int)($g_options['DeleteDays'] ?? 28);
+
+    $db->query("
+        SELECT
+            name
+        FROM
+            hlstats_Weapons
+        WHERE
+            code = '$weapon_esc'
+            AND game = '$game_esc'
+    ");
+
+    if ($db->num_rows() != 1)
+    {
+        $wep_name = ucfirst((string)$weapon);
+    }
+    else
+    {
+        $weapondata = $db->fetch_array();
+        $db->free_result();
+        $wep_name = (string)($weapondata['name'] ?? ucfirst((string)$weapon));
+    }
+
+    $db->query("SELECT name FROM hlstats_Games WHERE code = '$game_esc'");
+    if ($db->num_rows() != 1)
+    {
+        error("No such game '" . htmlspecialchars($game, ENT_QUOTES, 'UTF-8') . "'.");
+    }
+
+    $row = $db->fetch_row();
+      $gamename = ($row) ? (string)$row[0] : ucfirst($game);
+    $db->free_result();
+
+    pageHeader(
+        array($gamename, 'Weapon Details', $wep_name),
+        array(
+            $gamename => $scripturl . "?game=$game_url",
+            'Weapon Statistics' => $scripturl . "?mode=weapons&amp;game=$game_url",
+            'Weapon Details' => ''
+        ),
+        $wep_name
+    );
     $table = new Table(
 	array(
 	    new TableColumn(
@@ -125,77 +125,83 @@ For support and installation notes visit http://www.hlxcommunity.com
 	true, // showranking
 	50 // numperpage
     );
-    
+
     $result = $db->query("
-	SELECT
-	    hlstats_Events_Frags.killerId,
-	    hlstats_Players.lastName AS killerName,
-	    hlstats_Players.flag as flag,
-	    COUNT(hlstats_Events_Frags.weapon) AS frags,
-	    SUM(hlstats_Events_Frags.headshot=1) as headshots,
-	    IFNULL(SUM(hlstats_Events_Frags.headshot=1) / Count(hlstats_Events_Frags.weapon), '-') AS hpk
-	FROM
-	    hlstats_Events_Frags,
-	    hlstats_Players
-	WHERE
-	    hlstats_Players.playerId = hlstats_Events_Frags.killerId
-	    AND hlstats_Events_Frags.weapon='$weapon_esc'
-	    AND hlstats_Players.game='$game_esc'
-	    AND hlstats_Players.hideranking = 0
-	GROUP BY
-	    hlstats_Events_Frags.killerId
-	ORDER BY
-	    $table->sort $table->sortorder,
-	    $table->sort2 $table->sortorder
-	LIMIT $table->startitem,$table->numperpage
+        SELECT
+            hlstats_Events_Frags.killerId,
+            unhex(replace(hex(hlstats_Players.lastName), 'E280AE', '')) AS killerName,
+            hlstats_Players.flag AS flag,
+            COUNT(hlstats_Events_Frags.id) AS frags,
+            IFNULL(SUM(hlstats_Events_Frags.headshot = 1), 0) AS headshots,
+            ROUND(IFNULL(SUM(hlstats_Events_Frags.headshot = 1) / COUNT(hlstats_Events_Frags.id), 0), 2) AS hpk
+        FROM
+            hlstats_Events_Frags
+        INNER JOIN
+            hlstats_Players
+            ON hlstats_Players.playerId = hlstats_Events_Frags.killerId
+        WHERE
+            hlstats_Events_Frags.weapon = '$weapon_esc'
+            AND hlstats_Players.game = '$game_esc'
+            AND hlstats_Players.hideranking = 0
+        GROUP BY
+            hlstats_Events_Frags.killerId,
+            hlstats_Players.lastName,
+            hlstats_Players.flag
+        ORDER BY
+            $table->sort $table->sortorder,
+            $table->sort2 $table->sortorder
+        LIMIT
+            $table->startitem, $table->numperpage
     ");
-    
+
     $resultCount = $db->query("
-	SELECT
-	    COUNT(DISTINCT hlstats_Events_Frags.killerId),
-	    SUM(hlstats_Events_Frags.weapon='$weapon_esc'),
-	    SUM(hlstats_Events_Frags.weapon='$weapon_esc' AND hlstats_Events_Frags.headshot=1)
-	FROM
-	    hlstats_Events_Frags,
-	    hlstats_Servers
-	WHERE
-	    hlstats_Servers.serverId = hlstats_Events_Frags.serverId
-	    AND hlstats_Events_Frags.weapon='$weapon_esc'
-	    AND hlstats_Servers.game='$game_esc'
+        SELECT
+            COUNT(DISTINCT hlstats_Events_Frags.killerId),
+            COUNT(hlstats_Events_Frags.id),
+            IFNULL(SUM(hlstats_Events_Frags.headshot = 1), 0)
+        FROM
+            hlstats_Events_Frags
+        INNER JOIN
+            hlstats_Servers
+            ON hlstats_Servers.serverId = hlstats_Events_Frags.serverId
+        WHERE
+            hlstats_Events_Frags.weapon = '$weapon_esc'
+            AND hlstats_Servers.game = '$game_esc'
     ");
-    
-    // PHP 8 Fix: Replace list()
+
     $row = $db->fetch_row($resultCount);
     if ($row) {
-        $numitems = (int)$row[0];
-        $totalkills = (int)$row[1];
+        $numitems       = (int)$row[0];
+        $totalkills     = (int)$row[1];
         $totalheadshots = (int)$row[2];
     } else {
-        $numitems = 0; $totalkills = 0; $totalheadshots = 0;
+        $numitems = 0;
+        $totalkills = 0;
+        $totalheadshots = 0;
     }
 ?>
 
 <div class="block">
     <?php printSectionTitle('Weapon Details'); ?>
     <div class="subblock">
-    <?php // figure out URL and absolute path of image
-	$image = getImage("/games/$game/weapons/$weapon");
-	if ($image)
-	{
-	    $wep_content = '<img src="' . $image['url'] . "\"  alt=\"".htmlspecialchars($weapon)."\" />";   
-	}
-	else
-	{
-	    $wep_content = "<strong>".htmlspecialchars($wep_name)."</strong>: ";
-	}
+    <?php
+        $image = getImage("/games/$game_url/weapons/" . strtolower($weapon));
+        if ($image && !empty($image['url']))
+        {
+            $wep_content = '<img src="' . htmlspecialchars(str_replace('#', '%23', (string)$image['url']), ENT_QUOTES, 'UTF-8') . '" alt="' . htmlspecialchars($wep_name, ENT_QUOTES, 'UTF-8') . '" style="vertical-align:middle; margin-right:4px;" />';
+        }
+        else
+        {
+            $wep_content = "<strong>" . htmlspecialchars($wep_name, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "</strong>: ";
+        }
 ?>
-	<div style="float:left;">
-	    <?php echo $wep_content ?>&nbsp;From a total of <b><?php echo number_format($totalkills); ?></b> kills with <b><?php echo number_format($totalheadshots); ?></b> headshots (Last <?php echo $g_options['DeleteDays']; ?> Days)
-	</div>
-	<div style="float:right;">
-	    Back to <a href="<?php echo $g_options['scripturl']. "?mode=weapons&amp;game=$game"; ?>">Weapon Statistics</a>
-	</div>
-	<div style="clear:both;padding:2px;"></div>
+        <div style="float:left;">
+            <?php echo $wep_content; ?>&nbsp;From a total of <b><?php echo number_format($totalkills); ?></b> kills with <b><?php echo number_format($totalheadshots); ?></b> headshots (Last <?php echo $deletedays; ?> Days)
+        </div>
+        <div style="float:right;">
+            Back to <a href="<?php echo $scripturl . '?mode=weapons&amp;game=' . $game_url; ?>">Weapon Statistics</a>
+        </div>
+        <div style="clear:both;padding:2px;"></div>
     </div>
     <br /><br />
     <?php $table->draw($result, $numitems, 95, 'center'); ?>

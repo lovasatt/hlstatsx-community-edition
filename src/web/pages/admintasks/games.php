@@ -4,7 +4,7 @@ HLstatsX Community Edition - Real-time player and clan rankings and statistics
 Copyleft (L) 2008-20XX Nicholas Hastings (nshastings@gmail.com)
 http://www.hlxcommunity.com
 
-HLstatsX Community Edition is a continuation of 
+HLstatsX Community Edition is a continuation of
 ELstatsNEO - Real-time player and clan rankings and statistics
 Copyleft (L) 2008-20XX Malte Bayer (steam@neo-soft.org)
 http://ovrsized.neo-soft.org/
@@ -18,7 +18,7 @@ HLstatsX is an enhanced version of HLstats made by Simon Garner
 HLstats - Real-time player and clan rankings and statistics for Half-Life
 http://sourceforge.net/projects/hlstats/
 Copyright (C) 2001  Simon Garner
-            
+
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
 as published by the Free Software Foundation; either version 2
@@ -46,175 +46,226 @@ For support and installation notes visit http://www.hlxcommunity.com
     if (($auth->userdata["acclevel"] ?? 0) < 80) {
         die ("Access denied!");
     }
-    
+
     function delete_game($game)
     {
-	global $db;
-	
+        global $db;
+
         // Security: Escape game variable
         $game_esc = $db->escape($game);
 
-	$srvtables = array(
-	    "hlstats_Events_Admin",
-	    "hlstats_Events_ChangeName",
-	    "hlstats_Events_ChangeRole",
-	    "hlstats_Events_ChangeTeam",
-	    "hlstats_Events_Chat",
-	    "hlstats_Events_Connects",
-	    "hlstats_Events_Disconnects",
-	    "hlstats_Events_Entries",
-	    "hlstats_Events_Frags",
-	    "hlstats_Events_Latency",
-	    "hlstats_Events_PlayerActions",
-	    "hlstats_Events_PlayerPlayerActions",
-	    "hlstats_Events_Rcon",
-	    "hlstats_Events_Statsme",
-	    "hlstats_Events_Statsme2",
-	    "hlstats_Events_StatsmeLatency",
-	    "hlstats_Events_StatsmeTime",
-	    "hlstats_Events_Suicides",
-	    "hlstats_Events_TeamBonuses",
-	    "hlstats_Events_Teamkills",
-	    "hlstats_Servers_Config"
-	);
-	$pltables = array(
-	    "hlstats_PlayerNames"
-	);
-	$dbtables = array(
-	    "hlstats_Actions",
-	    "hlstats_Awards",
-	    "hlstats_Ribbons",
-	    "hlstats_Roles",
-	    "hlstats_Teams",
-	    "hlstats_Weapons",
-	    "hlstats_Ranks",
-	    "hlstats_Maps_Counts",
-	    "hlstats_Servers",
-	    "hlstats_Players_History",
-	    "hlstats_Players_Awards",
-	    "hlstats_Players_Ribbons",
-	    "hlstats_PlayerUniqueIds",
-	    "hlstats_Players",
-	    "hlstats_Clans",
-	    "hlstats_Trend"
-	);
-	
-	$resultServers = $db->query("SELECT serverId FROM hlstats_Servers WHERE game = '$game_esc'");
-	if ($db->num_rows($resultServers) > 0)
-	{
-            // Build safe ID list
-	    $server_ids = array();
-	    while ($server = $db->fetch_row($resultServers))
-	    {
-		$server_ids[] = (int)$server[0];
-	    }
-            
-            if (!empty($server_ids)) {
-	        $serverlist = "(" . implode(',', $server_ids) . ")";
-		foreach ($srvtables as $srvt)
-		{
-		    echo "<li>$srvt ... ";
-		    $db->query("DELETE FROM $srvt WHERE serverId IN $serverlist");
-		    echo "OK</li>\n";
-		}
-		echo "<li>hlstats_server_load ... ";
-		$db->query("DELETE FROM hlstats_server_load WHERE server_id IN $serverlist");
-		echo "OK</li>\n";
-            }
-	}
-	
-	$resultPlayers = $db->query("SELECT playerId FROM hlstats_Players WHERE game = '$game_esc'");
-	if ($db->num_rows($resultPlayers) > 0)
-	{
-            $player_ids = array();
-	    while ($player = $db->fetch_row($resultPlayers))
-	    {
-		$player_ids[] = (int)$player[0];
-	    }
-            
-            if (!empty($player_ids)) {
-	        $playerlist = "(" . implode(',', $player_ids) . ")";
-		foreach ($pltables as $plt)
-		{
-		    echo "<li>$plt ... ";
-		    $db->query("DELETE FROM $plt WHERE playerId IN $playerlist");
-		    echo "OK</li>\n";
-		}
-            }
-	}
-	
-	foreach ($dbtables as $dbt)
-	{
-	    echo "<li>$dbt ... ";
-	    echo removeGameSettings($dbt, $game_esc);
-	}
+        $srvtables = array(
+            "hlstats_Events_Admin",
+            "hlstats_Events_ChangeName",
+            "hlstats_Events_ChangeRole",
+            "hlstats_Events_ChangeTeam",
+            "hlstats_Events_Chat",
+            "hlstats_Events_Connects",
+            "hlstats_Events_Disconnects",
+            "hlstats_Events_Entries",
+            "hlstats_Events_Frags",
+            "hlstats_Events_Latency",
+            "hlstats_Events_PlayerActions",
+            "hlstats_Events_PlayerPlayerActions",
+            "hlstats_Events_Rcon",
+            "hlstats_Events_Statsme",
+            "hlstats_Events_Statsme2",
+            "hlstats_Events_StatsmeLatency",
+            "hlstats_Events_StatsmeTime",
+            "hlstats_Events_Suicides",
+            "hlstats_Events_TeamBonuses",
+            "hlstats_Events_Teamkills",
+            "hlstats_Servers_Config"
+        );
+        $pltables = array(
+            "hlstats_PlayerNames"
+        );
+        $dbtables = array(
+            "hlstats_Actions",
+            "hlstats_Awards",
+            "hlstats_Ribbons",
+            "hlstats_Roles",
+            "hlstats_Teams",
+            "hlstats_Weapons",
+            "hlstats_Ranks",
+            "hlstats_Maps_Counts",
+            "hlstats_Servers",
+            "hlstats_Players_History",
+            "hlstats_Players_Awards",
+            "hlstats_Players_Ribbons",
+            "hlstats_PlayerUniqueIds",
+            "hlstats_Players",
+            "hlstats_Clans",
+            "hlstats_Trend",
+            "hlstats_Heatmap_Config"
+        );
 
-	echo "<li>hlstats_Games ...";
-	$db->query("DELETE FROM hlstats_Games WHERE code='$game_esc'");
-	echo "OK\n";
-	echo "</ul><p>\n";
-	echo "Done.<p>";
+        echo "<ul>\n";
+
+        $resultServers = $db->query("SELECT serverId FROM hlstats_Servers WHERE game = '$game_esc'");
+        if ($db->num_rows($resultServers) > 0)
+        {
+            // Build safe ID list
+            $server_ids = array();
+            while ($server = $db->fetch_row($resultServers))
+            {
+                $server_ids[] = (int)$server[0];
+            }
+
+            if (!empty($server_ids)) {
+                $serverlist = "(" . implode(',', $server_ids) . ")";
+                foreach ($srvtables as $srvt)
+                {
+                    echo "<li>$srvt ... ";
+                    $db->query("DELETE FROM $srvt WHERE serverId IN $serverlist");
+                    echo "OK</li>\n";
+                }
+                echo "<li>hlstats_server_load ... ";
+                $db->query("DELETE FROM hlstats_server_load WHERE server_id IN $serverlist");
+                echo "OK</li>\n";
+                $db->query("DELETE FROM hlstats_Livestats WHERE server_id IN $serverlist");
+            }
+        }
+
+        $resultPlayers = $db->query("SELECT playerId FROM hlstats_Players WHERE game = '$game_esc'");
+        if ($db->num_rows($resultPlayers) > 0)
+        {
+            $player_ids = array();
+            while ($player = $db->fetch_row($resultPlayers))
+            {
+                $player_ids[] = (int)$player[0];
+            }
+
+            if (!empty($player_ids)) {
+                $playerlist = "(" . implode(',', $player_ids) . ")";
+                foreach ($pltables as $plt)
+                {
+                    echo "<li>$plt ... ";
+                    $db->query("DELETE FROM $plt WHERE playerId IN $playerlist");
+                    echo "OK</li>\n";
+                }
+                $db->query("DELETE FROM hlstats_Livestats WHERE player_id IN $playerlist");
+            }
+        }
+
+        foreach ($dbtables as $dbt)
+        {
+            echo "<li>$dbt ... ";
+            echo removeGameSettings($dbt, $game_esc) . "</li>\n";
+        }
+
+        echo "<li>hlstats_Games_Defaults ... ";
+        $db->query("DELETE FROM hlstats_Games_Defaults WHERE code='$game_esc'");
+        echo "OK</li>\n";
+        echo "<li>hlstats_Games ... ";
+        $db->query("DELETE FROM hlstats_Games WHERE code='$game_esc'");
+        echo "OK</li>\n";
+        echo "</ul><br />\n";
+        echo "Done.<br /><br />";
     }
-    
+
     function removeGameSettings($table, $game_esc) {
-	global $db;
-	$db->query("SELECT COUNT(game) AS cnt FROM $table WHERE game='$game_esc';");
-	$r = $db->fetch_array();
-	if ($r['cnt'] == 0)
-	{
-	    $ret = "No data existent for selected gametype.";
-	}
-	else
-	{
-	    $ret = $r['cnt']." entries deleted!";
-	    $SQL = "DELETE FROM $table WHERE game='$game_esc';";
-	    $db->query($SQL);
-	}
-	return $ret."\n";
+        global $db;
+        $res = $db->query("SELECT COUNT(game) AS cnt FROM $table WHERE game='$game_esc';");
+        $r = $db->fetch_array($res);
+        $cnt = (int)($r['cnt'] ?? 0);
+        if ($cnt == 0)
+        {
+            $ret = "No data existent for selected gametype.";
+        }
+        else
+        {
+            $ret = $cnt . " entries deleted!";
+            $SQL = "DELETE FROM $table WHERE game='$game_esc';";
+            $db->query($SQL);
+        }
+        return $ret;
     }
-    
+
     $edlist = new EditList("code", "hlstats_Games", "game", false, false, "", 'delete_game');
     $edlist->columns[] = new EditListColumn("code", "Game Code", 10, true, "readonly", "", 16);
     $edlist->columns[] = new EditListColumn("name", "Display Name", 30, true, "text", "", 128);
     $edlist->columns[] = new EditListColumn("realgame", "Game", 50, true, "select", "hlstats_Games_Supported.name/code/", 128);
     $edlist->columns[] = new EditListColumn("hidden", "<center>Hide Game</center>", 0, false, "checkbox");
-    
-    
-    if ($_POST)
+
+    if (!empty($_POST))
     {
-	if ($edlist->update())
-	    message("success", "Operation successful.");
-	else
-	    message("warning", $edlist->error());
+        $validation_error = "";
+
+        // 1. Retrieve all registered games from the database
+        $res_games = $db->query("SELECT `code` FROM `hlstats_Games`");
+        $all_games = [];
+        while ($r = $db->fetch_array($res_games)) {
+            $all_games[] = $r['code'];
+        }
+
+        $surviving_games = [];
+        $visible_count   = 0;
+
+        // 2. Evaluate remaining and visible games after submitted changes
+        foreach ($all_games as $gcode) {
+            // Skip game if marked for deletion
+            if (!empty($_POST[$gcode . '_delete'])) {
+                continue;
+            }
+
+            $surviving_games[] = $gcode;
+
+            // Check visibility (checkbox unchecked means not hidden, hence visible)
+            $is_hidden = !empty($_POST[$gcode . '_hidden']) ? 1 : 0;
+            if ($is_hidden === 0) {
+                $visible_count++;
+            }
+        }
+
+        // RULE 1: Ensure at least one game remains in the database
+        if (count($surviving_games) < 1) {
+            $validation_error = "Security error: You cannot delete all games! There must always be at least one game remaining.";
+        }
+        // RULE 2: Ensure at least one game remains visible on the frontend
+        elseif ($visible_count < 1) {
+            $validation_error = "Security error: You cannot hide all games! At least one game must remain visible.";
+        }
+
+        // Abort update if any validation rule failed
+        if (!empty($validation_error)) {
+            message("warning", $validation_error);
+        } else {
+            if ($edlist->update()) {
+                message("success", "Operation successful.");
+            } else {
+                message("warning", $edlist->error());
+            }
+        }
     }
-    
+
 ?>
 
 Enter the codes and full names for all the games you want to collect statistics for. (Game codes should be the same as the mod folder name, e.g. "valve".)<br /><br />
 
 After creating a game, you will be able to configure servers, awards, etc. for that game under Game Settings.<br /><br />
 
-<strong>NOTE</strong>: Be cautious of deleting a game. Deleting a game will remove all related settings, including servers, players, and events for that game (and may take a while). You will have to manually remove any images yourself. IF YOU DELETE THE LAST GAME OF A TYPE, THERE IS NO EASY WAY TO MAKE A NEW GAME OF THAT TYPE. If you want to delete and that is the case, you are probably better off deleting all servers for that game and then just hiding the game.<br /><br />
+<strong>Note:</strong> Be cautious of deleting a game. Deleting a game will remove all related settings, including servers, players, and events for that game (and may take a while). You will have to manually remove any images yourself. IF YOU DELETE THE LAST GAME OF A TYPE, THERE IS NO EASY WAY TO MAKE A NEW GAME OF THAT TYPE. If you want to delete and that is the case, you are probably better off deleting all servers for that game and then just hiding the game.<br /><br />
 
 <?php
-    
+
     $result = $db->query("
-	SELECT
-	    code,
-	    name,
-	    realgame,
-	    hidden
-	FROM
-	    hlstats_Games
-	ORDER BY
-	    code ASC
+        SELECT
+            code,
+            name,
+            realgame,
+            hidden
+        FROM
+            hlstats_Games
+        ORDER BY
+            code ASC
     ");
-    
+
     $edlist->draw($result, false);
 ?>
 
-<table style="width:75%;border:0;" cellspacing="0" cellpadding="0">
+<table width="75%" border="0" cellspacing="0" cellpadding="0" style="margin:15px auto;">
 <tr>
-    <td align="center"><input type="submit" value="  Apply  " class="submit"></td>
+    <td align="center"><input type="submit" value="  Apply  " class="submit" /></td>
 </tr>
 </table>

@@ -1,16 +1,16 @@
 package TRcon;
 #
-# TRcon Perl Module - execute commands on a remote Half-Life2 server using remote console.
+# TRcon Perl Module - execute commands on a remote Half-Life2 / Source / Source 2 server using remote console.
 #
 # HLstatsX Community Edition - Real-time player and clan rankings and statistics
 # Copyleft (L) 2008-20XX Nicholas Hastings (nshastings@gmail.com)
 # http://www.hlxcommunity.com
 #
-# HLstatsX Community Edition is a continuation of 
+# HLstatsX Community Edition is a continuation of
 # ELstatsNEO - Real-time player and clan rankings and statistics
 # Copyleft (L) 2008-20XX Malte Bayer (steam@neo-soft.org)
 # http://ovrsized.neo-soft.org/
-# 
+#
 # ELstatsNEO is an very improved & enhanced - so called Ultra-Humongus Edition of HLstatsX
 # HLstatsX - Real-time player and clan rankings and statistics for Half-Life 2
 # http://www.hlstatsx.com/
@@ -20,7 +20,7 @@ package TRcon;
 # HLstats - Real-time player and clan rankings and statistics for Half-Life
 # http://sourceforge.net/projects/hlstats/
 # Copyright (C) 2001  Simon Garner
-#             
+#
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License
 # as published by the Free Software Foundation; either version 2
@@ -34,7 +34,7 @@ package TRcon;
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
-# 
+#
 # For support and installation notes visit http://www.hlxcommunity.com
 
 use strict;
@@ -68,7 +68,7 @@ sub new
   my ($class_name, $server_object) = @_;
   my ($self) = {};
   bless($self, $class_name);
-  
+
   $self->{"rcon_socket"}            = 0;
   $self->{"server_object"}          = $server_object;
   Scalar::Util::weaken($self->{"server_object"});
@@ -87,19 +87,19 @@ sub execute
       &::printEvent("TRCON", "Bad Password");
     }
     return $answer;
-  }  
+  }
 }
 
 sub get_auth_code
 {
   my ($self, $id) = @_;
   my $auth = 0;
-  
+
   if ($id == $AUTH_PACKET_ID) {
     &::printEvent("TRCON", "Rcon password accepted");
     $auth = 1;
     $self->{"auth"} = 1;
-  } elsif( $id == -1) {
+  } elsif ($id == -1) {
     &::printEvent("TRCON", "Rcon password refused");
     $self->{"auth"} = 0;
     $auth           = 0;
@@ -109,14 +109,12 @@ sub get_auth_code
     $auth           = 0;
   }
   return $auth;
-
 }
-
 
 sub sendrecv
 {
   my ($self, $msg, $splitted_answer) = @_;
-  
+
   my $rs_counter = $self->{"refresh_socket_counter"};
   if ($rs_counter % $REFRESH_SOCKET_COUNTER_LIMIT == 0)  {
     if ($self->{"rcon_socket"} > 0) {
@@ -124,18 +122,18 @@ sub sendrecv
       $self->{"rcon_socket"} = 0;
     }
     my $server_object = $self->{"server_object"};
-    $self->{"rcon_socket"}   =  IO::Socket::INET->new(
-                                      		Proto=>"tcp",
-                                            PeerAddr=>$server_object->{address}, 
-                                            PeerPort=>$server_object->{port}, 
-                            	);
+    $self->{"rcon_socket"} = IO::Socket::INET->new(
+                                                Proto    => "tcp",
+                                                PeerAddr => $server_object->{address},
+                                                PeerPort => $server_object->{port},
+                                                Timeout  => 3,
+                                );
     if (!$self->{"rcon_socket"}) {
-      &::printEvent("TRCON", "Cannot setup TCP socket on ".$server_object->{address}.":".$server_object->{port}.": $!");
-    } 
+      &::printEvent("TRCON", "Cannot setup TCP socket on " . $server_object->{address} . ":" . $server_object->{port} . ": $!");
+    }
     $self->{"refresh_socket_counter"} = 0;
     $self->{"auth"} = 0;
-  }                          	
-
+  }
 
   my $r_socket  = $self->{"rcon_socket"};
   my $server    = $self->{"server_object"};
@@ -143,8 +141,8 @@ sub sendrecv
   my $auth      = $self->{"auth"};
   my $response  = "";
   my $packet_id = $self->{"packet_id"};
-  
-  if (($r_socket) && ($r_socket->connected() )) {
+
+  if (($r_socket) && ($r_socket->connected())) {
     if ($auth == 0)  {
       &::printEvent("TRCON", "Trying to get rcon access (auth)");
       if ($self->send_rcon($AUTH_PACKET_ID, $SERVERDATA_AUTH, $server->{rcon}, "")) {
@@ -152,23 +150,22 @@ sub sendrecv
         return;
       }
       my ($id, $command, $response) = $self->recieve_rcon($AUTH_PACKET_ID);
-      if($command == $SERVERDATA_AUTH_RESPONSE) {
+      if ($command == $SERVERDATA_AUTH_RESPONSE) {
         $auth = $self->get_auth_code($id);
-      } elsif (($command == $SERVERDATA_RESPONSE_VALUE) && ($id == $AUTH_PACKET_ID)) {  
-         #Source servers sends one junk packet during the authentication step, before it responds 
-         # with the correct authentication response.  
+      } elsif (($command == $SERVERDATA_RESPONSE_VALUE) && ($id == $AUTH_PACKET_ID)) {
+         # Source servers send one junk packet during the authentication step before responding correctly
          &::printEvent("TRCON", "Junk packet from Source Engine");
          my ($id, $command, $response) = $self->recieve_rcon($AUTH_PACKET_ID);
          $auth = $self->get_auth_code($id);
-      }  
+      }
     }
-    
+
     if ($auth == 1)  {
       $self->{"refresh_socket_counter"}++;
       $self->send_rcon($packet_id, $SERVERDATA_EXECCOMMAND, $msg);
       if ($splitted_answer > 0) {
         $self->send_rcon($SPLIT_END_PACKET_ID, $SERVERDATA_EXECCOMMAND, "");
-      }  
+      }
       my ($id, $command, $response) = $self->recieve_rcon($packet_id, $splitted_answer);
       $self->{"packet_id"}++;
       if ($self->{"packet_id"} > 32767) {
@@ -178,9 +175,8 @@ sub sendrecv
     }
   } else {
     $self->{"refresh_socket_counter"} = 0;
-  } 
+  }
   return;
-  
 }
 
 #
@@ -191,11 +187,11 @@ sub send_rcon
   my ($self, $id, $command, $string1, $string2) = @_;
   my $data = pack("VVZ*Z*", $id, $command, $string1, $string2);
   my $size = length($data);
-  if($size > 4096) {
-    &::printEvent("TRCON", "Command to long to send!");
+  if ($size > 4096) {
+    &::printEvent("TRCON", "Command too long to send!");
     return 1;
   }
-  $data = pack("V", $size).$data;
+  $data = pack("V", $size) . $data;
 
   my $r_socket = $self->{"rcon_socket"};
   if ($r_socket && $r_socket->connected() && $r_socket->peeraddr()) {
@@ -208,7 +204,7 @@ sub send_rcon
 }
 
 #
-#  Recieve a package
+# Receive a package
 #
 sub recieve_rcon
 {
@@ -219,37 +215,37 @@ sub recieve_rcon
   my $r_socket  = $self->{"rcon_socket"};
   my $server    = $self->{"server_object"};
   my $auth      = $self->{"auth"};
-  my $packet_id = $self->{"packet_id"};
-  
-  if (($r_socket) && ($r_socket->connected() )) {
-    if(IO::Select->new($r_socket)->can_read($TIMEOUT)) {  # $TIMEOUT seconds timeout
+
+  if (($r_socket) && ($r_socket->connected())) {
+    if (IO::Select->new($r_socket)->can_read($TIMEOUT)) {
       $r_socket->recv($tmp, 1500);
-      $size    = unpack("V",  substr($tmp, 0, 4));
-	  if ($size == 0) {
-		$self->{"refresh_socket_counter"} = 0;
-		return (-1, -1, -1);
-	  }
-      $id      = unpack("V",  substr($tmp, 4, 4));
-      $command = unpack("V",  substr($tmp, 8, 4));
+      $size = unpack("V", substr($tmp, 0, 4));
+      if (!defined($size) || $size == 0) {
+        $self->{"refresh_socket_counter"} = 0;
+        return (-1, -1, -1);
+      }
+      $id      = unpack("V", substr($tmp, 4, 4));
+      $command = unpack("V", substr($tmp, 8, 4));
       if ($id == $packet_id)  {
-        $tmp     = substr($tmp, 12, length($tmp)-12);
+        $tmp = substr($tmp, 12, length($tmp) - 12);
         if ($splitted_answer > 0) {
           my $last_packet_id = $id;
           while ($last_packet_id != $SPLIT_END_PACKET_ID) {
-            if(IO::Select->new($r_socket)->can_read($TIMEOUT)) {
+            if (IO::Select->new($r_socket)->can_read($TIMEOUT)) {
+              my $split_data = "";
               $r_socket->recv($split_data, 1500);
-              my $split_size    = unpack("V",  substr($split_data, 0, 4));
-              my $split_id      = unpack("V",  substr($split_data, 4, 4));
-              my $split_command = unpack("V",  substr($split_data, 8, 4));
-              if ($split_id == $last_packet_id) {
-                $split_data = substr($split_data, 12, length($split_data)-12);
+              my $split_size    = unpack("V", substr($split_data, 0, 4));
+              my $split_id      = unpack("V", substr($split_data, 4, 4));
+              my $split_command = unpack("V", substr($split_data, 8, 4));
+              if (defined($split_id) && $split_id == $last_packet_id) {
+                $split_data = substr($split_data, 12, length($split_data) - 12);
+                $tmp .= $split_data;
               }
-			  if (!defined($split_id)){
-				$last_packet_id = $SPLIT_END_PACKET_ID;
-			  } else {
-				$last_packet_id = $split_id;
-			  }
-              $tmp .= $split_data;
+              if (!defined($split_id) || $split_id == $SPLIT_END_PACKET_ID) {
+                $last_packet_id = $SPLIT_END_PACKET_ID;
+              } else {
+                $last_packet_id = $split_id;
+              }
             } else {
               &::printNotice("TRCON", "Multiple packet error");
               $last_packet_id = $SPLIT_END_PACKET_ID;
@@ -259,10 +255,10 @@ sub recieve_rcon
         if (length($tmp) > 0)  {
           $tmp .= "\x00";
           my ($string1, $string2) = unpack("Z*Z*", $tmp);
-          $msg = $string1.$string2;
+          $msg = $string1 . $string2;
         } else {
           $msg = "";
-        }  
+        }
       }
       return ($id, $command, $msg);
     } else {
@@ -275,114 +271,171 @@ sub recieve_rcon
   }
 }
 
+# Alias for legacy compatibility
+sub receive_rcon { my $self = shift; return $self->recieve_rcon(@_); }
+
 #
 # Get error message
 #
-
 sub error
 {
   my ($self) = @_;
   return $self->{"rcon_error"};
 }
 
-
-
 #
-# Parse "status" command output into player information
+# Parse status command output into player information
 #
-
 sub getPlayers
 {
   my ($self) = @_;
   my $status = $self->execute("status", 1);
   if (!$status)
   {
-  	return ("", -1, "", 0);
+    return ();
   }
-  
+
   my @lines = split(/[\r\n]+/, $status);
-
   my %players;
-
-# HL2 standard
-# userid name uniqueid connected ping loss state adr
-# 187 ".:[SoV]:.Evil Shadow" STEAM_0:1:6200412 13:48 97 0 active 213.10.196.229:24085
-
-# L4D
-# userid name uniqueid connected ping loss state rate adr
-#  2 1 "psychonic" STEAM_1:1:4153990 00:45 68 1 active 20000 192.168.5.115:27006
 
   foreach my $line (@lines)
   {
-    if ($line =~ /^\#\s*
-                (\d+)\s+		# userid
-				(?:\d+\s+|)     # extra number in L4D, not sure what this is??
-                "(.+)"\s+		# name
-                (\S+)\s+		# uniqueid
-                ([\d:]+)\s+		# time
-                (\d+)\s+		# ping
-                (\d+)\s+		# loss
-                ([A-Za-z]+)\s+	# state
-				(?:\d+\s+|)		# rate (L4D only)
-                ([^:]+):    	# addr
-                (\S+)           # port
-                $/x)
+    # Clean line: strip leading engine prefixes and whitespace
+    $line =~ s/^\s*(?:\[(?:Client|Server|EngineServiceManager)\]\s*)?//i;
+    $line =~ s/^\s+//;
+    $line =~ s/\s+$//;
+
+    # Skip all headers and CS2 65535 ghost sockets
+    next if ($line eq "" || $line =~ /^(?:server\s*:|client\s*:|-----|@\s*current|source\s*:|hostname\s*:|spawn\s*:|version\s*:|steamid\s*:|udp\/ip\s*:|os\/type\s*:|players\s*:|---------|loaded\s+spawngroup|id\s+time|#\s*userid|#end)/i);
+    next if ($line =~ /^\s*65535\b/);
+
+    my $match = 0;
+    my $name     = "";
+    my $userid   = "";
+    my $uniqueid = "";
+    my $time     = "00:00";
+    my $ping     = 0;
+    my $loss     = 0;
+    my $state    = "active";
+    my $address  = "";
+    my $port     = 0;
+
+    # 1. Counter-Strike 2 (Source 2 Engine - Humans)
+    # Handles: 0unknown, 786432unknown, H:MM:SS time, 'Name' with single quotes
+    if ($line =~ /^#?\s*(\d+)\s+(\S+)\s+(\d+)\s+(\d+)\s+(\S+)\s+(.*?)\s*['"](.+?)['"]\s*$/i)
     {
-      my $userid   = $1;
-      my $name     = $2;
-      my $uniqueid = $3;
-      my $time     = $4;
-      my $ping     = $5;
-      my $loss     = $6;
-      my $state    = $7;
-      my $address  = $8;
-      my $port     = $9;
+      $match  = 1;
+      $userid = $1;
+      $time   = $2;
+      $ping   = int($3);
+      $loss   = int($4);
+      $state  = $5;
+      my $middle = $6;
+      $name   = $7;
 
-	  $uniqueid =~ s!\[U:1:(\d+)\]!($1 % 2).':'.int($1 / 2)!eg;
-    $uniqueid =~ s/^STEAM_[0-9]+?\://i;
-	  
-      # &::printEvent("DEBUG", "USERID: '$userid', NAME: '$name', UNIQUEID: '$uniqueid', TIME: '$time', PING: '$ping', LOSS: '$loss', STATE: '$state', ADDRESS:'$address', CLI_PORT: '$port'", 1);
-
-      if ($::g_mode eq "NameTrack") {
-        $players{$name}    = { 
-                             "Name"       => $name,
-                             "UserID"     => $userid,
-                             "UniqueID"   => $uniqueid,
-                             "Time"       => $time,
-                             "Ping"       => $ping,
-                             "Loss"       => $loss,
-                             "State"      => $state,
-                             "Address"    => $address,
-                             "ClientPort" => $port
-                           };
-      } elsif ($::g_mode eq "LAN") {
-        $players{$address} = { 
-                             "Name"       => $name,
-                             "UserID"     => $userid,
-                             "UniqueID"   => $uniqueid,
-                             "Time"       => $time,
-                             "Ping"       => $ping,
-                             "Loss"       => $loss,
-                             "State"      => $state,
-                             "Address"    => $address,
-                             "ClientPort" => $port
-                           };
-      } else {
-        $players{$uniqueid} = { 
-                             "Name"       => $name,
-                             "UserID"     => $userid,
-                             "UniqueID"   => $uniqueid,
-                             "Time"       => $time,
-                             "Ping"       => $ping,
-                             "Loss"       => $loss,
-                             "State"      => $state,
-                             "Address"    => $address,
-                             "ClientPort" => $port
-                            };
+      if ($middle =~ /((?:[0-9]{1,3}\.){3}[0-9]{1,3}):?(\d+)?/) {
+        $address = $1;
+        $port    = int($2 || 0);
       }
-      
+      $uniqueid = ($::g_mode eq "LAN") ? $address : "";
+    }
+    # 2. Counter-Strike 2 (Source 2 Engine - Bots)
+    # Format: 1      BOT    0    0     active      0 BotName (or # 1 ...)
+    elsif ($line =~ /^\s*#?\s*(\d+)\s+BOT\s+(\d+)\s+(\d+)\s+(\S+)\s+\d+\s+[\x22\x27]?(.*?)[\x22\x27]?$/)
+    {
+      $match    = 1;
+      $userid   = $1;
+      $time     = "00:00";
+      $ping     = int($2);
+      $loss     = int($3);
+      $state    = $4;
+      $address  = "127.0.0.1";
+      $port     = 0;
+      $name     = $5;
+      $name     =~ s/^[\x22\x27]+|[\x22\x27]+$//g;
+      $uniqueid = "BOT";
+    }
+    # 3. Source 1 Engine (TF2, CS:GO, CS:S, L4D, L4D2, DoD:S, etc.)
+    # Formats: # 10 1 Player STEAM_1:0:12345 05:20 45 0 active 192.168.1.50:27005
+    elsif ($line =~ /^\#\s*(\d+)\s+(?:\d+\s+)?[\x22\x27]?(.+?)[\x22\x27]?\s+(\[U:\d+:\d+\]|STEAM_[A-Z0-9_:]+|VALVE_[A-Z0-9_:]+|UNKNOWN|BOT)\s+([\d:]+)\s+(\d+)\s+(\d+)\s+(\S+)\s+([^:\s]+):(\S+)$/)
+    {
+      $match    = 1;
+      $userid   = $1;
+      $name     = $2;
+      $name     =~ s/^[\x22\x27]+|[\x22\x27]+$//g;
+      $uniqueid = $3;
+      $time     = $4;
+      $ping     = int($5);
+      $loss     = int($6);
+      $state    = $7;
+      $address  = $8;
+      $port     = $9;
+      $uniqueid =~ s!\[U:1:(\d+)\]!(($1 % 2) . ":" . int($1 / 2))!eg;
+      $uniqueid =~ s/^STEAM_[0-9]+?://i;
+    }
+    # 4. Source 1 Engine (Bots without IP or Connecting players)
+    # Format: # 12 BotName BOT active
+    elsif ($line =~ /^\#\s*(\d+)\s+(?:\d+\s+)?[\x22\x27]?(.+?)[\x22\x27]?\s+(BOT|UNKNOWN)\s+(\S+)/)
+    {
+      $match    = 1;
+      $userid   = $1;
+      $name     = $2;
+      $name     =~ s/^[\x22\x27]+|[\x22\x27]+$//g;
+      $uniqueid = "BOT";
+      $time     = "00:00";
+      $ping     = 0;
+      $loss     = 0;
+      $state    = $4;
+      $address  = "127.0.0.1";
+      $port     = 0;
+    }
+    # 5. HL1 / GoldSrc fallback
+    # Format: 1 PlayerName 1 STEAM_0:1:4153990 0 00:33 13 0 192.168.5.115:27005
+    elsif ($line =~ /^\#?\s*\d+\s+[\x22\x27]?(.+?)[\x22\x27]?\s+(\d+)\s+([^\s]+)\s+[-+]?\d+\s+([\d:]+)\s+(\d+)\s+(\d+)\s+([^:\s]+):(\S+)$/)
+    {
+      $match    = 1;
+      $name     = $1;
+      $name     =~ s/^[\x22\x27]+|[\x22\x27]+$//g;
+      $userid   = $2;
+      $uniqueid = $3;
+      $time     = $4;
+      $ping     = int($5);
+      $loss     = int($6);
+      $state    = "";
+      $address  = $7;
+      $port     = $8;
+      $uniqueid =~ s/^STEAM_[0-9]+?://i;
+    }
+
+    # Clean quotes and spaces from player name
+    if ($name ne "") {
+      $name =~ s/^[\x22\x27]+|[\x22\x27]+$//g;
+      $name =~ s/^\s+|\s+$//g;
+    }
+
+    next if ($name eq "" || $name eq "''" || $name eq "\"\"");
+
+    if ($match) {
+      my $playerData = {
+        "Name"       => $name,
+        "UserID"     => $userid,
+        "UniqueID"   => $uniqueid,
+        "Time"       => $time,
+        "Ping"       => $ping,
+        "Loss"       => $loss,
+        "State"      => $state,
+        "Address"    => $address,
+        "ClientPort" => $port
+      };
+
+      # Multi-Key Indexing: Store by Name, Address, UserID and UniqueID
+      $players{$name}     = $playerData if ($name ne "");
+      $players{$address}  = $playerData if ($address ne "");
+      $players{$userid}   = $playerData if (defined($userid) && $userid ne "");
+      $players{$uniqueid} = $playerData if ($uniqueid ne "" && $uniqueid ne "BOT");
     }
   }
+
   return %players;
 }
 
@@ -390,118 +443,117 @@ sub getServerData
 {
   my ($self) = @_;
   my $status = $self->execute("status", 1);
-  
+
   my $server_object = $self->{server_object};
-  my $game = $server_object->{play_game};  
+  my $game = $server_object->{play_game};
 
   my @lines = split(/[\r\n]+/, $status);
 
-  my $servhostname         = "";
-  my $map         = "";
-  my $max_players = 0;
-  my $difficulty = 0;
+  my $servhostname = "";
+  my $map          = "";
+  my $max_players  = 0;
+  my $difficulty   = 0;
 
   foreach my $line (@lines)
   {
     if ($line =~ /^\s*hostname\s*:\s*([\S].*)$/)
     {
-      $servhostname   = $1;
+      $servhostname = $1;
+      $servhostname =~ s/^\s+|\s+$//g;
     }
     elsif ($line =~ /^\s*map\s*:\s*([\S]+).*$/)
     {
-      $map   = $1;
+      $map = $1;
+      $map =~ s/\.bsp$//i;
     }
-    elsif ($line =~ /^Game Time\s*(\d*?:?\d+:\d+),\s*Mod\s*"([^"]+)",\s*Map\s*"([^"]+)"\s*$/)
+    elsif ($line =~ /^Game Time\s*(\d*?:?\d+:\d+),\s*Mod\s*[\x22\x27]([^\x22\x27]+)[\x22\x27],\s*Map\s*[\x22\x27]([^\x22\x27]+)[\x22\x27]\s*$/)
     {
-        # srcds/cs2
-        $map   = $3;
+      $map = $3;
+      $map =~ s/\.bsp$//i;
     }
-    elsif ($line =~ /^loaded spawngroup.*?\[1:\s*([^\s]+)\s*/) {
-        # srcds/cs2 non-workshop map
-        $map   = $1;
-    }
-    elsif ($line =~ /^\s*players\s*:\s*\d+[^(]+\((\d+)\/?\d?\smax.*$/)
+    elsif ($line =~ /loaded spawngroup\(\s*\d+\)\s*:\s*SV:\s*\[\d+:\s*(?:workshop\/[^\/]+\/)?([a-zA-Z0-9_\-]+)(?:\s*\|\s*main lump|\s*\|\s*mapload)/i)
     {
-      $max_players = $1;
+      my $candidate = $1;
+      unless ($candidate =~ /^(?:prefabs|maps\/prefabs|team_select|end_of_match|counterterrorist|terrorist)/i) {
+        $map = $candidate if ($map eq "");
+      }
+    }
+    elsif ($line =~ /^\s*players\s*:\s*\d+[^(]+\((\d+)\/?\d?\s*max.*$/)
+    {
+      $max_players = int($1) if (int($1) > 0);
     }
   }
-  if ($game == L4D()) {
-	  $difficulty = $self->getDifficulty();
+  if (defined($game) && $game == L4D()) {
+    $difficulty = $self->getDifficulty();
   }
   return ($servhostname, $map, $max_players, $difficulty);
 }
-
 
 sub getVisiblePlayers
 {
   my ($self) = @_;
   my $status = $self->execute("sv_visiblemaxplayers");
-  
+
   my @lines = split(/[\r\n]+/, $status);
-  
 
   my $max_players = -1;
   foreach my $line (@lines)
   {
-   # "sv_visiblemaxplayers" = "-1"
-   #       - Overrides the max players reported to prospective clients
-    if ($line =~ /^\s*"sv_visiblemaxplayers"\s*=\s*"([-0-9]+)".*$/x)
+    # sv_visiblemaxplayers
+    # Overrides the max players reported to prospective clients
+    if ($line =~ /^\s*[\x22\x27]sv_visiblemaxplayers[\x22\x27]\s*=\s*[\x22\x27]([-0-9]+)[\x22\x27].*$/)
     {
-      $max_players   = $1;
+      $max_players = int($1);
     }
   }
   return ($max_players);
 }
 
 my %l4d_difficulties = (
-	'Easy'       => 1,
-	'Normal'     => 2,
-	'Hard'       => 3,
-	'Impossible' => 4
+  'Easy'       => 1,
+  'Normal'     => 2,
+  'Hard'       => 3,
+  'Impossible' => 4
 );
 
 sub getDifficulty
 {
-	#z_difficulty
-	#"z_difficulty" = "Normal"
-	# game replicated
-	# - Difficulty of the current game (Easy, Normal, Hard, Impossible)
-	
+  # z_difficulty
+  # Difficulty of the current game (Easy, Normal, Hard, Impossible)
+
   my ($self) = @_;
   my $zdifficulty = $self->execute("z_difficulty");
-	
+
   my @lines = split(/[\r\n]+/, $zdifficulty);
-  
+
   foreach my $line (@lines)
   {
-    if ($line =~ /^\s*"z_difficulty"\s*=\s*"([A-Za-z]+)".*$/x)
+    if ($line =~ /^\s*[\x22\x27]z_difficulty[\x22\x27]\s*=\s*[\x22\x27]([A-Za-z]+)[\x22\x27].*$/)
     {
-		if (exists($l4d_difficulties{$1}))
-		{
-			return $l4d_difficulties{$1};
-		}
+      if (exists($l4d_difficulties{$1}))
+      {
+        return $l4d_difficulties{$1};
+      }
     }
   }
   return 0;
 }
 
-
 #
-# Get information about a player by userID
+# Get information about a player by userID or uniqueID
 #
-
 sub getPlayer
 {
   my ($self, $uniqueid) = @_;
   my %players = $self->getPlayers();
-  
+
   if (defined($players{$uniqueid}))
   {
     return $players{$uniqueid};
   }
   else
   {
-    $self->{"error"} = "No such player # $uniqueid";
+    $self->{"rcon_error"} = "No such player # $uniqueid";
     return 0;
   }
 }

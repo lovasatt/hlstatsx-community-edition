@@ -4,7 +4,7 @@ HLstatsX Community Edition - Real-time player and clan rankings and statistics
 Copyleft (L) 2008-20XX Nicholas Hastings (nshastings@gmail.com)
 http://www.hlxcommunity.com
 
-HLstatsX Community Edition is a continuation of 
+HLstatsX Community Edition is a continuation of
 ELstatsNEO - Real-time player and clan rankings and statistics
 Copyleft (L) 2008-20XX Malte Bayer (steam@neo-soft.org)
 http://ovrsized.neo-soft.org/
@@ -18,7 +18,7 @@ HLstatsX is an enhanced version of HLstats made by Simon Garner
 HLstats - Real-time player and clan rankings and statistics for Half-Life
 http://sourceforge.net/projects/hlstats/
 Copyright (C) 2001  Simon Garner
-            
+
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
 as published by the Free Software Foundation; either version 2
@@ -48,170 +48,173 @@ For support and installation notes visit http://www.hlxcommunity.com
     }
 ?>
 
-&nbsp;&nbsp;&nbsp;&nbsp;<img src="<?php echo IMAGE_PATH; ?>/downarrow.gif" width="9" height="6" class="imageformat" alt=""><b>&nbsp;<?php
+&nbsp;&nbsp;&nbsp;&nbsp;<img src="<?php echo IMAGE_PATH; ?>/downarrow.gif" width="9" height="6" class="imageformat" alt="" /><b>&nbsp;<?php
     if (isset($_GET['hostgroup'])) {
         $hostgroup = (string)$_GET['hostgroup'];
-        
-?><a href="<?php echo htmlspecialchars($g_options["scripturl"]); ?>?mode=admin&amp;task=<?php echo htmlspecialchars($selTask); ?>"><?php
+
+?><a href="<?php echo htmlspecialchars($g_options["scripturl"] ?? '', ENT_QUOTES, 'UTF-8'); ?>?mode=admin&amp;task=<?php echo htmlspecialchars((string)($selTask ?? 'tools_ipstats'), ENT_QUOTES, 'UTF-8'); ?>"><?php
     }
-    echo htmlspecialchars($task->title);
+    echo htmlspecialchars($task->title ?? '', ENT_QUOTES, 'UTF-8');
     if (isset($_GET['hostgroup'])) {
-	echo "</a>";
+        echo "</a>";
     }
 
-?></b> (Last <?php echo $g_options["DeleteDays"]; ?> Days)<?php
+?></b> (Last <?php echo htmlspecialchars((string)($g_options["DeleteDays"] ?? 28), ENT_QUOTES, 'UTF-8'); ?> Days)<?php
     if (isset($_GET['hostgroup']))
     {
-?><br>
-<img src="<?php echo IMAGE_PATH; ?>/spacer.gif" width="1" height="8" border="0" alt=""><br>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<img src="<?php echo IMAGE_PATH; ?>/downarrow.gif" width="9" height="6" class="imageformat" alt=""><b>&nbsp;<?php echo htmlspecialchars($hostgroup); ?></b><p>
+?><br />
+<img src="<?php echo IMAGE_PATH; ?>/spacer.gif" width="1" height="8" alt="" /><br />
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<img src="<?php echo IMAGE_PATH; ?>/downarrow.gif" width="9" height="6" class="imageformat" alt="" /><b>&nbsp;<?php echo htmlspecialchars((string)$hostgroup, ENT_QUOTES, 'UTF-8'); ?></b><br /><br />
 <?php
     }
     else
     {
-	echo "<p>";
+        echo "<br /><br />";
     }
 ?>
 
 <?php
     if (isset($_GET['hostgroup'])) {
         $hostgroup = (string)$_GET['hostgroup'];
-        
-	$table = new Table(
-	    array(
-		new TableColumn(
-		    "host",
-		    "Host",
-		    "width=41"
-		),
-		new TableColumn(
-		    "freq",
-		    "Connects",
-		    "width=12&align=right"
-		),
-		new TableColumn(
-		    "percent",
-		    "Percentage of Connects",
-		    "width=30&sort=no&type=bargraph"
-		),
-		new TableColumn(
-		    "percent",
-		    "%",
-		    "width=12&sort=no&align=right&append=" . urlencode("%")
-		)
-	    ),
-	    "host",			// keycol
-	    "freq",			// sort
-	    "host",			// sort2
-	    true,			// showranking
-	    50				// numperpage
-	);
-	
-	if ($hostgroup == "(Unresolved IP Addresses)")
-	    $hostgroup = "";
-	
-	$result = $db->query("
-	    SELECT
-		COUNT(*),
-		COUNT(DISTINCT ipAddress)
-	    FROM
-		hlstats_Events_Connects
-	    WHERE
-		hostgroup='".$db->escape($hostgroup)."'
-	");
-	
+
+        $table = new Table(
+            array(
+                new TableColumn(
+                    "host",
+                    "Host",
+                    "width=41"
+                ),
+                new TableColumn(
+                    "freq",
+                    "Connects",
+                    "width=12&align=right"
+                ),
+                new TableColumn(
+                    "percent",
+                    "Percentage of Connects",
+                    "width=30&sort=no&type=bargraph"
+                ),
+                new TableColumn(
+                    "percent",
+                    "%",
+                    "width=12&sort=no&align=right&append=" . urlencode("%")
+                )
+            ),
+            "host",                     // keycol
+            "freq",                     // sort
+            "host",                     // sort2
+            true,                       // showranking
+            50                          // numperpage
+        );
+
+        if ($hostgroup == "(Unresolved IP Addresses)") {
+            $hostgroup = "";
+        }
+
+        $hostgroup_esc = $db->escape($hostgroup);
+
+        $result = $db->query("
+            SELECT
+                COUNT(*),
+                COUNT(DISTINCT ipAddress)
+            FROM
+                hlstats_Events_Connects
+            WHERE
+                hostgroup='$hostgroup_esc'
+        ");
+
         // PHP 8 Fix: Replace list()
-	$row = $db->fetch_row($result);
-        $totalconnects = ($row) ? (int)$row[0] : 0;
-        $numitems = ($row) ? (int)$row[1] : 0;
-        
-        // Prevent division by zero
-        $divisor = ($totalconnects > 0) ? $totalconnects : 1;
-	
-	$result = $db->query("
-	    SELECT
-		IF(hostname='', ipAddress, hostname) AS host,
-		COUNT(hostname) AS freq,
-		(COUNT(hostname) / $divisor) * 100 AS percent
-	    FROM
-		hlstats_Events_Connects
-	    WHERE
-		hostgroup='".$db->escape($hostgroup)."'
-	    GROUP BY
-		host
-	    ORDER BY
-		$table->sort $table->sortorder,
-		$table->sort2 $table->sortorder
-	    LIMIT
-		$table->startitem,$table->numperpage
-	");
-	
-	$table->draw($result, $numitems, 95, "center");
-    }
-    else
-    {
-	$table = new Table(
-	    array(
-		new TableColumn(
-		    "hostgroup",
-		    "Host",
-		    "width=41&icon=server&link=" . urlencode("mode=admin&task=tools_ipstats&hostgroup=%k")
-		),
-		new TableColumn(
-		    "freq",
-		    "Connects",
-		    "width=12&align=right"
-		),
-		new TableColumn(
-		    "percent",
-		    "Percentage of Connects",
-		    "width=30&sort=no&type=bargraph"
-		),
-		new TableColumn(
-		    "percent",
-		    "%",
-		    "width=12&sort=no&align=right&append=" . urlencode("%")
-		)
-	    ),
-	    "hostgroup",	// keycol
-	    "freq",			// sort
-	    "hostgroup",	// sort2
-	    true,			// showranking
-	    50				// numperpage
-	);
-	
-	$result = $db->query("
-	    SELECT
-		COUNT(*),
-		COUNT(DISTINCT hostgroup)
-	    FROM
-		hlstats_Events_Connects
-	");
-	
-        // PHP 8 Fix: Replace list()
-	$row = $db->fetch_row($result);
+        $row = $db->fetch_row($result);
         $totalconnects = ($row) ? (int)$row[0] : 0;
         $numitems = ($row) ? (int)$row[1] : 0;
 
         // Prevent division by zero
         $divisor = ($totalconnects > 0) ? $totalconnects : 1;
-	
-	$result = $db->query("
-	    SELECT
-		IF(hostgroup='', '(Unresolved IP Addresses)', hostgroup) AS hostgroup,
-		COUNT(hostgroup) AS freq,
-		(COUNT(hostgroup) / $divisor) * 100 AS percent
-	    FROM
-		hlstats_Events_Connects
-	    GROUP BY
-		hostgroup
-	    ORDER BY
-		$table->sort $table->sortorder,
-		$table->sort2 $table->sortorder
-	    LIMIT
-		$table->startitem,$table->numperpage
-	");
-	
-	$table->draw($result, $numitems, 95, "center");
+
+        $result = $db->query("
+            SELECT
+                IF(hostname='', ipAddress, hostname) AS host,
+                COUNT(*) AS freq,
+                (COUNT(*) / $divisor) * 100 AS percent
+            FROM
+                hlstats_Events_Connects
+            WHERE
+                hostgroup='$hostgroup_esc'
+            GROUP BY
+                host
+            ORDER BY
+                $table->sort $table->sortorder,
+                $table->sort2 $table->sortorder
+            LIMIT
+                $table->startitem,$table->numperpage
+        ");
+
+        $table->draw($result, $numitems, 95, "center");
+    }
+    else
+    {
+        $table = new Table(
+            array(
+                new TableColumn(
+                    "hostgroup",
+                    "Host",
+                    "width=41&icon=server&link=" . urlencode("mode=admin&task=tools_ipstats&hostgroup=%k")
+                ),
+                new TableColumn(
+                    "freq",
+                    "Connects",
+                    "width=12&align=right"
+                ),
+                new TableColumn(
+                    "percent",
+                    "Percentage of Connects",
+                    "width=30&sort=no&type=bargraph"
+                ),
+                new TableColumn(
+                    "percent",
+                    "%",
+                    "width=12&sort=no&align=right&append=" . urlencode("%")
+                )
+            ),
+            "hostgroup",        // keycol
+            "freq",                     // sort
+            "hostgroup",        // sort2
+            true,                       // showranking
+            50                          // numperpage
+        );
+
+        $result = $db->query("
+            SELECT
+                COUNT(*),
+                COUNT(DISTINCT hostgroup)
+            FROM
+                hlstats_Events_Connects
+        ");
+
+        // PHP 8 Fix: Replace list()
+        $row = $db->fetch_row($result);
+        $totalconnects = ($row) ? (int)$row[0] : 0;
+        $numitems = ($row) ? (int)$row[1] : 0;
+
+        // Prevent division by zero
+        $divisor = ($totalconnects > 0) ? $totalconnects : 1;
+
+        $result = $db->query("
+            SELECT
+                IF(hostgroup='', '(Unresolved IP Addresses)', hostgroup) AS hostgroup,
+                COUNT(*) AS freq,
+                (COUNT(*) / $divisor) * 100 AS percent
+            FROM
+                hlstats_Events_Connects
+            GROUP BY
+                hostgroup
+            ORDER BY
+                $table->sort $table->sortorder,
+                $table->sort2 $table->sortorder
+            LIMIT
+                $table->startitem,$table->numperpage
+        ");
+
+        $table->draw($result, $numitems, 95, "center");
     }
 ?>

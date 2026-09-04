@@ -3,7 +3,13 @@ services:
     image: mariadb:11.8
     container_name: hlx-db
     restart: always
-    command: --innodb_buffer_pool_size=512M --innodb_flush_log_at_trx_commit=2
+    command: >
+      --innodb_buffer_pool_size=${DB_BUFFER_POOL_SIZE:-512M}
+      --innodb_flush_log_at_trx_commit=${DB_FLUSH_LOG_AT_TRX_COMMIT:-2}
+      --innodb_log_buffer_size=${DB_LOG_BUFFER_SIZE:-16M}
+      --max_connections=${DB_MAX_CONNECTIONS:-200}
+      --table_open_cache=${DB_TABLE_OPEN_CACHE:-2000}
+
     ports:
       - "${DB_PORT:-3306}:3306"
     environment:

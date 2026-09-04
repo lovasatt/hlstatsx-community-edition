@@ -4,7 +4,7 @@ HLstatsX Community Edition - Real-time player and clan rankings and statistics
 Copyleft (L) 2008-20XX Nicholas Hastings (nshastings@gmail.com)
 http://www.hlxcommunity.com
 
-HLstatsX Community Edition is a continuation of 
+HLstatsX Community Edition is a continuation of
 ELstatsNEO - Real-time player and clan rankings and statistics
 Copyleft (L) 2008-20XX Malte Bayer (steam@neo-soft.org)
 http://ovrsized.neo-soft.org/
@@ -18,7 +18,7 @@ HLstatsX is an enhanced version of HLstats made by Simon Garner
 HLstats - Real-time player and clan rankings and statistics for Half-Life
 http://sourceforge.net/projects/hlstats/
 Copyright (C) 2001  Simon Garner
-            
+
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
 as published by the Free Software Foundation; either version 2
@@ -43,131 +43,142 @@ For support and installation notes visit http://www.hlxcommunity.com
     global $db, $game, $realgame, $g_options;
 
     // Security: Escape game variable
+    $game = isset($game) ? (string)$game : '';
     $game_esc = $db->escape($game);
+    $game_url = urlencode($game);
+    $realgame = isset($realgame) ? (string)$realgame : '';
 
     // select the available ribbons
     // PHP 8 & MySQL 8 Fix: Expanded GROUP BY to comply with ONLY_FULL_GROUP_BY mode
     $result = $db->query("
-	SELECT
-	    hlstats_Ribbons.ribbonId,
-	    ribbonName,
-	    image,
-	    hlstats_Awards.name as awardName,
-            hlstats_Awards.code as awardCode,
-	    awardCount,
-	    count(playerId) as achievedcount
-	FROM
-	    hlstats_Ribbons	
-	INNER JOIN
-	    hlstats_Awards 
-	ON (
-	    awardCode=code
-	    AND hlstats_Ribbons.game=hlstats_Awards.game			    
-	    )
-	LEFT JOIN
-	    hlstats_Players_Ribbons
-	ON (
-	    hlstats_Ribbons.ribbonId=hlstats_Players_Ribbons.ribbonId
-	    )	    
-	WHERE
-	    hlstats_Ribbons.game='$game_esc'
-	    AND hlstats_Ribbons.special=0
-	GROUP BY
-	    hlstats_Ribbons.ribbonId,
-	    ribbonName,
+        SELECT
+            hlstats_Ribbons.ribbonId,
+            ribbonName,
             image,
-	    awardName,
+            hlstats_Awards.name as awardName,
+            hlstats_Awards.code as awardCode,
+            awardCount,
+            count(playerId) as achievedcount
+        FROM
+            hlstats_Ribbons
+        INNER JOIN
+            hlstats_Awards
+        ON (
+            awardCode=code
+            AND hlstats_Ribbons.game=hlstats_Awards.game
+            )
+        LEFT JOIN
+            hlstats_Players_Ribbons
+        ON (
+            hlstats_Ribbons.ribbonId=hlstats_Players_Ribbons.ribbonId
+            AND hlstats_Ribbons.game=hlstats_Players_Ribbons.game
+            )
+        WHERE
+            hlstats_Ribbons.game='$game_esc'
+            AND hlstats_Ribbons.special=0
+        GROUP BY
+            hlstats_Ribbons.ribbonId,
+            ribbonName,
+            image,
+            awardName,
             awardCode,
             awardCount
-	ORDER BY
-	    awardCount,
-	    ribbonName,
-	    awardCode
+        ORDER BY
+            awardCount,
+            ribbonName,
+            awardCode
     ");
 ?>
 
 <div class="block">
     <?php printSectionTitle('Ribbons'); ?>
     <div class="subblock">
-	<table class="data-table">
+        <table class="data-table">
 <?php
     // draw the rank info table (5 columns)
     $i = 0;
     $i1 = 0;
     $cnt = -1;
- 
+
     // PHP 8 Fix: Ensure integer type
     $cols = isset($g_options['awardribbonscols']) ? (int)$g_options['awardribbonscols'] : 5;
     if ($cols < 1 || $cols > 10)
     {
-	$cols = 5;
+        $cols = 5;
     }
     $colwidth = round(100 / $cols);
- 
-    while ($r = $db->fetch_array())
+
+    while ($r = $db->fetch_array($result))
     {
-	if ($cnt != $r['awardCount'])
-	{
-	    $cnt = $r['awardCount'];
-	    $i1++;
-	    if ($i == $cols)
-	    {
-		echo '</tr>';
-	    }
-	    $i = 0;
-	    echo "<tr class=\"head\"><td colspan=\"5\"><strong>Ribbon Class #$i1 ($cnt awards required)</strong></td></tr>";
-	}
+        if ($cnt !== $r['awardCount'])
+        {
+            $cnt = $r['awardCount'];
+            $i1++;
+            if ($i > 0)
+            {
+                for (; $i < $cols; $i++)
+                {
+                    echo '<td class="bg1">&nbsp;</td>';
+                }
+                echo '</tr>';
+            }
+            $i = 0;
+            echo '<tr class="head"><td colspan="' . $cols . '"><strong>Ribbon Class #' . $i1 . ' (' . (int)$cnt . ' awards required)</strong></td></tr>';
+        }
 
-	if ($i == $cols)
-	{
-	    echo '</tr>';
-	    $i = 0;
-	}
-	if ($i == 0)
-	{
-	    echo '<tr class="bg1">';
-	}
-        
-        $game_url = htmlspecialchars($game);
-	$link = '<a href="hlstats.php?mode=ribboninfo&amp;ribbon='.$r['ribbonId']."&amp;game=$game_url\">";
-        
-	if (file_exists(IMAGE_PATH."/games/$game/ribbons/".$r['image']))
-	{
-	    $image = IMAGE_PATH."/games/$game/ribbons/".$r['image'];
-	}
-	elseif ($realgame && file_exists(IMAGE_PATH."/games/$realgame/ribbons/".$r['image']))
-	{
-	    $image = IMAGE_PATH."/games/$realgame/ribbons/".$r['image'];
-	}
-	else
-	{
-	    $image = IMAGE_PATH."/award.png";
-	}
-        
-        $ribbonNameSafe = htmlspecialchars((string)$r['ribbonName']);
-	$image = '<img src="'.$image.'" alt="'.$ribbonNameSafe.'" />';
-	$achvd = '';
-	if ($r['achievedcount'] > 0)
-	{
-	    $image = "$link$image</a>";
-	    $achvd = 'Achieved by '.$r['achievedcount'].' players';
-	}
+        if ($i == $cols)
+        {
+            echo '</tr>';
+            $i = 0;
+        }
+        if ($i == 0)
+        {
+            echo '<tr class="bg1">';
+        }
 
-	echo "<td style=\"text-align:center;vertical-align:top;width:$colwidth%;\">
-	    <strong>".$ribbonNameSafe.'</strong><br /><br /><span class="fSmall">'
-	    ."$achvd</span><br />$image
-	    </td>";
-	$i++;
+        $ribbon_id = (int)$r['ribbonId'];
+        $link = '<a href="hlstats.php?mode=ribboninfo&amp;ribbon=' . $ribbon_id . "&amp;game=$game_url\">";
+
+        $r_image = (string)($r['image'] ?? '');
+        if ($r_image !== '' && file_exists(IMAGE_PATH . "/games/$game/ribbons/" . $r_image))
+        {
+            $image = IMAGE_PATH . "/games/$game/ribbons/" . $r_image;
+        }
+        elseif ($realgame && $r_image !== '' && file_exists(IMAGE_PATH . "/games/$realgame/ribbons/" . $r_image))
+        {
+            $image = IMAGE_PATH . "/games/$realgame/ribbons/" . $r_image;
+        }
+        else
+        {
+            $image = IMAGE_PATH . "/award.png";
+        }
+
+        $ribbonNameSafe = htmlspecialchars((string)($r['ribbonName'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        $image_tag = '<img src="' . htmlspecialchars($image, ENT_QUOTES, 'UTF-8') . '" alt="' . $ribbonNameSafe . '" />';
+        $achvd = '';
+        $achieved_count = (int)($r['achievedcount'] ?? 0);
+        if ($achieved_count > 0)
+        {
+            $image_tag = "$link$image_tag</a>";
+            $achvd = 'Achieved by ' . number_format($achieved_count) . ' players';
+        }
+
+        echo "<td style=\"text-align:center;vertical-align:top;width:$colwidth%;\">
+            <strong>" . $ribbonNameSafe . '</strong><br /><br /><span class="fSmall">'
+            . "$achvd</span><br />$image_tag
+            </td>";
+        $i++;
     }
     if ($i != 0)
     {
-	for ($i = $i; $i < $cols; $i++)
-	{
-	    echo '<td class="bg1">&nbsp;</td>';
-	}
-	echo '</tr>';
+        for (; $i < $cols; $i++)
+        {
+            echo '<td class="bg1">&nbsp;</td>';
+        }
+        echo '</tr>';
     }
+    $db->free_result($result);
 ?>
-	</table>
+        </table>
     </div>
 </div>

@@ -4,7 +4,7 @@ HLstatsX Community Edition - Real-time player and clan rankings and statistics
 Copyleft (L) 2008-20XX Nicholas Hastings (nshastings@gmail.com)
 http://www.hlxcommunity.com
 
-HLstatsX Community Edition is a continuation of 
+HLstatsX Community Edition is a continuation of
 ELstatsNEO - Real-time player and clan rankings and statistics
 Copyleft (L) 2008-20XX Malte Bayer (steam@neo-soft.org)
 http://ovrsized.neo-soft.org/
@@ -18,7 +18,7 @@ HLstatsX is an enhanced version of HLstats made by Simon Garner
 HLstats - Real-time player and clan rankings and statistics for Half-Life
 http://sourceforge.net/projects/hlstats/
 Copyright (C) 2001  Simon Garner
-            
+
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
 as published by the Free Software Foundation; either version 2
@@ -49,48 +49,49 @@ For support and installation notes visit http://www.hlxcommunity.com
 
     $edlist = new EditList("teamId", "hlstats_Teams", "team", false);
     $edlist->columns[] = new EditListColumn("game", "Game", 0, true, "hidden", $gamecode);
-    $edlist->columns[] = new EditListColumn("code", "Team Code", 20, true, "text", "", 32);
+    $edlist->columns[] = new EditListColumn("code", "Team Code", 20, true, "text", "", 64);
     $edlist->columns[] = new EditListColumn("name", "Team Name", 20, true, "text", "", 64);
-    $edlist->columns[] = new EditListColumn("playerlist_color", "Color Code", 20, false, "text", "", 64);
-    $edlist->columns[] = new EditListColumn("playerlist_bgcolor", "Bg Color Code", 20, false, "text", "", 64);
+    $edlist->columns[] = new EditListColumn("playerlist_color", "Color Code", 20, false, "text", "", 7);
+    $edlist->columns[] = new EditListColumn("playerlist_bgcolor", "Bg Color Code", 20, false, "text", "", 7);
     $edlist->columns[] = new EditListColumn("hidden", "<center>Hide Team</center>", 0, false, "checkbox");
 
     if (!empty($_POST)) {
-	if ($edlist->update())
-	    message("success", "Operation successful.");
-	else
-	    message("warning", $edlist->error());
+        if ($edlist->update()) {
+            message("success", "Operation successful.");
+        } else {
+            message("warning", $edlist->error());
+        }
     }
 ?>
 
-You can specify descriptive names for each game's team codes.<p>
+You can specify descriptive names for each game's team codes.<br /><br />
 
-<?php 
-    
+<?php
+
     // Security: Escape gamecode
-    $gamecode_esc = $db->escape($gamecode);
+    $gamecode_esc = $db->escape($gamecode ?? '');
 
     $result = $db->query("
-	SELECT
-	    teamId,
-	    code,
-	    name,
-	    hidden,
-	    playerlist_color,
-	    playerlist_bgcolor
-	FROM
-	    hlstats_Teams
-	WHERE
-	    game='$gamecode_esc'
-	ORDER BY
-	    code ASC
+        SELECT
+            teamId,
+            code,
+            name,
+            hidden,
+            playerlist_color,
+            playerlist_bgcolor
+        FROM
+            hlstats_Teams
+        WHERE
+            game='$gamecode_esc'
+        ORDER BY
+            code ASC
     ");
-    
+
     $edlist->draw($result);
 ?>
 
-<table width="75%" border="0" cellspacing="0" cellpadding="0">
+<table width="75%" border="0" cellspacing="0" cellpadding="0" style="margin:15px auto;">
 <tr>
-    <td align="center"><input type="submit" value="  Apply  " class="submit"></td>
+    <td align="center"><input type="submit" value="  Apply  " class="submit" /></td>
 </tr>
 </table>

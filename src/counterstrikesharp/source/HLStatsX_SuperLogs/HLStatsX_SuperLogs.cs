@@ -3,6 +3,7 @@ using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Core.Attributes;
 using CounterStrikeSharp.API.Modules.Utils;
 using CounterStrikeSharp.API.Modules.Entities;
+using CounterStrikeSharp.API.Modules.Cvars;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
@@ -39,7 +40,7 @@ public class HLStatsXConfig : BasePluginConfig
 public class HLStatsX_SuperLogs : BasePlugin, IPluginConfig<HLStatsXConfig>
 {
     public override string ModuleName => "HLStatsX:CE SuperLogs CS2";
-    public override string ModuleVersion => "2.4";
+    public override string ModuleVersion => "2.5";
     public override string ModuleAuthor => "lovasatt";
 
     public HLStatsXConfig Config { get; set; } = new HLStatsXConfig();
@@ -88,6 +89,12 @@ public class HLStatsX_SuperLogs : BasePlugin, IPluginConfig<HLStatsXConfig>
 
     public override void Load(bool hotReload)
     {
+
+        RegisterListener<Listeners.OnMapStart>((mapName) => 
+        { 
+            _isWarmup = IsWarmup(); 
+            LogToUDP($"Started map \"{Server.MapName}\"", true); 
+        });
         RegisterEventHandler<EventPlayerHurt>(OnPlayerHurt);
         RegisterEventHandler<EventPlayerDeath>(OnPlayerDeath);
         RegisterEventHandler<EventItemEquip>(OnItemEquip);
@@ -95,10 +102,10 @@ public class HLStatsX_SuperLogs : BasePlugin, IPluginConfig<HLStatsXConfig>
         RegisterEventHandler<EventRoundStart>(OnRoundStart);
         RegisterEventHandler<EventPlayerDisconnect>(OnPlayerDisconnect);
         RegisterEventHandler<EventPlayerConnectFull>(OnPlayerConnectFull);
+        RegisterEventHandler<EventPlayerTeam>(OnPlayerTeam);
         RegisterEventHandler<EventWarmupEnd>((@e, @i) => 
         { 
             _isWarmup = false; 
-            LogToUDP($"Started map \"{Server.MapName}\"", true); 
             return HookResult.Continue; 
         });
 
@@ -234,7 +241,7 @@ public class HLStatsX_SuperLogs : BasePlugin, IPluginConfig<HLStatsXConfig>
         
             int hGroup = @event.Hitgroup;
         
-            if (hGroup <= 0 || hGroup > 7) 
+            if (hGroup < 0 || hGroup > 8) 
             {
                 hGroup = 0;
             }
@@ -287,6 +294,42 @@ public class HLStatsX_SuperLogs : BasePlugin, IPluginConfig<HLStatsXConfig>
         return HookResult.Continue;
     }
 
+    private bool IsWarmup()
+    {
+        var gr = Utilities.FindAllEntitiesByDesignerName<CCSGameRulesProxy>("cs_gamerules").FirstOrDefault()?.GameRules;
+        if (gr != null) return gr.WarmupPeriod;
+        var wt = ConVar.Find("mp_warmuptime")?.GetPrimitiveValue<float>() ?? 0f;
+        var dw = ConVar.Find("mp_do_warmup_period")?.GetPrimitiveValue<bool>() ?? false;
+        return dw && wt > 0;
+    }
+
+    private HookResult OnPlayerTeam(EventPlayerTeam @event, GameEventInfo info)
+    {
+        if (@event.Userid == null || !@event.Userid.IsValid || @event.Disconnect)
+        {
+            return HookResult.Continue;
+        }
+
+        string teamName = @event.Team switch
+        {
+            2 => "TERRORIST",
+            3 => "CT",
+            1 => "Spectator",
+            _ => ""
+        };
+
+        if (!string.IsNullOrEmpty(teamName))
+        {
+            string? playerLog = GetPlayerLogString(@event.Userid);
+            if (playerLog != null)
+            {
+                LogToUDP($"\"{playerLog}\" joined team \"{teamName}\"");
+            }
+        }
+
+        return HookResult.Continue;
+    }
+
     private HookResult OnRoundStart(EventRoundStart @event, GameEventInfo info)
     {
         CheckWarmupStatus();
@@ -308,7 +351,7 @@ public class HLStatsX_SuperLogs : BasePlugin, IPluginConfig<HLStatsXConfig>
         
             if (kvp.Value.Shots == 0 && kvp.Value.Hits > 0) kvp.Value.Shots = kvp.Value.Hits;
 
-            string msg = $"\"{playerLog}\" triggered \"weapon_stats\" (weapon \"{kvp.Key}\") (shots \"{kvp.Value.Shots}\") (hits \"{kvp.Value.Hits}\") (kills \"{kvp.Value.Kills}\") (headshots \"{kvp.Value.Headshots}\") (damage \"{kvp.Value.Damage}\") (deaths \"{kvp.Value.Deaths}\") (head \"{kvp.Value.HitGroups[1]}\") (chest \"{kvp.Value.HitGroups[2]}\") (stomach \"{kvp.Value.HitGroups[3]}\") (leftarm \"{kvp.Value.HitGroups[4]}\") (rightarm \"{kvp.Value.HitGroups[5]}\") (leftleg \"{kvp.Value.HitGroups[6]}\") (rightleg \"{kvp.Value.HitGroups[7]}\") (generic \"{kvp.Value.HitGroups[0]}\")";
+            string msg = $"\"{playerLog}\" triggered \"weapon_stats\" (weapon \"{kvp.Key}\") (shots \"{kvp.Value.Shots}\") (hits \"{kvp.Value.Hits}\") (kills \"{kvp.Value.Kills}\") (headshots \"{kvp.Value.Headshots}\") (damage \"{kvp.Value.Damage}\") (deaths \"{kvp.Value.Deaths}\") (head \"{kvp.Value.HitGroups[1]}\") (neck \"{kvp.Value.HitGroups[8]}\") (chest \"{kvp.Value.HitGroups[2]}\") (stomach \"{kvp.Value.HitGroups[3]}\") (leftarm \"{kvp.Value.HitGroups[4]}\") (rightarm \"{kvp.Value.HitGroups[5]}\") (leftleg \"{kvp.Value.HitGroups[6]}\") (rightleg \"{kvp.Value.HitGroups[7]}\") (generic \"{kvp.Value.HitGroups[0]}\")";
         
             LogToUDP(msg);
         }
@@ -351,8 +394,7 @@ public class HLStatsX_SuperLogs : BasePlugin, IPluginConfig<HLStatsXConfig>
 
     private void CheckWarmupStatus()
     {
-        var gameRules = Utilities.FindAllEntitiesByDesignerName<CCSGameRulesProxy>("cs_gamerules").FirstOrDefault();
-        _isWarmup = gameRules?.GameRules?.WarmupPeriod ?? false;
+        _isWarmup = IsWarmup();
     }
 
     private void InitPlayerStats(int slot)
@@ -391,7 +433,7 @@ public class HLStatsX_SuperLogs : BasePlugin, IPluginConfig<HLStatsXConfig>
 
     private string? GetPlayerLogString(CCSPlayerController p)
     {
-        if (p == null || !p.IsValid || string.IsNullOrEmpty(p.PlayerName) || p.UserId == null)
+        if (p == null || !p.IsValid || string.IsNullOrEmpty(p.PlayerName))
         {
             return null;
         }
@@ -400,7 +442,10 @@ public class HLStatsX_SuperLogs : BasePlugin, IPluginConfig<HLStatsXConfig>
         string name = p.PlayerName
             .Replace("\\", "")
             .Replace("\"", "");
-        return $"{name}<{p.UserId}><{steamId}><{team}>";
+
+        int userId = p.UserId ?? p.Slot;
+
+        return $"{name}<{userId}><{steamId}><{team}>";
     }
 
     private bool IsIgnoredForShots(string w) => 
@@ -409,7 +454,7 @@ public class HLStatsX_SuperLogs : BasePlugin, IPluginConfig<HLStatsXConfig>
     private class WeaponStats
     {
         public int Shots = 0, Hits = 0, Damage = 0, Kills = 0, Deaths = 0, Headshots = 0;
-        public int[] HitGroups = new int[8];
+        public int[] HitGroups = new int[9];
         public bool IsEmpty() => Shots == 0 && Hits == 0 && Damage == 0 && Deaths == 0 && Kills == 0;
     }
 }

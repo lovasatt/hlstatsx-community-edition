@@ -61,9 +61,10 @@ For support and installation notes visit http://www.hlxcommunity.com
 			($last_segment !== '/config.php') &&
 			($last_segment !== '/') &&
 			($entry !== '')) {
-                        $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
-			header('Location: http://'.$host.'/hlstats.php');    
-			exit;
+			$host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+                        $proto = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+                        header('Location: ' . $proto . '://' . $host . '/hlstats.php');
+                        exit;
 		    }
                 }
 	    }
@@ -473,8 +474,6 @@ For support and installation notes visit http://www.hlxcommunity.com
 	imagestring($image, 1, $width - $indent_x[1] - $str_width, $indent_y[0] - 11, $str, $font_color);
     }
 
-    imageTrueColorToPalette($image, false, 256);
-
     if (ob_get_length()) {
         ob_clean();
     }
@@ -483,9 +482,9 @@ For support and installation notes visit http://www.hlxcommunity.com
 
     if ($bar_type != 2)
     {
-        @imagepng($image, IMAGE_PATH . '/progress/server_' . $width . '_' . $height . '_' . $bar_type . '_' . $clean_game_file . '_' . $server_id . '_' . $bg_id . '_' . $server_load_type . '.png');
+	@imagepng($image, IMAGE_PATH . '/progress/server_' . $width . '_' . $height . '_' . $bar_type . '_' . $clean_game_file . '_' . $server_id . '_' . $bg_id . '_' . $server_load_type . '.png');
         $mod_date = date('D, d M Y H:i:s \G\M\T', time());
-        header('Last-Modified:' . $mod_date);
+        header('Last-Modified: ' . $mod_date);
         imagepng($image);
         imagedestroy($image);
     }

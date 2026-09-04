@@ -341,16 +341,16 @@ class DB_mysql
 	    return mysqli_real_escape_string($this->link, (string)$string);
 	}
     
-	return '';	
+	return '';
     }
 
     function error($message, $exit=true)
     {
-        // Safe output
+        // Safe output with PHP 8.4 type safety
         $out = "<b>Database Error</b><br />\n<br />\n" .
-	    "<i>Server Address:</i> " . htmlspecialchars($this->db_addr) . "<br />\n" .
-	    "<i>Server Username:</i> " . htmlspecialchars($this->db_user) . "<br /><br />\n" .
-	    "<i>Error Diagnostic:</i><br />\n" . htmlspecialchars($message) . "<br /><br />\n";
+            "<i>Server Address:</i> " . htmlspecialchars((string)$this->db_addr, ENT_QUOTES, 'UTF-8') . "<br />\n" .
+            "<i>Server Username:</i> " . htmlspecialchars((string)$this->db_user, ENT_QUOTES, 'UTF-8') . "<br /><br />\n" .
+            "<i>Error Diagnostic:</i><br />\n" . htmlspecialchars((string)$message, ENT_QUOTES, 'UTF-8') . "<br /><br />\n";
             
         if (defined('DB_DEBUG') && DB_DEBUG == true) {
              $out .= "<i>Server Error:</i> (" . mysqli_errno($this->link) . ") " . htmlspecialchars(mysqli_error($this->link)) . "<br /><br />\n" .

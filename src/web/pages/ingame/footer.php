@@ -4,7 +4,7 @@ HLstatsX Community Edition - Real-time player and clan rankings and statistics
 Copyleft (L) 2008-20XX Nicholas Hastings (nshastings@gmail.com)
 http://www.hlxcommunity.com
 
-HLstatsX Community Edition is a continuation of 
+HLstatsX Community Edition is a continuation of
 ELstatsNEO - Real-time player and clan rankings and statistics
 Copyleft (L) 2008-20XX Malte Bayer (steam@neo-soft.org)
 http://ovrsized.neo-soft.org/
@@ -18,7 +18,7 @@ HLstatsX is an enhanced version of HLstats made by Simon Garner
 HLstats - Real-time player and clan rankings and statistics for Half-Life
 http://sourceforge.net/projects/hlstats/
 Copyright (C) 2001  Simon Garner
-            
+
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
 as published by the Free Software Foundation; either version 2
@@ -44,14 +44,14 @@ For support and installation notes visit http://www.hlxcommunity.com
 ?>
 <div style="clear:both;"></div>
 <div id="footer">
-    <a href="http://www.hlxce.com" target="_blank"><img src="<?php echo htmlspecialchars(IMAGE_PATH); ?>/footer-small.png" alt="HLstatsX Community Edition" border="0" /></a>
+    <a href="https://github.com/lovasatt/hlstatsx-community-edition" target="_blank" rel="noopener noreferrer"><img src="<?php echo htmlspecialchars((string)IMAGE_PATH, ENT_QUOTES, 'UTF-8'); ?>/footer-small.png" alt="HLstatsX Community Edition" border="0" /></a>
 </div>
 <br />
 <div class="fSmall" style="text-align:center;">
-    Generated in real-time by <a href="http://www.hlxce.com" target="_blank">HLstatsX Community Edition <?php echo htmlspecialchars($g_options['version'] ?? ''); ?></a>
+    Generated in real-time by <a href="https://github.com/lovasatt/hlstatsx-community-edition" target="_blank" rel="noopener noreferrer">HLstatsX Community Edition <?php echo htmlspecialchars((string)($g_options['version'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></a>
     <br />
     All images are copyrighted by their respective owners.
-    
+
 </div>
 </body>
 </html>

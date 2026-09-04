@@ -45,7 +45,7 @@ For support and installation notes visit http://www.hlxcommunity.com
     // Addon created by Rufus (rufus@nonstuff.de)
     
     // PHP 8 Fix: Null coalescing and treat action code as string (false parameter)
-    $action_in = isset($_GET['action']) ? $_GET['action'] : '';
+    $action_in = $_GET['action'] ?? '';
     $action = valid_request((string)$action_in, false);
     
     if (!$action) {
@@ -88,7 +88,7 @@ For support and installation notes visit http://www.hlxcommunity.com
 	    new TableColumn(
 		'playerName',
 		'Player',
-		'width=45&align=left&flag=1&link=' . urlencode("mode=playerinfo&amp;player=%k") 
+		'width=45&align=left&flag=1&link=' . urlencode("mode=playerinfo&player=%k")
 	    ),
 	    new TableColumn(
 		'obj_count',
@@ -130,10 +130,10 @@ For support and installation notes visit http://www.hlxcommunity.com
     
     // Header must be printed before content
     pageHeader(
-	array($gamename, 'Action Details', htmlspecialchars($act_name)),
+	array($gamename, 'Action Details', htmlspecialchars((string)$act_name, ENT_QUOTES, 'UTF-8')),
 	array(
-	    $gamename => $g_options['scripturl']."?game=$game",
-            'Actions' => $g_options['scripturl']."?mode=actions&game=$game",
+	    $gamename => ($g_options['scripturl'] ?? 'hlstats.php') . "?game=" . urlencode($game),
+            'Actions' => ($g_options['scripturl'] ?? 'hlstats.php') . "?mode=actions&game=" . urlencode($game),
 	    'Action Details' => ''
 	),
 	$act_name

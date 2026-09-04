@@ -4,7 +4,7 @@ HLstatsX Community Edition - Real-time player and clan rankings and statistics
 Copyleft (L) 2008-20XX Nicholas Hastings (nshastings@gmail.com)
 http://www.hlxcommunity.com
 
-HLstatsX Community Edition is a continuation of 
+HLstatsX Community Edition is a continuation of
 ELstatsNEO - Real-time player and clan rankings and statistics
 Copyleft (L) 2008-20XX Malte Bayer (steam@neo-soft.org)
 http://ovrsized.neo-soft.org/
@@ -18,7 +18,7 @@ HLstatsX is an enhanced version of HLstats made by Simon Garner
 HLstats - Real-time player and clan rankings and statistics for Half-Life
 http://sourceforge.net/projects/hlstats/
 Copyright (C) 2001  Simon Garner
-            
+
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
 as published by the Free Software Foundation; either version 2
@@ -39,53 +39,55 @@ For support and installation notes visit http://www.hlxcommunity.com
     if (!defined('IN_HLSTATS')) {
         die('Do not access this file directly.');
     }
-    
+
     global $game, $db, $g_options;
-    
-    // Get list of active games	
+
+    $scripturl = htmlspecialchars((string)($g_options['scripturl'] ?? ''), ENT_QUOTES, 'UTF-8');
+
+    // Get list of active games
     $resultGames = $db->query("
-	SELECT
-	    code,
-	    name
-	FROM
-	    hlstats_Games
-	WHERE
-	    hidden='0'
-	ORDER BY
-	    realgame, name ASC
+        SELECT
+            code,
+            name
+        FROM
+            hlstats_Games
+        WHERE
+            hidden='0'
+        ORDER BY
+            realgame, name ASC
     ");
 
     ?>
 <ul id="header_gameslist">
-<?php        
-	// Iterate over array of game names and codes
-	while ($gamedata = $db->fetch_row($resultGames))
-	{
+<?php
+        // Iterate over array of game names and codes
+        while ($gamedata = $db->fetch_row($resultGames))
+        {
             // PHP 8 Fix: Ensure string types
             $game_code = (string)$gamedata[0];
             $game_name = (string)$gamedata[1];
-            
-	    $image = getImage("/games/$game_code/game");
-            
-	    if ($image) {
+
+            $image = getImage("/games/$game_code/game");
+
+            if ($image) {
                 // PHP 8 Fix: Check isset to avoid warning
-		if (isset($game) && $game === $game_code) {
-		    $img_id = 'id="gameslist-active-game"';
-		} else {
-		    $img_id = '';
-		}
-                
+                if (isset($game) && $game === $game_code) {
+                    $img_id = 'id="gameslist-active-game"';
+                } else {
+                    $img_id = '';
+                }
+
                 // Security: Escape output
-                $url = htmlspecialchars($g_options['scripturl']) . "?game=" . urlencode($game_code);
-                $alt = htmlspecialchars(strtoupper($game_code));
+                $url = $scripturl . "?game=" . urlencode($game_code);
+                $alt = htmlspecialchars(strtoupper($game_code), ENT_QUOTES, 'UTF-8');
                 $title = htmlspecialchars($game_name, ENT_QUOTES, 'UTF-8');
-                $img_src = htmlspecialchars($image['url']);
-                
-		echo "\t\t\t<li>\n";
-		echo "\t\t\t\t<a href=\"$url\">" . 
-			"<img src=\"$img_src\" style=\"margin-left: 2px; margin-right: 2px;\" alt=\"$alt\" title=\"$title\" $img_id /></a>";
-		echo "\n\t\t\t</li>\n";
-	    }
-	}
+                $img_src = htmlspecialchars((string)($image['url'] ?? ''), ENT_QUOTES, 'UTF-8');
+
+                echo "\t\t\t<li>\n";
+                echo "\t\t\t\t<a href=\"$url\">" .
+                        "<img src=\"$img_src\" style=\"margin-left: 2px; margin-right: 2px;\" alt=\"$alt\" title=\"$title\" $img_id /></a>";
+                echo "\n\t\t\t</li>\n";
+            }
+        }
 ?>
-	</ul>
+        </ul>

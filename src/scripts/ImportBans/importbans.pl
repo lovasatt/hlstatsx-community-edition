@@ -16,7 +16,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
-# 
+#
 # For support and installation notes visit http://www.hlxcommunity.com
 
 ####
@@ -72,123 +72,127 @@ $hlx_dbname = "";
 
 use DBI;
 
-$havesbinfo =	($sb_dbhost eq "" || $sb_dbuser eq "" || $sb_dbpass eq "" || $sb_dbname eq "")?0:1;
-$haveamxbinfo =	($amxb_dbhost eq "" || $amxb_dbuser eq "" || $amxb_dbpass eq "" || $amxb_dbname eq "")?0:1;
-$havebminfo =	($bm_dbhost eq "" || $bm_dbuser eq "" || $bm_dbpass eq "" || $bm_dbname eq "")?0:1;
-$havegbinfo =	($gb_dbhost eq "" || $gb_dbuser eq "" || $gb_dbpass eq "" || $gb_dbname eq "")?0:1;
-$havehlxinfo =	($hlx_dbhost eq "" || $hlx_dbuser eq "" || $hlx_dbpass eq "" || $hlx_dbname eq "")?0:1;
+$havesbinfo =   ($sb_dbhost eq "" || $sb_dbuser eq "" || $sb_dbpass eq "" || $sb_dbname eq "")?0:1;
+$haveamxbinfo = ($amxb_dbhost eq "" || $amxb_dbuser eq "" || $amxb_dbpass eq "" || $amxb_dbname eq "")?0:1;
+$havebminfo =   ($bm_dbhost eq "" || $bm_dbuser eq "" || $bm_dbpass eq "" || $bm_dbname eq "")?0:1;
+$havegbinfo =   ($gb_dbhost eq "" || $gb_dbuser eq "" || $gb_dbpass eq "" || $gb_dbname eq "")?0:1;
+$havehlxinfo =  ($hlx_dbhost eq "" || $hlx_dbuser eq "" || $hlx_dbpass eq "" || $hlx_dbname eq "")?0:1;
 
 die("DB login info incomplete. Exiting\n") if ($havehlxinfo == 0 || ($havesbinfo == 0 && $haveamxbinfo == 0 && $havebminfo == 0 && $havegbinfo == 0));
 
 @steamids = ();
 
 if ($havesbinfo) {
-	print "Connecting to Sourcebans database...\n";
-	my $sb_dbconn = DBI->connect(
-			"DBI:mysql:database=$sb_dbname;host=$sb_dbhost;port=$sb_dbport",
-			$sb_dbuser, $sb_dbpass) or die ("\nCan't connect to Sourcebans database '$sb_dbname' on '$sb_dbhost'\n" .
-			"Server error: $DBI::errstr\n");
+        print "Connecting to Sourcebans database...\n";
+        my $sb_dbconn = DBI->connect(
+                        "DBI:mysql:database=$sb_dbname;host=$sb_dbhost;port=$sb_dbport",
+                        $sb_dbuser, $sb_dbpass) or die ("\nCan't connect to Sourcebans database '$sb_dbname' on '$sb_dbhost'\n" .
+                        "Server error: $DBI::errstr\n");
 
-	print "Successfully connected to Sourcebans database.  Retrieving banned Steam IDs now...\n";
+        print "Successfully connected to Sourcebans database.  Retrieving banned Steam IDs now...\n";
 
-	my $result = &doQuery($sb_dbconn, "SELECT `authid` FROM ".$sb_prefix."bans WHERE `length` = 0 AND `RemovedBy` IS NULL");
-	while ( my($steamid) = $result->fetchrow_array) {
-		push(@steamids, $steamid);
-	}
-	my $rows = $result->rows;
-	if ($rows) {
-		print $rows." banned users retrieved from Sourcebans.\n";
-	}
-	$sb_dbconn->disconnect;
+        my $result = &doQuery($sb_dbconn, "SELECT `authid` FROM ".$sb_prefix."bans WHERE `length` = 0 AND `RemovedBy` IS NULL");
+        while ( my($steamid) = $result->fetchrow_array) {
+                push(@steamids, $steamid);
+        }
+        my $rows = $result->rows;
+        if ($rows) {
+                print $rows." banned users retrieved from Sourcebans.\n";
+        }
+        $sb_dbconn->disconnect;
 }
 
 if ($haveamxbinfo) {
-	print "Connecting to AMXBans database...\n";
-	my $amxb_dbconn = DBI->connect(
-			"DBI:mysql:database=$amxb_dbname;host=$amxb_dbhost;port=$amxb_dbport",
-			$amxb_dbuser, $amxb_dbpass) or die ("\nCan't connect to AMXBans database '$amxb_dbname' on '$amxb_dbhost'\n" .
-			"Server error: $DBI::errstr\n");
+        print "Connecting to AMXBans database...\n";
+        my $amxb_dbconn = DBI->connect(
+                        "DBI:mysql:database=$amxb_dbname;host=$amxb_dbhost;port=$amxb_dbport",
+                        $amxb_dbuser, $amxb_dbpass) or die ("\nCan't connect to AMXBans database '$amxb_dbname' on '$amxb_dbhost'\n" .
+                        "Server error: $DBI::errstr\n");
 
-	print "Successfully connected to AMXBans database.  Retrieving banned Steam IDs now...\n";
+        print "Successfully connected to AMXBans database.  Retrieving banned Steam IDs now...\n";
 
-	my $result = &doQuery($amxb_dbconn, "SELECT `player_id` FROM amx_bans WHERE `ban_length` = 0");
-	while ( my($steamid) = $result->fetchrow_array) {
-		push(@steamids, $steamid);
-	}
-	my $rows = $result->rows;
-	if ($rows) {
-		print $rows." banned users retrieved from AMXBans.\n";
-	}
-	$amxb_dbconn->disconnect;
+        my $result = &doQuery($amxb_dbconn, "SELECT `player_id` FROM amx_bans WHERE `ban_length` = 0");
+        while ( my($steamid) = $result->fetchrow_array) {
+                push(@steamids, $steamid);
+        }
+        my $rows = $result->rows;
+        if ($rows) {
+                print $rows." banned users retrieved from AMXBans.\n";
+        }
+        $amxb_dbconn->disconnect;
 }
 
 if ($havebminfo) {
-	print "Connecting to BeetlesMod database...\n";
-	my $bm_dbconn = DBI->connect(
-			"DBI:mysql:database=$bm_dbname;host=$bm_dbhost;port=$bm_dbport",
-			$bm_dbuser, $bm_dbpass) or die ("\nCan't connect to BeetlesMod database '$bm_dbname' on '$bm_dbhost'\n" .
-			"Server error: $DBI::errstr\n");
+        print "Connecting to BeetlesMod database...\n";
+        my $bm_dbconn = DBI->connect(
+                        "DBI:mysql:database=$bm_dbname;host=$bm_dbhost;port=$bm_dbport",
+                        $bm_dbuser, $bm_dbpass) or die ("\nCan't connect to BeetlesMod database '$bm_dbname' on '$bm_dbhost'\n" .
+                        "Server error: $DBI::errstr\n");
 
-	print "Successfully connected to BeetlesMod database.  Retrieving banned Steam IDs now...\n";
+        print "Successfully connected to BeetlesMod database.  Retrieving banned Steam IDs now...\n";
 
-	my $result = &doQuery($bm_dbconn, "SELECT `steamid` FROM `bm_bans` WHERE `Until` IS NULL");
-	while ( my($steamid) = $result->fetchrow_array) {
-		push(@steamids, $steamid);
-	}
-	my $rows = $result->rows;
-	if ($rows) {
-		print $rows." banned users retrieved from BeetlesMod.\n";
-	}
-	$bm_dbconn->disconnect;
+        my $result = &doQuery($bm_dbconn, "SELECT `steamid` FROM `bm_bans` WHERE `Until` IS NULL");
+        while ( my($steamid) = $result->fetchrow_array) {
+                push(@steamids, $steamid);
+        }
+        my $rows = $result->rows;
+        if ($rows) {
+                print $rows." banned users retrieved from BeetlesMod.\n";
+        }
+        $bm_dbconn->disconnect;
 }
 
 if ($havegbinfo) {
-	print "Connecting to ES GlobalBan database...\n";
-	my $gb_dbconn = DBI->connect(
-			"DBI:mysql:database=$gb_dbname;host=$gb_dbhost;port=$gb_dbport",
-			$gb_dbuser, $gb_dbpass) or die ("\nCan't connect to ES GlobalBan database '$gb_dbname' on '$gb_dbhost'\n" .
-			"Server error: $DBI::errstr\n");
+        print "Connecting to ES GlobalBan database...\n";
+        my $gb_dbconn = DBI->connect(
+                        "DBI:mysql:database=$gb_dbname;host=$gb_dbhost;port=$gb_dbport",
+                        $gb_dbuser, $gb_dbpass) or die ("\nCan't connect to ES GlobalBan database '$gb_dbname' on '$gb_dbhost'\n" .
+                        "Server error: $DBI::errstr\n");
 
-	print "Successfully connected to ES GlobalBan database.  Retrieving banned Steam IDs now...\n";
+        print "Successfully connected to ES GlobalBan database.  Retrieving banned Steam IDs now...\n";
 
-	my $result = &doQuery($gb_dbconn, "SELECT `steam_id` FROM `gban_ban` WHERE `active` = 1 AND `pending` = 0 AND `length` = 0");
-	while ( my($steamid) = $result->fetchrow_array) {
-		push(@steamids, $steamid);
-	}
-	my $rows = $result->rows;
-	if ($rows) {
-		print $rows." banned users retrieved from ES GlobalBan.\n";
-	}
-	$gb_dbconn->disconnect;
+        my $result = &doQuery($gb_dbconn, "SELECT `steam_id` FROM `gban_ban` WHERE `active` = 1 AND `pending` = 0 AND `length` = 0");
+        while ( my($steamid) = $result->fetchrow_array) {
+                push(@steamids, $steamid);
+        }
+        my $rows = $result->rows;
+        if ($rows) {
+                print $rows." banned users retrieved from ES GlobalBan.\n";
+        }
+        $gb_dbconn->disconnect;
 }
 
 if (@steamids) {
-	$steamidstring = "'";
-	foreach $steamid (@steamids)
-	{
-		$steamid =~ s/^STEAM_[0-9]+?\://i; 
-		$steamidstring .= $steamid."','";
-	}
-	$steamidstring =~ s/\,\'$//;
+        $steamidstring = "'";
+        foreach $steamid (@steamids)
+        {
+                if ($steamid =~ /^\[U:1:(\d+)\]$/i) {
+                        my $acc = $1;
+                        $steamid = ($acc % 2) . ':' . int($acc / 2);
+                }
+                $steamid =~ s/^STEAM_[0-9]+?\://i;
+                $steamidstring .= $steamid."','";
+        }
+        $steamidstring =~ s/\,\'$/\'/;
 
-	print "Connecting to HLX:CE database...\n";
-	$hlx_dbconn = DBI->connect(
-			"DBI:mysql:database=$hlx_dbname;host=$hlx_dbhost;port=$hlx_dbport",
-			$hlx_dbuser, $hlx_dbpass) or die ("\nCan't connect to HLX:CE database '$hlx_dbname' on '$hlx_dbhost'\n" .
-			"Server error: $DBI::errstr\n");
-	print "Updating HLX:CE banned players...\n";
-	$result = &doQuery($hlx_dbconn, "UPDATE `hlstats_Players` SET `hideranking` = 2 WHERE `playerId` IN (SELECT `playerId` FROM hlstats_PlayerUniqueIds WHERE `uniqueId` IN ($steamidstring)) AND `hideranking` < 2");
-	print $result->rows." users newly marked as banned.\n";
-	$hlx_dbconn->disconnect;
+        print "Connecting to HLX:CE database...\n";
+        $hlx_dbconn = DBI->connect(
+                        "DBI:mysql:database=$hlx_dbname;host=$hlx_dbhost;port=$hlx_dbport",
+                        $hlx_dbuser, $hlx_dbpass) or die ("\nCan't connect to HLX:CE database '$hlx_dbname' on '$hlx_dbhost'\n" .
+                        "Server error: $DBI::errstr\n");
+        print "Updating HLX:CE banned players...\n";
+        $result = &doQuery($hlx_dbconn, "UPDATE `hlstats_Players` SET `hideranking` = 2 WHERE `playerId` IN (SELECT `playerId` FROM hlstats_PlayerUniqueIds WHERE `uniqueId` IN ($steamidstring)) AND `hideranking` < 2");
+        print $result->rows." users newly marked as banned.\n";
+        $hlx_dbconn->disconnect;
 } else {
-	die("No banned users found in database(s). Exiting\n");
+        die("No banned users found in database(s). Exiting\n");
 }
 
 sub doQuery
 {
-	my ($dbconn, $query, $callref) = @_;
-	my $result = $dbconn->prepare($query) or die("Unable to prepare query:\n$query\n$DBI::errstr\n$callref");
-	$result->execute or die("Unable to execute query:\n$query\n$DBI::errstr\n$callref");
-	
-	return $result;
+        my ($dbconn, $query, $callref) = @_;
+        my $result = $dbconn->prepare($query) or die("Unable to prepare query:\n$query\n$DBI::errstr\n$callref");
+        $result->execute or die("Unable to execute query:\n$query\n$DBI::errstr\n$callref");
+
+        return $result;
 }

@@ -4,7 +4,7 @@ HLstatsX Community Edition - Real-time player and clan rankings and statistics
 Copyleft (L) 2008-20XX Nicholas Hastings (nshastings@gmail.com)
 http://www.hlxcommunity.com
 
-HLstatsX Community Edition is a continuation of 
+HLstatsX Community Edition is a continuation of
 ELstatsNEO - Real-time player and clan rankings and statistics
 Copyleft (L) 2008-20XX Malte Bayer (steam@neo-soft.org)
 http://ovrsized.neo-soft.org/
@@ -18,7 +18,7 @@ HLstatsX is an enhanced version of HLstats made by Simon Garner
 HLstats - Real-time player and clan rankings and statistics for Half-Life
 http://sourceforge.net/projects/hlstats/
 Copyright (C) 2001  Simon Garner
-            
+
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
 as published by the Free Software Foundation; either version 2
@@ -43,61 +43,67 @@ For support and installation notes visit http://www.hlxcommunity.com
     global $db, $game, $g_options;
 
     // Awards Info Page
-    
+
+    // Initialize variables
+    $game = isset($game) ? (string)$game : '';
     // Security: Escape game variable
     $game_esc = $db->escape($game);
+    $game_url = urlencode($game);
 
-    $db->query("SELECT name FROM hlstats_Games WHERE code='$game_esc'");
-    if ($db->num_rows() < 1) error("No such game '$game'.");
+    $res_game = $db->query("SELECT name FROM hlstats_Games WHERE code = '$game_esc'");
+    if ($db->num_rows($res_game) < 1) {
+        error("No such game '" . htmlspecialchars($game, ENT_QUOTES, 'UTF-8') . "'.");
+    }
 
     // PHP 8 Fix: Replace list() to prevent fatal error on empty result
-    $row = $db->fetch_row();
-    $gamename = ($row) ? $row[0] : '';
-    $db->free_result();
+    $row = $db->fetch_row($res_game);
+    $gamename = ($row) ? (string)$row[0] : ucfirst($game);
+    $db->free_result($res_game);
 
     // PHP 8 Fix: Null coalescing and type casting
-    $type_in = isset($_GET['type']) ? $_GET['type'] : '';
-    $type = valid_request((string)$type_in, false);
-    
-    $tab_in = isset($_GET['tab']) ? $_GET['tab'] : '';
-    $tab = valid_request((string)$tab_in, false);
+    $type_in = isset($_GET['type']) ? (string)$_GET['type'] : '';
+    $type = valid_request($type_in, false);
+
+    $tab_in = isset($_GET['tab']) ? (string)$_GET['tab'] : '';
+    $tab = valid_request($tab_in, false);
 
     if ($type == 'ajax' )
     {
+        $allowed_tabs = array('daily', 'global', 'ranks', 'ribbons');
         // PHP 8 Fix: Correct regex syntax delimiters and allow pipe separator
-	$tabs = explode('|', preg_replace('/[^a-z|]/', '', strtolower($tab)));
-	
-	foreach ( $tabs as $t )
-	{
+        $tabs = explode('|', preg_replace('/[^a-z|]/', '', strtolower((string)$tab)));
+
+        foreach ( $tabs as $t )
+        {
             // Security: Ensure filename contains only safe characters
-            $t = preg_replace('/[^a-z]/', '', $t);
-            if (empty($t)) continue;
-            
-	    if ( file_exists(PAGE_PATH . '/awards_' . $t . '.php') )
-	    {
-		@include(PAGE_PATH . '/awards_' . $t . '.php');
-	    }
-	}
-	exit;
+            $t = preg_replace('/[^a-z]/', '', (string)$t);
+            if (empty($t) || !in_array($t, $allowed_tabs, true)) continue;
+
+            if ( file_exists(PAGE_PATH . '/awards_' . $t . '.php') )
+            {
+                @include(PAGE_PATH . '/awards_' . $t . '.php');
+            }
+        }
+        exit;
     }
 
     pageHeader(
-	array($gamename, 'Awards Info'),
-	array($gamename=>"%s?game=$game", 'Awards Info'=>'')
+        array($gamename, 'Awards Info'),
+        array($gamename => "%s?game=$game_url", 'Awards Info' => '')
     );
 ?>
 
-<?php 
+<?php
 // PHP 8 Fix: Ensure array key exists
-if (isset($g_options['playerinfo_tabs']) && $g_options['playerinfo_tabs']=='1') { 
+if (isset($g_options['playerinfo_tabs']) && (string)$g_options['playerinfo_tabs'] === '1') {
 ?>
 
 <div id="main">
     <ul class="subsection_tabs" id="tabs_submenu">
-	<li><a href="#" id="tab_daily">Daily&nbsp;Awards</a></li>
-	<li><a href="#" id="tab_global">Global&nbsp;Awards</a></li>
-	<li><a href="#" id="tab_ranks">Ranks</a></li>
-	<li><a href="#" id="tab_ribbons">Ribbons</a></li>
+        <li><a href="#" id="tab_daily">Daily&nbsp;Awards</a></li>
+        <li><a href="#" id="tab_global">Global&nbsp;Awards</a></li>
+        <li><a href="#" id="tab_ranks">Ranks</a></li>
+        <li><a href="#" id="tab_ribbons">Ribbons</a></li>
     </ul>
 <br />
 <div id="main_content"></div>
@@ -110,19 +116,19 @@ else
 {
     $defaulttab = 'daily';
 }
-// Security: Escape game variable in JS output
-$game_js = htmlspecialchars($game, ENT_QUOTES, 'UTF-8');
-$defaulttab_js = htmlspecialchars($defaulttab, ENT_QUOTES, 'UTF-8');
+// Security: Escape variables for JavaScript literal context
+$game_js = addslashes($game);
+$defaulttab_js = addslashes((string)$defaulttab);
 
 echo "<script type=\"text/javascript\">
     new Tabs($('main_content'), $$('#main ul.subsection_tabs a'), {
-	'mode': 'awards',
-	'game': '$game_js',
-	'loadingImage': '".IMAGE_PATH."/ajax.gif',
-	'defaultTab': '$defaulttab_js'
-    });"
+        'mode': 'awards',
+        'game': '$game_js',
+        'loadingImage': '" . IMAGE_PATH . "/ajax.gif',
+        'defaultTab': '$defaulttab_js'
+    });
+</script>";
 ?>
-</script>
 
 </div>
 
@@ -134,7 +140,7 @@ echo "<script type=\"text/javascript\">
     echo "\n</div>\n";
 
     echo "\n<div id=\"global\">\n";
-    include PAGE_PATH.'/awards_global.php'; 
+    include PAGE_PATH.'/awards_global.php';
     echo "\n</div>\n";
 
     echo "\n<div id=\"ranks\">\n";

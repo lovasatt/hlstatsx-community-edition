@@ -71,7 +71,7 @@ my %db_stmt_cache = ();
 	"Statsme",
 		["playerId", "weapon", "shots", "hits", "headshots", "damage", "kills", "deaths"],
 	"Statsme2",
-		["playerId", "weapon", "head", "chest", "stomach", "leftarm", "rightarm", "leftleg", "rightleg", "generic"],
+		["playerId", "weapon", "head", "neck", "chest", "stomach", "leftarm", "rightarm", "leftleg", "rightleg", "generic"],
 	"StatsmeLatency",
 		["playerId", "ping"],
 	"StatsmeTime",
@@ -297,7 +297,6 @@ sub getHostGroup
 	# '.adsl.someisp.net' => 'SomeISP ADSL'
 	
 	$result = &queryHostGroups()  unless ($result);
-	$result->execute();
 	
 	while (my($pattern, $name) = $result->fetchrow_array())
 	{
@@ -391,18 +390,17 @@ sub doConf
 
 sub setOptionsConf
 {
-	my (%optionsconf) = @_;
-	
-	while (($thekey, $theval) = each(%optionsconf))
-	{
-		if($theval)
-		{
-  			$$thekey = $theval;
-		}
-	}
+        my (%optionsconf) = @_;
+
+        while (($thekey, $theval) = each(%optionsconf))
+        {
+                if (defined($theval))
+                {
+                        $$thekey = $theval;
+                }
+        }
 
 }
-
 
 #
 # string abbreviate (string thestring[, int maxlength)

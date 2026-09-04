@@ -19,7 +19,8 @@ Counter-Strike 2 is natively supported: the updated hlstats.pl daemon handles bo
 
 | Date | Description / Feature | Support Status / Additional Information |
 | :--- | :--- | :--- |
-| 2026-08-13 | **Avatar Fixes, Docker MariaDB 11.8 LTS & Lock Prevention** | **fix(web): SteamID3 avatars, cURL gzip & HTML syntax; perf(db): MariaDB 11.8 & temporary table locks** |
+| 2026-09-04 | **Database Overhaul, Web Security & CS2 Meta Completion (v1.12.5)** | **feat(db): Full InnoDB/UTF8MB4, Y2038 & Update 97; feat(sec): Argon2id, CSRF & Leaflet; feat(cs2): Neck hitgroups & daemon hardening** |
+| 2026-08-13 | Avatar Fixes, Docker MariaDB 11.8 LTS & Lock Prevention | fix(web): SteamID3 avatars, cURL gzip & HTML syntax; perf(db): MariaDB 11.8 & temporary table locks |
 | 2026-08-08 | Daemon Stability & In-Game UI Refinement | fix(daemon): Banid lookup, GeoIP safety & typos; feat(plugin): inline K/D ratio display |
 | 2026-07-28 | PHP 8.x compatibility, and Dockerfiles | fix(web): PHP 8.x compatibility, GD graphics fixes, security, UI alignment and Dockerfiles |
 | 2026-07-22 | Direct Dual-Protocol Log Streaming & SuperLogs v2.4 | Native HTTP & UDP listening on port 27500. Standalone UDP Forwarder made optional via Docker profile. |
@@ -113,18 +114,21 @@ cd hlstatsx
 # 1. Prepare your environment file
 cp .env.example .env
 
-# 2. Configure your settings. Open the .env file (using nano .env or any text editor) and update these three critical values:
-DB_PASS: Set your secret database password.
-PROXY_KEY: Set your daemon's secret key (must match your game server config).
-GAME_SERVER_IP: The IP address of your game server.
+# 2. Setup GeoIP (Optional, but recommended)
+# To enable GeoIP functionality, obtain the latest GeoLite2-City.mmdb from MaxMind and copy it into `/src/scripts/GeoLiteCity`. On Linux, ensure the file is readable.
 
-# 3. Build and launch the stack
+# 3. Configure credentials
+# Open .env and adjust the minimum required settings:
+# - DB_ROOT_PASS & DB_PASS: Set your secret database passwords.
+# - PROXY_KEY: Set your secret key (must match your CS2 / game server config).
+
+# 4. Build and launch the stack
 docker compose up -d
 
-# 4. Access the Web Interface. Once the containers are running, open your browser:
-URL: http://your-server-ip/ (or http://localhost/)
-Default Admin: admin
-Default Password: 123456
+# 5. Access the Web Interface
+# Open in browser: http://your-server-ip/ (or http://localhost/)
+# Default Admin: admin
+# Default Password: 123456
 ```
 Ensure no other service is using the same ports (default: web 80, mariadb 3306, daemon 27500).
 

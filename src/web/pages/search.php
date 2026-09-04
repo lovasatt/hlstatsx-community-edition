@@ -41,33 +41,31 @@ For support and installation notes visit http://www.hlxcommunity.com
     }
 
     global $game;
-    
-// Search
-    require(PAGE_PATH . '/search-class.php');
+    // Search
+    require_once(PAGE_PATH . '/search-class.php');
+
     pageHeader
     (
-	array ('Search'),
-	array ('Search' => '')
+        array ('Search'),
+        array ('Search' => '')
     );
 
-    // PHP 8 Fix: Null coalescing and type safety
-    $sr_query = isset($_GET['q']) ? $_GET['q'] : '';
-    
-    // PHP 8 Fix: Logic correction for default value assignment
-    $st_input = isset($_GET['st']) ? $_GET['st'] : '';
-    $sr_type = valid_request((string)$st_input, false);
-    if (!$sr_type) {
+    $sr_query = (isset($_GET['q']) && !is_array($_GET['q'])) ? trim((string)$_GET['q']) : '';
+
+    $st_input = (isset($_GET['st']) && !is_array($_GET['st'])) ? trim((string)$_GET['st']) : 'player';
+    $sr_type = valid_request($st_input, false);
+    if (!in_array($sr_type, array('player', 'uniqueid', 'ip', 'clan'), true)) {
         $sr_type = 'player';
     }
-    
-    // Handle game input
-    $game_input = isset($_GET['game']) ? $_GET['game'] : $game;
-    $sr_game = valid_request((string)$game_input, false);
-    
-    $search = new Search((string)$sr_query, (string)$sr_type, (string)$sr_game);
+
+    $game_default = isset($game) ? (string)$game : '';
+    $game_input   = (isset($_GET['game']) && !is_array($_GET['game'])) ? (string)$_GET['game'] : $game_default;
+    $sr_game      = valid_request($game_input, false);
+
+    $search = new Search($sr_query, (string)$sr_type, (string)$sr_game);
     $search->drawForm(array('mode' => 'search'));
 
-    if ($sr_query || $sr_query === '0') {
-	$search->drawResults();
+    if ($sr_query !== '') {
+        $search->drawResults();
     }
 ?>

@@ -1,6 +1,6 @@
 /*
    HLstatsX Modernized Edition - Responsive Adapter Layer
-   Version: 1.2
+   Version: 1.3
    Project: https://github.com/lovasatt/hlstatsx-community-edition
    Author:  lovasatt (2026)
 */
@@ -32,6 +32,58 @@
     box-sizing: border-box !important;
     }
 
+    /* --- OPENSTREETMAP / LEAFLET UNIVERSAL FIX --- */
+    #map, div[id="map"] {
+        width: 100% !important;
+        max-width: 100% !important;
+        min-height: 280px !important;
+        height: 350px !important;
+        display: block !important;
+        margin: 10px auto !important;
+        border-radius: 4px;
+        box-sizing: border-box !important;
+        border: 1px solid var(--border-soft);
+    }
+
+    /* Protect internal map tiles and controls from global CSS overrides */
+    #map img, div[id="map"] img {
+        max-width: none !important;
+        max-height: none !important;
+        width: auto !important;
+        height: auto !important;
+        background: none !important;
+        border: none !important;
+    }
+
+    /* Natural Leaflet popup shrink-wrap (fits content snugly without excess whitespace or stretching) */
+    .gmapstab {
+        width: max-content !important;
+        max-width: 300px !important;
+        height: auto !important;
+        min-height: unset !important;
+        min-width: unset !important;
+        margin: 0 !important;
+        border: none !important;
+    }
+
+    /* Keep server title in 1 line and snugly fit the bubble border */
+    .gmapstabtitle {
+        font-weight: bold !important;
+        line-height: 1.3 !important;
+        white-space: nowrap !important;
+        display: block !important;
+        margin-bottom: 4px !important;
+    }
+
+    /* Standard Leaflet popup container snug fit */
+    .leaflet-popup-content {
+        margin: 10px 14px !important;
+        line-height: 1.4 !important;
+        width: max-content !important;
+        max-width: 300px !important;
+        min-width: unset !important;
+    }
+
     /* --- SUB-NAVIGATION BUTTON POSITIONING & COLORS --- */
     #main ul.subsection_tabs li {
         margin-top: -2px !important;
@@ -60,10 +112,23 @@
         border-bottom: 2px solid var(--bg-active) !important;
     }
 
+    /* --- SERVER LOAD & PERFORMANCE GRAPH SCALING --- */
+    /* Fluid auto-scaling for generated server load charts */
+    img[src*="show_graph.php"] {
+        width: auto !important;
+        max-width: 100% !important;
+        height: 100% !important;
+        display: block !important;
+        margin: 0px auto !important;
+        padding: 0 !important;
+    }
+
+
 @media screen and (max-width: 992px) {
 
     /* --- BUTTONS AND TOUCH INTERFACE IMPROVEMENTS --- */
-    input[type="text"], input[type="password"], select, input[type="submit"], button {
+    /* Standard form controls and touch targets (excluding inline password reveal toggles) */
+    input[type="text"], input[type="password"], select, input[type="submit"], button:not([title*="reveal"]) {
         height: var(--touch-height) !important;
         width: 50% !important;
         min-width: 180px !important;
@@ -71,6 +136,19 @@
         border: 1px solid #ccc !important;
         border-radius: 4px !important;
         margin-bottom: 10px !important;
+    }
+
+    /* Password reveal toggle button: Preserves compact inline size and transparency on mobile */
+    button[title*="reveal"] {
+        width: auto !important;
+        min-width: unset !important;
+        height: auto !important;
+        border: none !important;
+        background: none !important;
+        margin-bottom: 0 !important;
+        padding: 0 4px !important;
+        font-size: 16px !important;
+        box-shadow: none !important;
     }
 
     /* --- HAPTIC FEEDBACK (Button Shrink Effect) --- */
@@ -321,6 +399,39 @@
             --touch-height: 44px;
         }
 
+        /* --- OPENSTREETMAP / LEAFLET DARK MODE --- */
+        /* Container border and dark background */
+        #map, div[id="map"] {
+            border: 1px solid var(--border-soft) !important;
+            background-color: var(--bg-block) !important;
+        }
+
+        /* Invert only the base map tiles to create a night theme */
+        #map .leaflet-tile,
+        #map .leaflet-tile-pane img,
+        .leaflet-tile {
+            filter: invert(1) hue-rotate(180deg) brightness(0.85) contrast(1.1) !important;
+        }
+
+        /* Prevent server pins, marker icons, popups, and flags from being inverted */
+        #map .leaflet-marker-pane,
+        #map .leaflet-popup-pane,
+        #map .leaflet-control-container,
+        #map .leaflet-shadow-pane {
+            filter: none !important;
+        }
+
+        /* Leaflet popup styling in Dark Mode */
+        .leaflet-popup-content-wrapper, .leaflet-popup-tip {
+            background-color: var(--bg-primary) !important;
+            color: var(--text-primary) !important;
+            border: 1px solid var(--border-soft) !important;
+            box-shadow: 0 3px 14px rgba(0,0,0,0.4) !important;
+        }
+        .leaflet-popup-content a {
+            color: var(--accent-blue) !important;
+        }
+
         /* --- CHARTS: INVERT CONTENT ONLY --- */
         img[src*="show_graph.php"] {
             filter: invert(0.83) hue-rotate(180deg) brightness(1.1) contrast(1.2) saturate(0.95) !important;
@@ -542,6 +653,12 @@
     .location li {
         font-size: 10px !important;
     }
+
+    #map, div[id="map"] {
+        height: 240px !important;
+        min-height: 200px !important;
+    }
+
 }
 
 /* --- WCAG FOCUS VISIBILITY --- */

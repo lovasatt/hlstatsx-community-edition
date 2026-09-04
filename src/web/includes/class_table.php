@@ -100,13 +100,14 @@ class Table
 	}
 	$this->startitem = ($this->page - 1) * $this->numperpage;
 
-	foreach ($columns as $col)
-	{
-	    if ($col->sort != 'no')
-	    {
-		$this->columnlist[] = $col->name;
-	    }
-	}
+	$this->columnlist = array();
+        foreach ($columns as $col)
+        {
+            if ($col->sort != 'no')
+            {
+                $this->columnlist[] = $col->name;
+            }
+        }
 
 	if (!is_array($this->columnlist) || !in_array($this->sort, $this->columnlist))
 	{
@@ -345,12 +346,12 @@ class Table
                         // PHP 8 Fix: Safe ternary operator priority
                         $fname_val = (!empty($col->fname) && isset($col->fname[$colval_lower])) ? $col->fname[$colval_lower] : ucwords(preg_replace('/_/', ' ', (string)$colval));
                         
-			$image = getImage("/games/$realgame/weapons/" . $colval_lower);
+			$image = getImage("/games/$game/weapons/" . $colval_lower);
 			if ($image)
 			{
 			    $cellbody .= '<img src="' . $image['url'] . '" ' . $image['size'] . ' alt="' . $fname_val . '" title="' . $fname_val . '" />';
 			}
-			elseif ($realgame && $image = getImage("/games/$realgame/weapons/" . $colval_lower))
+			elseif (!empty($realgame) && $image = getImage("/games/$realgame/weapons/" . $colval_lower))
 			{
 			    $cellbody .= '<img src="' . $image['url'] . '" ' . $image['size'] . ' alt="' . $fname_val . '" title="' . $fname_val . '" />';
 			}

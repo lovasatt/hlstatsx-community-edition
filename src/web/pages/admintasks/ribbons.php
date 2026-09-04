@@ -4,7 +4,7 @@ HLstatsX Community Edition - Real-time player and clan rankings and statistics
 Copyleft (L) 2008-20XX Nicholas Hastings (nshastings@gmail.com)
 http://www.hlxcommunity.com
 
-HLstatsX Community Edition is a continuation of 
+HLstatsX Community Edition is a continuation of
 ELstatsNEO - Real-time player and clan rankings and statistics
 Copyleft (L) 2008-20XX Malte Bayer (steam@neo-soft.org)
 http://ovrsized.neo-soft.org/
@@ -18,7 +18,7 @@ HLstatsX is an enhanced version of HLstats made by Simon Garner
 HLstats - Real-time player and clan rankings and statistics for Half-Life
 http://sourceforge.net/projects/hlstats/
 Copyright (C) 2001  Simon Garner
-            
+
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
 as published by the Free Software Foundation; either version 2
@@ -48,57 +48,58 @@ For support and installation notes visit http://www.hlxcommunity.com
     }
 
     // Security: Escape gamecode
-    $gamecode_esc = $db->escape($gamecode);
+    $gamecode_esc = $db->escape($gamecode ?? '');
 
     $edlist = new EditList("ribbonId", "hlstats_Ribbons", "game", false);
     $edlist->columns[] = new EditListColumn("game", "Game", 0, true, "hidden", $gamecode);
-//	$edlist->columns[] = new EditListColumn("ribbonId", "Ribbon", 0, true, "select", "hlstats_Ribbons.ribbonName/ribbonId/game='$gamecode'");
-    $edlist->columns[] = new EditListColumn("ribbonName", "Ribbon Name", 30, false, "text", "name", 64);
-    $edlist->columns[] = new EditListColumn("image", "Image file", 30, false, "text", "name.png", 64);
+//      $edlist->columns[] = new EditListColumn("ribbonId", "Ribbon", 0, true, "select", "hlstats_Ribbons.ribbonName/ribbonId/game='$gamecode'");
+    $edlist->columns[] = new EditListColumn("ribbonName", "Ribbon Name", 30, false, "text", "name", 50);
+    $edlist->columns[] = new EditListColumn("image", "Image file", 30, false, "text", "name.png", 50);
     $edlist->columns[] = new EditListColumn("awardCode", "Trigger Award", 0, false, "select", "hlstats_Awards.name/code/game='$gamecode_esc'");
-    $edlist->columns[] = new EditListColumn("awardCount", "No. awards needed", 10, true, "text", "0", 64);
-    $edlist->columns[] = new EditListColumn("special", "Special logic", 10, false, "text", "0", 64);
+    $edlist->columns[] = new EditListColumn("awardCount", "No. awards needed", 10, true, "text", "0", 11);
+    $edlist->columns[] = new EditListColumn("special", "Special logic", 10, false, "text", "0", 3);
 
     if (!empty($_POST)) {
-	if ($edlist->update())
-	    message("success", "Operation successful.");
-	else
-	    message("warning", $edlist->error());
+        if ($edlist->update()) {
+            message("success", "Operation successful.");
+        } else {
+            message("warning", $edlist->error());
+        }
     }
-    
+
 ?>
 
-Special Logic:<br>
+Special Logic:<br />
 <ul>
-<li>0 = standard ribbon (weapon award triggered)
-<li>1 = CSS Only: HeadShot ribbon
-<li>2 = Connection Time ribbon (no. of awards = connection time in hours to trigger this ribbon, select any award code - it will be ignored)
+    <li>0 = standard ribbon (weapon award triggered)</li>
+    <li>1 = CSS Only: HeadShot ribbon</li>
+    <li>2 = Connection Time ribbon (no. of awards = connection time in hours to trigger this ribbon, select any award code - it will be ignored)</li>
 </ul>
 
 <?php
-    
+
     $result = $db->query("
-	SELECT
-	    ribbonId,
-	    game,
-	    awardCode,
-	    awardCount,
-	    image,
-	    ribbonName,
-	    special
-	FROM
-	    hlstats_Ribbons
-	WHERE
-	    game='$gamecode_esc'
-	ORDER BY
-	    awardCount,awardCode
+        SELECT
+            ribbonId,
+            game,
+            awardCode,
+            awardCount,
+            image,
+            ribbonName,
+            special
+        FROM
+            hlstats_Ribbons
+        WHERE
+            game='$gamecode_esc'
+        ORDER BY
+            awardCount,awardCode
     ");
-    
+
     $edlist->draw($result);
 ?>
 
-<table width="75%" border="0" cellspacing="0" cellpadding="0">
+<table width="75%" border="0" cellspacing="0" cellpadding="0" style="margin:15px auto;">
 <tr>
-    <td align="center"><input type="submit" value="  Apply  " class="submit"></td>
+    <td align="center"><input type="submit" value="  Apply  " class="submit" /></td>
 </tr>
 </table>

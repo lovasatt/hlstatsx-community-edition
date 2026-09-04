@@ -36,35 +36,40 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 For support and installation notes visit http://www.hlxcommunity.com
 */
 
-    pageHeader(
-	array('Teamspeak viewer'),
-	array('Teamspeak viewer' => '')
-    );
-    include (PAGE_PATH.'/voicecomm_serverlist.php');
-    include (PAGE_PATH.'/teamspeak_query.php');
+if (!defined('IN_HLSTATS')) {
+      die('Do not access this file directly.');
+  }
 
-    // PHP 8 Fix: Null coalescing and type casting
-    $tsId_in = isset($_GET['tsId']) ? $_GET['tsId'] : 0;
-    $tsId = valid_request((int)$tsId_in, true);
+  $game = isset($game) ? (string)$game : '';
+  $game_url = urlencode($game);
 
-    function show($tpl, $array)
-    {
-	$template = PAGE_PATH."/templates/teamspeak/$tpl";
-        
-        $tpl_content = '';
-	if($fp = @fopen($template.".html", "r")) {
-	  $tpl_content = @fread($fp, filesize($template.".html"));
-          fclose($fp);
-        }
+  pageHeader(
+      array('Teamspeak viewer'),
+      array('Teamspeak viewer' => '')
+  );
+  include_once(PAGE_PATH . '/voicecomm_serverlist.php');
+  include_once(PAGE_PATH . '/teamspeak_query.php');
 
-        if ($tpl_content) {
-	    foreach($array as $value => $code)
-	    {
-	      $tpl_content = str_replace("[".$value."]", (string)$code, $tpl_content);
-	    }
-        }
-        return $tpl_content;
-    }
+  $tsId = isset($_GET['tsId']) ? (int)$_GET['tsId'] : 0;
+
+  if (!function_exists('show')) {
+      function show($tpl, $array)
+      {
+          $template_file = PAGE_PATH . "/templates/teamspeak/{$tpl}.html";
+          $tpl_content = '';
+
+          if (file_exists($template_file) && is_readable($template_file)) {
+              $tpl_content = (string)@file_get_contents($template_file);
+          }
+
+          if ($tpl_content !== '') {
+              foreach ($array as $value => $code) {
+                  $tpl_content = str_replace("[" . $value . "]", (string)$code, $tpl_content);
+              }
+          }
+          return $tpl_content;
+      }
+  }
 
   if (function_exists('fsockopen'))
   {
@@ -99,36 +104,20 @@ For support and installation notes visit http://www.hlxcommunity.com
 		    $out .= fgets($fp, 1024);
 	        }
                 // PHP 8 Fix: ensure $out is string
-                $out = (string)$out;
-	        $out = str_replace('[TS]', '', $out);
-	        $out = str_replace('OK', '', $out);
-	        $out = trim($out);
-    
-                // Helper to prevent undefined function error if indexOf not in included files
-                if (!function_exists('indexOf')) {
-                    function indexOf($haystack, $needle) {
-                        return strpos($haystack, $needle);
-                    }
-                }
+	  $out = (string)$out;
+              fclose($fp);
 
-    	$name=substr($out,indexOf($out,'server_name='),strlen($out));
-	    $name=substr($name,0,indexOf($name,'server_platform=')-strlen('server_platform='));
-	      $os=substr($out,indexOf($out,'server_platform='),strlen($out));
-	      $os=substr($os,0,indexOf($os,'server_welcomemessage=')-strlen('server_welcomemessage='));
-	      $uptime=substr($out,indexOf($out,'server_uptime='),strlen($out));
-	      $uptime=substr($uptime,0,indexOf($uptime,'server_currrentusers=')-strlen('server_currrentusers='));
-	      $cAmount=substr($out,indexOf($out,'server_currentchannels='),strlen($out));
-	      $cAmount=substr($cAmount,0,indexOf($cAmount,'server_bwinlastsec=')-strlen('server_bwinlastsec='));
-	      $user=substr($out,indexOf($out,'server_currentusers='),strlen($out));
-	      $user=substr($user,0,indexOf($user,'server_currentchannels=')-strlen('server_currentchannels='));
-	      $max=substr($out,indexOf($out,'server_maxusers='),strlen($out));
-	      $max=substr($max,0,indexOf($max,'server_allow_codec_celp51=')-strlen('server_allow_codec_celp51='));
-          fclose($fp);
-        } else {
-            // Handle secondary connection failure
-            $name = $os = $uptime = $cAmount = $user = $max = 'N/A';
-        }
-    
+              // Biztonságos, PHP 8.4+ kompatibilis adatkinyerés reguláris kifejezésekkel
+              $name    = preg_match('/server_name=([^\r\n]*)/i', $out, $m) ? trim($m[1]) : 'Unknown';
+              $os      = preg_match('/server_platform=([^\r\n]*)/i', $out, $m) ? trim($m[1]) : 'Unknown';
+              $uptime  = preg_match('/server_uptime=([^\r\n]*)/i', $out, $m) ? trim($m[1]) : '0';
+              $cAmount = preg_match('/server_currentchannels=([^\r\n]*)/i', $out, $m) ? trim($m[1]) : '0';
+              $user    = preg_match('/server_currentusers=([^\r\n]*)/i', $out, $m) ? trim($m[1]) : '0';
+              $max     = preg_match('/server_maxusers=([^\r\n]*)/i', $out, $m) ? trim($m[1]) : '0';
+          } else {
+              $name = $os = $uptime = $cAmount = $user = $max = 'N/A';
+          }
+
         $uArray = array();
 	  $innerArray = array();
 	  $out = "";
@@ -285,7 +274,7 @@ For support and installation notes visit http://www.hlxcommunity.com
 	                }
 	        }
                 $clean_chan_name = removeChar($innerCCArray[1]);
-                $subchannels = "<img src=\"".IMAGE_PATH."/teamspeak/trenner.gif\" alt=\"\" class=\"tsicon\" /><img src=\"".IMAGE_PATH."/teamspeak/channel.gif\" alt=\"\" class=\"tsicon\" /><a style=\"font-weight:normal\" href=\"hlstats.php?mode=teamspeak&amp;game=$game&amp;tsId=$tsId&amp;cID=".$innerCCArray[0]."&amp;type=1\">&nbsp;".$clean_chan_name."&nbsp;</a><br /> ".$subusers."";
+                $subchannels = "<img src=\"".IMAGE_PATH."/teamspeak/trenner.gif\" alt=\"\" class=\"tsicon\" /><img src=\"".IMAGE_PATH."/teamspeak/channel.gif\" alt=\"\" class=\"tsicon\" /><a style=\"font-weight:normal\" href=\"hlstats.php?mode=teamspeak&amp;game={$game_url}&amp;tsId={$tsId}&amp;cID=" . (int)$innerCCArray[0] . "&amp;type=1\">&nbsp;".$clean_chan_name."&nbsp;</a><br /> ".$subusers."";
                 $subchan .= show("subchannels", array("subchannels" => $subchannels));
 	      }
           }
@@ -306,21 +295,16 @@ For support and installation notes visit http://www.hlxcommunity.com
 	}
     
           $clean_parent_chan = removeChar($innerArr[1]);
-          $channels = "<img src=\"".IMAGE_PATH."/teamspeak/channel.gif\" alt=\"\" class=\"tsicon\" />&nbsp;<a style=\"font-weight:bold\" href=\"hlstats.php?mode=teamspeak&amp;game=$game&amp;tsId=$tsId&amp;cID=".trim((string)$innerArr[0])."&amp;type=1\">".$clean_parent_chan."&nbsp;</a><br /> ".$users."";
+          $channels = "<img src=\"".IMAGE_PATH."/teamspeak/channel.gif\" alt=\"\" class=\"tsicon\" />&nbsp;<a style=\"font-weight:bold\" href=\"hlstats.php?mode=teamspeak&amp;game={$game_url}&amp;tsId={$tsId}&amp;cID=" . (int)$innerArr[0] . "&amp;type=1\">".$clean_parent_chan."&nbsp;</a><br /> ".$users."";
     
           $chan .= show("channel", array("channel" => $channels,
                                                "subchannels" => $subchan));
     
         }
-    
-        if (isset($_GET['cID'])) {
-	    $cID = (int)$_GET['cID'];
-	    $type= (int)$_GET['type'];
-        } else {
-	    $cID = 0;
-	    $type = 0;
-        }
-        
+
+	$cID  = isset($_GET['cID']) ? (int)$_GET['cID'] : 0;
+        $type = isset($_GET['type']) ? (int)$_GET['type'] : 0;
+
         $info = "";
         if ($type == 0) {
 	    $info = defaultInfo($uip, $tPort, $port);
@@ -350,9 +334,9 @@ For support and installation notes visit http://www.hlxcommunity.com
                                                "idletime" => "Idle time",
                                                "channelstats" => $channelstats,
                                                "userstats" => $userstats));
-			   
-        echo $outp_str;				   
-			   
+
+        echo $outp_str;	
+
         }
     }
   } else {

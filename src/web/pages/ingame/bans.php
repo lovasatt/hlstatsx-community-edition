@@ -57,7 +57,7 @@ For support and installation notes visit http://www.hlxcommunity.com
     // Added PageHeader
     pageHeader(
 	array ($gamename, 'Banned Players'),
-	array ($gamename=>"%s?game=$game", 'Banned Players'=>'')
+	array ($gamename=>"%s?game=" . urlencode($game), 'Banned Players'=>'')
     );
 
     $minkills = 0;
@@ -67,7 +67,7 @@ For support and installation notes visit http://www.hlxcommunity.com
 	    new TableColumn(
 		"lastName",
 		"Name",
-		"width=40&flag=1&link=" . urlencode("mode=playerinfo&amp;player=%k")
+		"width=40&flag=1&link=" . urlencode("mode=playerinfo&player=%k")
 	    ),
 	    new TableColumn(
 		"ban_date",

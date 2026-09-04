@@ -4,7 +4,7 @@ HLstatsX Community Edition - Real-time player and clan rankings and statistics
 Copyleft (L) 2008-20XX Nicholas Hastings (nshastings@gmail.com)
 http://www.hlxcommunity.com
 
-HLstatsX Community Edition is a continuation of 
+HLstatsX Community Edition is a continuation of
 ELstatsNEO - Real-time player and clan rankings and statistics
 Copyleft (L) 2008-20XX Malte Bayer (steam@neo-soft.org)
 http://ovrsized.neo-soft.org/
@@ -18,7 +18,7 @@ HLstatsX is an enhanced version of HLstats made by Simon Garner
 HLstats - Real-time player and clan rankings and statistics for Half-Life
 http://sourceforge.net/projects/hlstats/
 Copyright (C) 2001  Simon Garner
-            
+
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
 as published by the Free Software Foundation; either version 2
@@ -48,50 +48,51 @@ For support and installation notes visit http://www.hlxcommunity.com
     }
 
     // Security: Escape gamecode
-    $gamecode_esc = $db->escape($gamecode);
+    $gamecode_esc = $db->escape($gamecode ?? '');
 
     $edlist = new EditList("ribbonTriggerId", "hlstats_Ribbons_Trigger", "game");
     $edlist->columns[] = new EditListColumn("game", "Game", 0, true, "hidden", $gamecode);
     $edlist->columns[] = new EditListColumn("ribbonId", "Ribbon", 0, true, "select", "hlstats_Ribbons.ribbonName/ribbonId/game='$gamecode_esc'");
     $edlist->columns[] = new EditListColumn("awardCode", "Trigger Award", 0, false, "select", "hlstats_Awards.name/code/game='$gamecode_esc'");
-    $edlist->columns[] = new EditListColumn("awardCount", "No. awards needed", 15, true, "text", "0", 64);
-    $edlist->columns[] = new EditListColumn("special", "Special logic", 15, false, "text", "0", 64);
+    $edlist->columns[] = new EditListColumn("awardCount", "No. awards needed", 15, true, "text", "0", 11);
+    $edlist->columns[] = new EditListColumn("special", "Special logic", 15, false, "text", "0", 3);
 
     if (!empty($_POST))
     {
-	if ($edlist->update())
-	    message("success", "Operation successful.");
-	else
-	    message("warning", $edlist->error());
+        if ($edlist->update()) {
+            message("success", "Operation successful.");
+        } else {
+            message("warning", $edlist->error());
+        }
     }
-    
+
 ?>
 
-Always set special logic = 0 unless you know what you're doing!
+Always set special logic = 0 unless you know what you're doing!<br /><br />
 
 <?php
-    
+
     $result = $db->query("
-	SELECT
-	    ribbonTriggerId,
-	    game,
-	    ribbonId,
-	    awardCode,
-	    awardCount,
-	    special
-	FROM
-	    hlstats_Ribbons_Trigger
-	WHERE
-	    game='$gamecode_esc'
-	ORDER BY
-	    ribbonTriggerId ASC
+        SELECT
+            ribbonTriggerId,
+            game,
+            ribbonId,
+            awardCode,
+            awardCount,
+            special
+        FROM
+            hlstats_Ribbons_Trigger
+        WHERE
+            game='$gamecode_esc'
+        ORDER BY
+            ribbonTriggerId ASC
     ");
-    
+
     $edlist->draw($result);
 ?>
 
-<table width="75%" border="0" cellspacing="0" cellpadding="0">
+<table width="75%" border="0" cellspacing="0" cellpadding="0" style="margin:15px auto;">
 <tr>
-    <td align="center"><input type="submit" value="  Apply  " class="submit"></td>
+    <td align="center"><input type="submit" value="  Apply  " class="submit" /></td>
 </tr>
 </table>

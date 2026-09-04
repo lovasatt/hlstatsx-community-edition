@@ -48,11 +48,11 @@ For support and installation notes visit http://www.hlxcommunity.com
 	    while (($temp_x1<$x2) || ($temp_y1<$y2)) {
 		$my_style = $style[$count % $style_count];
 		$step = 0;
-		while ($my_style != $style[(($count+$step) % $style_count)]) {
-		    $step++;
-		}
-		if ($step==0)
-		    $step++;
+		while (($step < $style_count) && ($my_style != $style[(($count+$step) % $style_count)])) {
+		            $step++;
+		        }
+	        if ($step == 0)
+	        $step = 1;
 
 		if ($x1 != $x2) {
 		    if ($my_style != -1)

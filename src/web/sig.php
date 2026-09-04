@@ -190,18 +190,35 @@ function f_num($number) {
         }
     }
     
+    $update_interval = defined('IMAGE_UPDATE_INTERVAL') ? IMAGE_UPDATE_INTERVAL : 3600;
+
     $show_flags = isset($g_options['countrydata']) ? $g_options['countrydata'] : 0;
     if (isset($_GET['show_flags']) && is_numeric($_GET['show_flags'])) {
         $show_flags = valid_request((int)$_GET['show_flags'], true);
     }
 
-    $cache_file = IMAGE_PATH . '/progress/sig_' . $player_id . '.png';
+    $background = 'random';
+    if (isset($_GET['background']) && ((($_GET['background'] > 0) && ($_GET['background'] < 12)) || ($_GET['background'] == 'random'))) {
+        $background = valid_request($_GET['background'], false);
+    }
+    if ($background == 'random') {
+        $background = rand(1, 11);
+    } else {
+        $background = (int)$background;
+    }
+
+    $cache_dir = IMAGE_PATH . '/progress';
+    if (!is_dir($cache_dir)) {
+        @mkdir($cache_dir, 0755, true);
+    }
+
+    $cache_file = $cache_dir . '/sig_' . $player_id . '_' . $background . '.png';
     if (file_exists($cache_file)) {
         $file_timestamp = @filemtime($cache_file);
-        if ($file_timestamp && ($file_timestamp + IMAGE_UPDATE_INTERVAL > time())) {
+        if ($file_timestamp && ($file_timestamp + $update_interval > time())) {
             if (isset($_SERVER['HTTP_IF_MODIFIED_SINCE'])) {
                 $browser_timestamp = strtotime($_SERVER['HTTP_IF_MODIFIED_SINCE']);
-                if ($browser_timestamp + IMAGE_UPDATE_INTERVAL > time()) {
+                if ($browser_timestamp + $update_interval > time()) {
                     header('HTTP/1.0 304 Not Modified');
                     exit;
                 }
@@ -213,7 +230,7 @@ function f_num($number) {
             $mod_date = date('D, d M Y H:i:s \G\M\T', $file_timestamp);
             header('Content-Type: image/png');
             header('Last-Modified: ' . $mod_date);
-            header('Cache-Control: public, max-age=' . IMAGE_UPDATE_INTERVAL);
+            header('Cache-Control: public, max-age=' . $update_interval);
 
             readfile($cache_file);
             exit();
@@ -263,9 +280,9 @@ if ($player_id > 0) {
 	    skill, 
 	    shots, 
 	    hits, 
-	    headshots, IFNULL(ROUND(headshots/kills * 100), '-') AS hpk, 
-	    IFNULL(kills/deaths, '-') AS kpd, 
-	    IFNULL(ROUND((hits / shots * 100), 1), 0.0) AS acc, 
+	    headshots, IFNULL(ROUND(headshots/kills * 100), '-') AS hpk,
+	    IFNULL(ROUND(kills/IF(deaths=0, 1, deaths), 2), '-') AS kpd,
+	    IFNULL(ROUND((hits / shots * 100), 1), 0.0) AS acc,
 	    activity, 
 	    hideranking
 	FROM 
@@ -279,7 +296,7 @@ if ($player_id > 0) {
     $playerdata = $db->fetch_array();
     $db->free_result();
 
-    $pl_name = $playerdata['lastName'];
+    $pl_name = (string)($playerdata['lastName'] ?? 'Unknown');
     
     if(function_exists('imagettftext')) {
 	if (strlen($pl_name) > 30) {
@@ -327,15 +344,6 @@ if ($player_id > 0) {
     else if ($playerdata['last_skill_change'] < 0)
 	$skill_change = $playerdata['last_skill_change'];  
     
-    $background = 'random';
-    if (isset($_GET['background']) && ((($_GET['background'] > 0) && ($_GET['background'] < 12)) || ($_GET['background']=='random'))) {
-	$background = valid_request($_GET['background'], false);
-    }
-
-    if ($background == 'random') {
-	$background = rand(1, 11);
-    }
-
     $hlx_sig_image = getImage('/games/'.$playerdata['game'].'/sig/'.$background);
     if ($hlx_sig_image)
     {
@@ -478,8 +486,9 @@ if ($player_id > 0) {
     
     if(function_exists('imagettftext') && file_exists(IMAGE_PATH.'/sig/font/DejaVuSans.ttf'))
     {
-	$font = IMAGE_PATH.'/sig/font/DejaVuSans.ttf';
-	imagettftext($image, 10, 0, 30, 15, $caption_color, $font, $pl_name);
+        $font = IMAGE_PATH.'/sig/font/DejaVuSans.ttf';
+        $name_x = ($show_flags > 0 && !empty($player_flag)) ? 30 : 10;
+        imagettftext($image, 10, 0, $name_x, 15, $caption_color, $font, $pl_name);
     }
     else
     {
@@ -501,7 +510,6 @@ if ($player_id > 0) {
     
     if ($trend) {
 	imagecopy($image, $trend, $start_pos_x, 26, 0, 0, 7, 7);
-	$start_header_name += 22;
 	imagedestroy($trend);
 	$start_pos_x += 10;
     }
@@ -520,7 +528,7 @@ if ($player_id > 0) {
     
     $mod_date = date('D, d M Y H:i:s \G\M\T', time());
     
-    @imagepng($image, IMAGE_PATH . '/progress/sig_' . $player_id . '.png');
+    @imagepng($image, $cache_file);
 
     if (ob_get_length()) {
         ob_clean();
@@ -528,7 +536,7 @@ if ($player_id > 0) {
 
     header('Content-Type: image/png');
     header('Last-Modified: ' . $mod_date);
-    header('Cache-Control: public, max-age=' . IMAGE_UPDATE_INTERVAL);
+    header('Cache-Control: public, max-age=' . $update_interval);
 
     imagepng($image);
     imagedestroy($image);

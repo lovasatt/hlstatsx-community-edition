@@ -40,31 +40,36 @@ For support and installation notes visit http://www.hlxcommunity.com
         die('Do not access this file directly.');
     }
 
-    // Security: Escape game variable
+    // Initialize variables
+    $game = isset($game) ? (string)$game : '';
     $game_esc = $db->escape($game);
+    $game_url = urlencode($game);
+    $scripturl = htmlspecialchars((string)($g_options['scripturl'] ?? ''), ENT_QUOTES, 'UTF-8');
 
     // Role Statistics
     $db->query
     ("
-	SELECT
-	    hlstats_Games.name
-	FROM
-	    hlstats_Games
-	WHERE
-	    hlstats_Games.code = '$game_esc'
+        SELECT
+            hlstats_Games.name
+        FROM
+            hlstats_Games
+        WHERE
+            hlstats_Games.code = '$game_esc'
     ");
-    if ($db->num_rows() < 1) error("No such game '$game'.");
-    
-    // PHP 8 Fix: Replace list()
+    if ($db->num_rows() < 1) {
+        error("No such game '" . htmlspecialchars($game, ENT_QUOTES, 'UTF-8') . "'.");
+    }
+
     $row = $db->fetch_row();
-    $gamename = ($row) ? $row[0] : '';
+    $gamename = ($row) ? (string)$row[0] : '';
     $db->free_result();
-    
+
     pageHeader
     (
-	array ($gamename, 'Role Statistics'),
-	array ($gamename => "%s?game=$game", 'Role Statistics' => '')
+        array ($gamename, 'Role Statistics'),
+        array ($gamename => "%s?game=$game_url", 'Role Statistics' => '')
     );
+
     $result = $db->query
     ("
 	SELECT
@@ -75,26 +80,25 @@ For support and installation notes visit http://www.hlxcommunity.com
 	WHERE
 	    hlstats_Roles.game='$game_esc'
     ");
-    
+
     $fname = array();
     while ($rowdata = $db->fetch_row($result))
-    { 
-	$code = $rowdata[0];
-        // PHP 8 Fix: Ensure string types
-	$fname[strtolower((string)$code)] = htmlspecialchars((string)$rowdata[1]);
+    {
+        $code = $rowdata[0];
+        $fname[strtolower((string)$code)] = htmlspecialchars((string)$rowdata[1], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
     }
-    
+
     $tblRoles = new Table
     (
-	array
-	(
-	    new TableColumn
-	    (
-		'code',
-		'Role',
-		'width=24&type=roleimg&align=left&link=' . urlencode("mode=rolesinfo&amp;role=%k&amp;game=$game"),
-		$fname
-	    ),
+        array
+        (
+            new TableColumn
+            (
+                'code',
+                'Role',
+                'width=24&type=roleimg&align=left&link=' . urlencode("mode=rolesinfo&amp;role=%k&amp;game=$game_url"),
+                $fname
+            ),
 	    new TableColumn
 	    (
 		'picked',
@@ -167,59 +171,63 @@ For support and installation notes visit http://www.hlxcommunity.com
     );
     $db->query
     ("
-	SELECT
-	    IF(IFNULL(SUM(hlstats_Roles.kills), 0) = 0, 1, SUM(hlstats_Roles.kills)),
-	    IF(IFNULL(SUM(hlstats_Roles.deaths), 0) = 0, 1, SUM(hlstats_Roles.deaths)),
-	    IF(IFNULL(SUM(hlstats_Roles.picked), 0) = 0, 1, SUM(hlstats_Roles.picked))
-	FROM
-	    hlstats_Roles
-	WHERE
-	    hlstats_Roles.game = '$game_esc'
-	    AND hlstats_Roles.hidden = '0'
+        SELECT
+            IFNULL(SUM(hlstats_Roles.kills), 0),
+            IFNULL(SUM(hlstats_Roles.deaths), 0),
+            IFNULL(SUM(hlstats_Roles.picked), 0)
+        FROM
+            hlstats_Roles
+        WHERE
+            hlstats_Roles.game = '$game_esc'
+            AND hlstats_Roles.hidden = '0'
     ");
-    
-    // PHP 8 Fix: Replace list() and ensure integers
+
     $row = $db->fetch_row();
-    $realkills = ($row) ? (int)$row[0] : 1;
-    $realdeaths = ($row) ? (int)$row[1] : 1;
-    $realpicked = ($row) ? (int)$row[2] : 1;
-    
+    $totalkills  = ($row) ? (int)$row[0] : 0;
+    $totaldeaths = ($row) ? (int)$row[1] : 0;
+    $totalpicked = ($row) ? (int)$row[2] : 0;
+
+    $div_realkills  = ($totalkills > 0) ? $totalkills : 1;
+    $div_realdeaths = ($totaldeaths > 0) ? $totaldeaths : 1;
+    $div_realpicked = ($totalpicked > 0) ? $totalpicked : 1;
+
     $result = $db->query
     ("
-	SELECT
-	    hlstats_Roles.code,
-	    hlstats_Roles.name,
-	    hlstats_Roles.picked,
-	    ROUND(hlstats_Roles.picked / $realpicked * 100, 2) AS ppercent,
-	    hlstats_Roles.kills,
-	    ROUND(hlstats_Roles.kills / $realkills * 100, 2) AS kpercent,
-	    hlstats_Roles.deaths,
-	    ROUND(hlstats_Roles.deaths / $realdeaths * 100, 2) AS dpercent,
-	    ROUND(hlstats_Roles.kills / IF(hlstats_Roles.deaths = 0, 1, hlstats_Roles.deaths), 2) AS kpd
-	FROM
-	    hlstats_Roles
-	WHERE
-	    hlstats_Roles.game = '$game_esc' 
-	    AND hlstats_Roles.kills > 0 
-	    AND hlstats_Roles.hidden = '0'
-	GROUP BY
-	    hlstats_Roles.roleId
-	ORDER BY
-	    $tblRoles->sort $tblRoles->sortorder,
-	    $tblRoles->sort2 $tblRoles->sortorder
+        SELECT
+            hlstats_Roles.code,
+            hlstats_Roles.name,
+            hlstats_Roles.picked,
+            ROUND(hlstats_Roles.picked / $div_realpicked * 100, 2) AS ppercent,
+            hlstats_Roles.kills,
+            ROUND(hlstats_Roles.kills / $div_realkills * 100, 2) AS kpercent,
+            hlstats_Roles.deaths,
+            ROUND(hlstats_Roles.deaths / $div_realdeaths * 100, 2) AS dpercent,
+            ROUND(hlstats_Roles.kills / IF(hlstats_Roles.deaths = 0, 1, hlstats_Roles.deaths), 2) AS kpd
+        FROM
+            hlstats_Roles
+        WHERE
+            hlstats_Roles.game = '$game_esc'
+            AND (hlstats_Roles.kills > 0 OR hlstats_Roles.deaths > 0 OR hlstats_Roles.picked > 0)
+            AND hlstats_Roles.hidden = '0'
+        GROUP BY
+            hlstats_Roles.roleId
+        ORDER BY
+            $tblRoles->sort $tblRoles->sortorder,
+            $tblRoles->sort2 $tblRoles->sortorder
     ");
 ?>
 
 <div class="block">
     <?php printSectionTitle('Role Statistics'); ?>
     <div class="subblock">
-	From a total of <strong><?php echo number_format($realkills); ?></strong> kills with <strong><?php echo number_format($realdeaths); ?></strong> deaths
+        From a total of <strong><?php echo number_format($totalkills); ?></strong> kills with <strong><?php echo number_format($totaldeaths); ?></strong> deaths
     </div>
     <br /><br />
     <?php $tblRoles->draw($result, $db->num_rows($result), 95); ?><br /><br />
     <div class="subblock">
-	<div style="float:right;">
-	    Go to: <a href="<?php echo htmlspecialchars($g_options['scripturl'])."?game=$game"; ?>"><?php echo htmlspecialchars($gamename); ?></a>
-	</div>
+        <div style="float:right;">
+            Go to: <a href="<?php echo $scripturl . '?game=' . $game_url; ?>"><?php echo htmlspecialchars($gamename, ENT_QUOTES, 'UTF-8'); ?></a>
+        </div>
+        <div style="clear:both;"></div>
     </div>
 </div>

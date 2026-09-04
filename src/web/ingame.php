@@ -57,11 +57,11 @@ foreach ($_SERVER as $key => $entry) {
 		($last_segment !== "/config.php") &&
 		($last_segment !== "/") &&
 		($entry !== "")) {
-                
-                $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
-		header("Location: http://".$host."/hlstats.php");    
-		exit;
-	    }    
+		$host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+                $proto = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+                header("Location: " . $proto . "://" . $host . "/hlstats.php");
+                exit;
+	    }
 	}
 	$_SERVER[$key] = $entry;
     }
@@ -116,6 +116,8 @@ $game = '';
 if (isset($_GET["game"])) {
     $game = valid_request((string)$_GET["game"], false);
 }
+
+$realgame = ($game !== '') ? getRealGame($game) : '';
 
 // PHP 8 Fix: Null coalescing
 $mode = $_GET["mode"] ?? "";

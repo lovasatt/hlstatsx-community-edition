@@ -4,7 +4,7 @@ HLstatsX Community Edition - Real-time player and clan rankings and statistics
 Copyleft (L) 2008-20XX Nicholas Hastings (nshastings@gmail.com)
 http://www.hlxcommunity.com
 
-HLstatsX Community Edition is a continuation of 
+HLstatsX Community Edition is a continuation of
 ELstatsNEO - Real-time player and clan rankings and statistics
 Copyleft (L) 2008-20XX Malte Bayer (steam@neo-soft.org)
 http://ovrsized.neo-soft.org/
@@ -18,7 +18,7 @@ HLstatsX is an enhanced version of HLstats made by Simon Garner
 HLstats - Real-time player and clan rankings and statistics for Half-Life
 http://sourceforge.net/projects/hlstats/
 Copyright (C) 2001  Simon Garner
-            
+
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
 as published by the Free Software Foundation; either version 2
@@ -48,21 +48,24 @@ For support and installation notes visit http://www.hlxcommunity.com
     }
 ?>
 
-&nbsp;&nbsp;&nbsp;&nbsp;<img src="<?php echo IMAGE_PATH; ?>/downarrow.gif" width="9" height="6" class="imageformat" alt=""><b>&nbsp;<?php echo htmlspecialchars($task->title); ?></b><p>
+&nbsp;&nbsp;&nbsp;&nbsp;<img src="<?php echo IMAGE_PATH; ?>/downarrow.gif" width="9" height="6" class="imageformat" alt="" /><b>&nbsp;<?php echo htmlspecialchars($task->title ?? '', ENT_QUOTES, 'UTF-8'); ?></b><br /><br />
 
 <?php
 
-   $servers[0]["name"] = "ELstatsNEO Masterserver";
-   $servers[0]["host"] = "master.elstatsneo.de"; 
-   $servers[0]["port"] = 27801;
-   $servers[0]["packet"] = chr(255).chr(255)."Z".chr(255)."1.00".chr(255).chr(255).chr(255);
+   $servers = array();
+   $servers[0] = array(
+       "name"   => "ELstatsNEO Masterserver",
+       "host"   => "master.elstatsneo.de",
+       "port"   => 27801,
+       "packet" => chr(255).chr(255)."Z".chr(255)."1.00".chr(255).chr(255).chr(255)
+   );
 
-   $servers[1]["name"] = "HLstatsX Masterserver (doesn't work anymore)";
-   $servers[1]["host"] = "master.hlstatsx.com"; 
-   $servers[1]["port"] = 27501;
-   $servers[1]["packet"] = chr(255).chr(255)."Z".chr(255);
-  
-   
+   $servers[1] = array(
+       "name"   => "HLstatsX Masterserver (doesn't work anymore)",
+       "host"   => "master.hlstatsx.com",
+       "port"   => 27501,
+       "packet" => chr(255).chr(255)."Z".chr(255)
+   );
 
    function hide_cheaters($query)  {
      global $db;
@@ -71,158 +74,158 @@ For support and installation notes visit http://www.hlxcommunity.com
      $base_query  = "UPDATE hlstats_Players SET last_event = IF(hideranking <> 2, UNIX_TIMESTAMP(), last_event), hideranking = 2 WHERE playerId IN ";
      $insert_part = "";
      $first       = 0;
-     
+
      // PHP 8 Fix: Replace list()
      while ($row = $db->fetch_row($result))  {
-        $player_id = $row[0];
+        $player_id = (int)$row[0];
         if ($first == 0)
-          $insert_part = "(".$player_id;
+          $insert_part = "(" . $player_id;
         else
-          $insert_part .= ",".$player_id;
-        $first++;  
+          $insert_part .= "," . $player_id;
+        $first++;
      }
      if ($first > 0) {
-       echo "<li>Updating <b>$first</b> cheaters...";
+       echo "<li>Updating <b>$first</b> cheaters... ";
        $insert_part .= ")";
-       $update_query = $base_query.$insert_part;
+       $update_query = $base_query . $insert_part;
        $db->query($update_query);
-       echo "<b>OK</b></li>";
-     }  
-   }  
+       echo "<b>OK</b></li>\n";
+     }
+   }
 
 
     if (isset($_POST['confirm']))
     {
       echo "<ul>\n";
       $s_id = isset($_POST['masterserver']) ? (int)$_POST['masterserver'] : 0;
-      
+
       if (!isset($servers[$s_id])) {
-          echo "<li>Invalid masterserver selected.</li></ul>";
+          echo "<li>Invalid masterserver selected.</li></ul>\n";
       } else {
           $host = $servers[$s_id]["host"];
-          $port = $servers[$s_id]["port"];
-          
-          echo "<li>Requesting cheaterlist from <b>".htmlspecialchars($host).":$port</b>...";
+          $port = (int)$servers[$s_id]["port"];
+
+          echo "<li>Requesting cheaterlist from <b>" . htmlspecialchars($host, ENT_QUOTES, 'UTF-8') . ":$port</b>... ";
+
+          if (!function_exists('socket_create')) {
+              echo "<b>PHP Sockets extension is not enabled.</b></li></ul>\n";
+              return;
+          }
+
           $host_ip = gethostbyname($host);
           $socket = socket_create(AF_INET, SOCK_DGRAM, SOL_UDP);
-          
+
           if ($socket === false) {
-               echo "<b>Socket create failed</b></li></ul>";
+               echo "<b>Socket create failed</b></li></ul>\n";
           } else {
               $packet = $servers[$s_id]["packet"];
               $bytes_sent = socket_sendto($socket, $packet, strlen($packet), 0, $host_ip, $port);
-              echo "<b>".$bytes_sent."</b> bytes <b>OK</b></li>";
-        
-              echo "<li>Retrieving data from masterserver...";
+              echo "<b>" . (int)$bytes_sent . "</b> bytes <b>OK</b></li>\n";
+
+              echo "<li>Retrieving data from masterserver... ";
               $recv_bytes = 0;
               $buffer     = "";
               $timeout    = 30;
               $answer     = "";
               $packets    = 0;
-              $write = NULL;
-              $except = NULL;
-              
-              // PHP 8 Fix: Removed call-time pass-by-reference (&) which is fatal in PHP 5.4+
-              // socket_select modifies $read by reference, so we must reset it in loop or pass variable
-              // socket_recvfrom modifies $buffer, $host, $port by reference
-              
+              $write      = NULL;
+              $except     = NULL;
+
               while (true) {
                 $read = array($socket);
                 // Force int casting for timeout
                 $num_changed = socket_select($read, $write, $except, (int)$timeout);
-                
+
                 if ($num_changed > 0) {
-                    $recv_bytes += socket_recvfrom($socket, $buffer, 2000, 0, $host_ip, $port);
-                    if (strlen($buffer) > 8 && ($buffer[0] == chr(255)) && ($buffer[1] == chr(255)) && ($buffer[2] == "Z") && ($buffer[3] == chr(255)) && 
-                        ($buffer[4] == "1") && ($buffer[5] == ".") && ($buffer[6] == "0") && ($buffer[7] == "0") && ($buffer[8] == chr(255))) { 
+                    $from_host = '';
+                    $from_port = 0;
+                    $recv_bytes += socket_recvfrom($socket, $buffer, 2000, 0, $from_host, $from_port);
+                    if (strlen($buffer) > 8 && ($buffer[0] == chr(255)) && ($buffer[1] == chr(255)) && ($buffer[2] == "Z") && ($buffer[3] == chr(255)) &&
+                        ($buffer[4] == "1") && ($buffer[5] == ".") && ($buffer[6] == "0") && ($buffer[7] == "0") && ($buffer[8] == chr(255))) {
                       $answer .= substr($buffer, 9);
-                    }  
+                    }
                     $buffer     = "";
                     $timeout    = 1;
                     $packets++;
                 } else {
                     break;
                 }
-              }   
-              
+              }
+
               $steam_ids = explode(chr(255), $answer);
               // Remove last empty element if exists
               if (end($steam_ids) === "") {
                   array_pop($steam_ids);
               }
-              
-              echo "recieving <b>$recv_bytes</b> bytes in <b>$packets</b> packets...<b>".count($steam_ids)."</b> cheaters...<b>OK</b></li>";
-              
+
+              echo "receiving <b>$recv_bytes</b> bytes in <b>$packets</b> packets... <b>" . count($steam_ids) . "</b> cheaters... <b>OK</b></li>\n";
+
               $query       = "SELECT playerId FROM hlstats_PlayerUniqueIds WHERE uniqueId in ";
               $insert_part = "";
-              $first       = 0; 
-              
+              $first       = 0;
+
               foreach ($steam_ids as $entry) {
                 // PHP 8 Fix: Escape string
                 $entry_esc = $db->escape($entry);
-                
+
                 if ($first == 0)
-                  $insert_part = "('".$entry_esc."'";
+                  $insert_part = "('" . $entry_esc . "'";
                 else
-                  $insert_part .= ",'".$entry_esc."'";
+                  $insert_part .= ",'" . $entry_esc . "'";
                 $first++;
-                
+
                 if ($first % 50 == 0)  {
                   $insert_part .= ")";
-                  $select_query = $query.$insert_part;
+                  $select_query = $query . $insert_part;
                   hide_cheaters($select_query);
                   $insert_part = "";
                   $first       = 0;
-                }    
+                }
               }
               if ($first > 0) {
                 $insert_part .= ")";
-                $select_query = $query.$insert_part;
+                $select_query = $query . $insert_part;
                 hide_cheaters($select_query);
               }
-              
-              echo "<li>Closing connection to masterserver...";
-              
+
+              echo "<li>Closing connection to masterserver... ";
+
               socket_close($socket);
-              echo "<b>OK</b></li>";
+              echo "<b>OK</b></li>\n";
               echo "</ul>\n";
           }
       }
     } else {
-        
-?>        
 
-<form method="POST">
-<table width="60%" align="center" border="0" cellspacing="0" cellpadding="0" class="border">
+?>
+
+<form method="post">
+<table width="60%" border="0" cellspacing="0" cellpadding="0" class="border" style="margin:15px auto;">
 
 <tr>
     <td>
         <table width="100%" border="0" cellspacing="1" cellpadding="10">
-        
+
         <tr class="bg1">
-            <td class="fNormal">
+            <td class="fNormal" style="text-align:center;">
 
-If you synchronize with one of the selected master servers, some players may be marked as cheater. You will see them on your VAC Cheater list!<br>
-Choose preferred masterserver: 
-<SELECT NAME="masterserver">
-
+If you synchronize with one of the selected master servers, some players may be marked as cheater. You will see them on your VAC Cheater list!<br /><br />
+Choose preferred masterserver:
+<select name="masterserver">
 <?php
   $i = 0;
   foreach ($servers as $server) {
-   echo "<OPTION VALUE=\"$i\">".htmlspecialchars($server["name"]);
-   $i++;
-  } 
-?>   
+      echo '<option value="' . $i . '">' . htmlspecialchars($server["name"], ENT_QUOTES, 'UTF-8') . '</option>';
+      $i++;
+  }
+?>
+</select><br /><br />
 
-</SELECT>
-
-<p>
-
-<input type="hidden" name="confirm" value="1">
-<center><input type="submit" value="  Synchronize Stats  "></center>
+<input type="hidden" name="confirm" value="1" />
+<div style="text-align:center;margin-top:15px;"><input type="submit" value="  Synchronize Stats  " class="submit" /></div>
 </td>
         </tr>
-        
+
         </table></td>
 </tr>
 

@@ -4,7 +4,7 @@ HLstatsX Community Edition - Real-time player and clan rankings and statistics
 Copyleft (L) 2008-20XX Nicholas Hastings (nshastings@gmail.com)
 http://www.hlxcommunity.com
 
-HLstatsX Community Edition is a continuation of 
+HLstatsX Community Edition is a continuation of
 ELstatsNEO - Real-time player and clan rankings and statistics
 Copyleft (L) 2008-20XX Malte Bayer (steam@neo-soft.org)
 http://ovrsized.neo-soft.org/
@@ -18,7 +18,7 @@ HLstatsX is an enhanced version of HLstats made by Simon Garner
 HLstats - Real-time player and clan rankings and statistics for Half-Life
 http://sourceforge.net/projects/hlstats/
 Copyright (C) 2001  Simon Garner
-            
+
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
 as published by the Free Software Foundation; either version 2
@@ -49,45 +49,46 @@ For support and installation notes visit http://www.hlxcommunity.com
 
     $edlist = new EditList("weaponId", "hlstats_Weapons", "gun", false);
     $edlist->columns[] = new EditListColumn("game", "Game", 0, true, "hidden", $gamecode);
-    $edlist->columns[] = new EditListColumn("code", "Weapon Code", 15, true, "text", "", 32);
-    $edlist->columns[] = new EditListColumn("name", "Weapon Name", 25, true, "text", "", 64);
-    $edlist->columns[] = new EditListColumn("modifier", "Points Modifier", 10, true, "text", "1.00");
+    $edlist->columns[] = new EditListColumn("code", "Weapon Code", 15, true, "text", "", 64);
+    $edlist->columns[] = new EditListColumn("name", "Weapon Name", 25, true, "text", "", 128);
+    $edlist->columns[] = new EditListColumn("modifier", "Points Modifier", 10, true, "text", "1.00", 10);
 
     if (!empty($_POST)) {
-	if ($edlist->update())
-	    message("success", "Operation successful.");
-	else
-	    message("warning", $edlist->error());
+        if ($edlist->update()) {
+            message("success", "Operation successful.");
+        } else {
+            message("warning", $edlist->error());
+        }
     }
 ?>
 
-You can give each weapon a <i>points modifier</i>, a multiplier which determines how many points will be gained or lost for killing with or being killed by that weapon. (Refer to <a href="<?php echo htmlspecialchars($g_options["scripturl"]); ?>?mode=help#points">Help</a> for a full description of how points ratings are 
-calculated.) The baseline points modifier for weapons is 1.00. A points modifier of 0.00 will cause kills with that weapon to have no effect on players' points.<p>
+You can give each weapon a <i>points modifier</i>, a multiplier which determines how many points will be gained or lost for killing with or being killed by that weapon. (Refer to <a href="<?php echo htmlspecialchars($g_options["scripturl"] ?? '', ENT_QUOTES, 'UTF-8'); ?>?mode=help#points">Help</a> for a full description of how points ratings are
+calculated.) The baseline points modifier for weapons is 1.00. A points modifier of 0.00 will cause kills with that weapon to have no effect on players' points.<br /><br />
 
 <?php
-    
+
     // Security: Escape gamecode
-    $gamecode_esc = $db->escape($gamecode);
-    
+    $gamecode_esc = $db->escape($gamecode ?? '');
+
     $result = $db->query("
-	SELECT
-	    weaponId,
-	    code,
-	    name,
-	    modifier
-	FROM
-	    hlstats_Weapons
-	WHERE
-	    game='$gamecode_esc'
-	ORDER BY
-	    code ASC
+        SELECT
+            weaponId,
+            code,
+            name,
+            modifier
+        FROM
+            hlstats_Weapons
+        WHERE
+            game='$gamecode_esc'
+        ORDER BY
+            code ASC
     ");
-    
+
     $edlist->draw($result);
 ?>
 
-<table width="75%" border="0" cellspacing="0" cellpadding="0">
+<table width="75%" border="0" cellspacing="0" cellpadding="0" style="margin:15px auto;">
 <tr>
-    <td align="center"><input type="submit" value="  Apply  " class="submit"></td>
+    <td align="center"><input type="submit" value="  Apply  " class="submit" /></td>
 </tr>
 </table>

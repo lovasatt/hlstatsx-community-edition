@@ -4,7 +4,7 @@ HLstatsX Community Edition - Real-time player and clan rankings and statistics
 Copyleft (L) 2008-20XX Nicholas Hastings (nshastings@gmail.com)
 http://www.hlxcommunity.com
 
-HLstatsX Community Edition is a continuation of 
+HLstatsX Community Edition is a continuation of
 ELstatsNEO - Real-time player and clan rankings and statistics
 Copyleft (L) 2008-20XX Malte Bayer (steam@neo-soft.org)
 http://ovrsized.neo-soft.org/
@@ -18,7 +18,7 @@ HLstatsX is an enhanced version of HLstats made by Simon Garner
 HLstats - Real-time player and clan rankings and statistics for Half-Life
 http://sourceforge.net/projects/hlstats/
 Copyright (C) 2001  Simon Garner
-            
+
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
 as published by the Free Software Foundation; either version 2
@@ -42,59 +42,64 @@ For support and installation notes visit http://www.hlxcommunity.com
 
     global $db, $game, $g_options;
 
+    // Initialize variables
+    $game = isset($game) ? (string)$game : '';
     // Security: Escape game variable
     $game_esc = $db->escape($game);
+    $game_url = urlencode($game);
 
-    $result = $db->query("
-	SELECT
-	    rankName,
-	    minKills,
-	    rankId,
-	    count(playerId) AS obj_count
-	FROM
-	    hlstats_Ranks
-	INNER JOIN
-	    hlstats_Players
-	ON (
-           hlstats_Ranks.game=hlstats_Players.game
-           )	
-	WHERE
-	    kills>=minKills
-	    AND kills<=maxKills
-	    AND hlstats_Ranks.game='$game_esc'
-	GROUP BY
-	    rankName,
-	    minKills,
-	    rankId
+    $res_counts = $db->query("
+        SELECT
+            hlstats_Ranks.rankName,
+            hlstats_Ranks.minKills,
+            hlstats_Ranks.rankId,
+            COUNT(hlstats_Players.playerId) AS obj_count
+        FROM
+            hlstats_Ranks
+        INNER JOIN
+            hlstats_Players
+        ON (
+            hlstats_Ranks.game = hlstats_Players.game
+            )
+        WHERE
+            hlstats_Players.kills >= hlstats_Ranks.minKills
+            AND hlstats_Players.kills <= hlstats_Ranks.maxKills
+            AND hlstats_Ranks.game = '$game_esc'
+            AND hlstats_Players.hideranking = 0
+        GROUP BY
+            hlstats_Ranks.rankId,
+            hlstats_Ranks.rankName,
+            hlstats_Ranks.minKills
     ");
-    
-    $ranks = array(); // Initialize array
-    while ($r = $db->fetch_array())
+
+    $ranks = array();
+    while ($r = $db->fetch_array($res_counts))
     {
-	$ranks[$r['rankId']] = $r['obj_count'];
+        $ranks[$r['rankId']] = (int)$r['obj_count'];
     }
+    $db->free_result($res_counts);
 
     // select the available ranks
-    $result = $db->query("
-	SELECT
-	    rankName,
-	    minKills,
-	    maxKills,
-	    rankId,
-	    image
-	FROM
-	    hlstats_Ranks
-	WHERE
-	    hlstats_Ranks.game='$game_esc'	
-	ORDER BY
-	    minKills
+    $res_ranks = $db->query("
+        SELECT
+            rankName,
+            minKills,
+            maxKills,
+            rankId,
+            image
+        FROM
+            hlstats_Ranks
+        WHERE
+            hlstats_Ranks.game='$game_esc'
+        ORDER BY
+            minKills ASC
     ");
 ?>
 
 <div class="block">
     <?php printSectionTitle('Ranks'); ?>
     <div class="subblock">
-	<table class="data-table">
+        <table class="data-table">
 <?php
     // draw the rank info table (5 columns)
     $i = 0;
@@ -104,61 +109,63 @@ For support and installation notes visit http://www.hlxcommunity.com
     if ($cols < 1 || $cols > 10) {
         $cols = 5;
     }
-    
+
     $colwidth = round(100 / $cols);
 
-    while ($r = $db->fetch_array())
+    while ($r = $db->fetch_array($res_ranks))
     {
-	if ($i == $cols)
-	{
-	    echo "</tr>";
-	    $i = 0;
-	}
-	if ($i == 0)
-	{
-	    echo "<tr class='bg1'>";
-	}
-   
-	$image = getImage('/ranks/'.$r['image'].'_small');
-        $game_url = htmlspecialchars($game);
-	$link = '<a href="hlstats.php?mode=rankinfo&amp;rank='.$r['rankId']."&amp;game=$game_url\">";
-	
-        if ($image)
-	{
-	    $imagestring = '<img src="'.$image['url'].'" alt="'.htmlspecialchars((string)$r['image']).'" />';
-	}
-	else
-	{
-	    $imagestring = 'Player List';
-	}
-	
+        if ($i == $cols)
+        {
+            echo "</tr>";
+            $i = 0;
+        }
+        if ($i == 0)
+        {
+            echo "<tr class='bg1'>";
+        }
+
+        $rank_id = (int)$r['rankId'];
+        $link = '<a href="hlstats.php?mode=rankinfo&amp;rank=' . $rank_id . "&amp;game=$game_url\">";
+        $r_image = (string)($r['image'] ?? '');
+        $image = getImage('/ranks/' . $r_image . '_small');
+
+        if ($image && !empty($image['url']))
+        {
+            $imagestring = '<img src="' . htmlspecialchars((string)$image['url'], ENT_QUOTES, 'UTF-8') . '" alt="' . htmlspecialchars($r_image, ENT_QUOTES, 'UTF-8') . '" />';
+        }
+        else
+        {
+            $imagestring = 'Player List';
+        }
+
         $achvd = '';
         // PHP 8 Fix: Check if key exists using Null Coalescing
-        $player_count = $ranks[$r['rankId']] ?? 0;
-        
-	if ($player_count > 0)
-	{
-	    $imagestring = "$link$imagestring</a>";
-	    $achvd = 'Achieved by '.number_format($player_count).' Players';
-	}    
-   
-	echo "<td style=\"text-align:center;vertical-align:top;width:$colwidth%;\">"
-	    .'<strong>'.htmlspecialchars((string)$r['rankName']).'</strong><br />'
-	    .'<span class="fSmall">('.$r['minKills'].'-'.$r['maxKills'].'&nbsp;kills)'.'<br />'
-	    ."$achvd<br /></span>"
-	    .$imagestring.'
-	    </td>';
-	$i++;
+        $player_count = (int)($ranks[$r['rankId']] ?? 0);
+
+        if ($player_count > 0)
+        {
+            $imagestring = "$link$imagestring</a>";
+            $achvd = 'Achieved by ' . number_format($player_count) . ' Players';
+        }
+
+        echo "<td style=\"text-align:center;vertical-align:top;width:$colwidth%;\">"
+            .'<strong>'.htmlspecialchars((string)($r['rankName'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8').'</strong><br />'
+            .'<span class="fSmall">('.(int)($r['minKills'] ?? 0).'-'.(int)($r['maxKills'] ?? 0).'&nbsp;kills)'.'<br />'
+            ."$achvd<br /></span>"
+            .$imagestring.'
+            </td>';
+        $i++;
     }
     if ($i != 0)
     {
-	for ($i = $i; $i < $cols; $i++)
-	{
-	    echo '<td class="bg1">&nbsp;</td>';
-	}
-	echo '</tr>';
+        for (; $i < $cols; $i++)
+        {
+            echo '<td class="bg1">&nbsp;</td>';
+        }
+        echo '</tr>';
     }
+    $db->free_result($res_ranks);
 ?>
-	</table>
+        </table>
     </div>
 </div>

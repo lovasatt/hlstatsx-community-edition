@@ -82,6 +82,7 @@ my $opt_player_activity = 0;
 my $opt_awards = 0;
 my $opt_ribbons = 0;
 my $opt_geoip = 0;
+my $opt_clans = 0;
 my $opt_prune = 0;
 my $opt_optimize = 0;
 my $opt_verbose = 0;
@@ -763,7 +764,6 @@ sub DoAwards
 				LIMIT 1
 			");
 		} elsif ($code eq "deathstreak") {
-		print "in deathstreak";
 			$resultDaily = &doQuery("
 				SELECT
 					hlstats_Players_History.playerId,
@@ -1137,8 +1137,8 @@ sub DoGeoIP
 					SET
 						flag='".&quoteSQL($foundflag)."',
 						country='".&quoteSQL($foundcountry)."',
-						lat='".(($foundlat ne "")?$foundlat:undef)."',
-						lng='".(($foundlng ne "")?$foundlng:undef)."',
+						lat=".((defined($foundlat) && $foundlat ne "") ? $foundlat : "NULL").",
+						lng=".((defined($foundlng) && $foundlng ne "") ? $foundlng : "NULL").",
 						city='".&quoteSQL($foundcity)."',
 						state='".&quoteSQL($foundstate)."'
 					WHERE

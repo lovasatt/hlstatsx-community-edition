@@ -93,7 +93,7 @@
     $skill = array();
     $skill_change = array();
     $date = array();
-    $rowcnt = $db->num_rows();
+    $rowcnt = ($res) ? $db->num_rows($res) : 0;
     $last_time = 0;
     
     for ($i = 1; $i <= $rowcnt; $i++)
@@ -105,12 +105,15 @@
         $skill_change_val = isset($row['skill_change']) ? $row['skill_change'] : 0;
         $ts_val = isset($row['ts']) ? (int)$row['ts'] : 0;
 
+	if ($i === 1) {
+	    $last_time = $ts_val;
+	}
+
 	array_unshift($skill, $skill_val);
 	array_unshift($skill_change, $skill_change_val);
 	if ($i == 1 || $i == round($rowcnt/2) || $i == $rowcnt)
 	{
 	    array_unshift($date, date("M-j", $ts_val));
-	    $last_time = $ts_val;
 	}
 	else
 	{
@@ -119,6 +122,12 @@
     }
     
     $update_interval = defined('IMAGE_UPDATE_INTERVAL') ? IMAGE_UPDATE_INTERVAL : 3600;
+
+    $cache_dir = IMAGE_PATH . "/progress";
+    if (!is_dir($cache_dir)) {
+        @mkdir($cache_dir, 0755, true);
+    }
+
     $cache_image = IMAGE_PATH . "/progress/trend_{$player}_{$last_time}.png";
 
     if (file_exists($cache_image))
@@ -154,7 +163,7 @@
 	if (file_exists($font_path)) {
 	    $Chart->setFontProperties($font_path, 11);
 	}
-	$Chart->drawTextBox(100, 90, 180, 110, "Not Enough Session Data", 0, 0, 0, 0, ALIGN_LEFT, FALSE, 255, 255, 255, 0);
+	$Chart->drawTextBox(50, 85, 339, 115, "Not Enough Session Data", 0, 0, 0, 0, ALIGN_CENTER, FALSE, 255, 255, 255, 0);
     }
     else
     {	
@@ -179,7 +188,7 @@
 	$Chart->setShadowProperties(3, 3, 0, 0, 0, 30, 4);
 	$Chart->drawCubicCurve($DataSet->GetData(), $DataSet->GetDataDescription());
 	$Chart->clearShadow();
-	$Chart->drawFilledCubicCurve($DataSet->GetData(), $DataSet->GetDataDescription(), .1, 30);
+	$Chart->drawFilledCubicCurve($DataSet->GetData(), $DataSet->GetDataDescription(), 0.1, 30);
 	$Chart->drawPlotGraph($DataSet->GetData(), $DataSet->GetDataDescription(), 1, 1, 255, 255, 255);
 	
 	$Chart->clearScale();

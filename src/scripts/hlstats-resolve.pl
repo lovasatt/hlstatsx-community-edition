@@ -22,12 +22,12 @@
 # modify it under the terms of the GNU General Public License
 # as published by the Free Software Foundation; either version 2
 # of the License, or (at your option) any later version.
-#
+# 
 # This program is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
-#
+# 
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
@@ -81,25 +81,27 @@ sub is_number ($) { ( $_[0] ^ $_[0] ) eq '0' }
 
 sub printEvent
 {
-	my ($code, $description, $update_timestamp) = @_;
-	
-	if ($g_debug > 0)
-	{
-	    if ($update_timestamp > 0)
-	    {
-  		  my ($sec,$min,$hour,$mday,$mon,$year) = localtime(time());
-		  my $timestamp = sprintf("%04d-%02d-%02d %02d:%02d:%02d", $year+1900, $mon+1, $mday, $hour, $min, $sec);
-	    } else {
-	      my $timestamp = $ev_timestamp;
-	    }
-		print localtime(time) . "" unless ($timestamp);
-		if (is_number($code))
-		{
-  		  printf("%s: %21s - E%03d: %s\n", $timestamp, $s_addr, $code, $description);
-  		} else {
-  		  printf("%s: %21s - %s: %s\n", $timestamp, $s_addr, $code, $description);
-  		}  
-	}
+        my ($code, $description, $update_timestamp) = @_;
+
+        if ($g_debug > 0)
+        {
+            my $timestamp = "";
+            if (defined($update_timestamp) && $update_timestamp > 0)
+            {
+                  my ($sec,$min,$hour,$mday,$mon,$year) = localtime(time());
+                  $timestamp = sprintf("%04d-%02d-%02d %02d:%02d:%02d", $year+1900, $mon+1, $mday, $hour, $min, $sec);
+            } else {
+                  $timestamp = $ev_timestamp || "";
+            }
+            $timestamp = sprintf("%04d-%02d-%02d %02d:%02d:%02d", (localtime(time()))[5]+1900, (localtime(time()))[4]+1, (localtime(time()))[3], (localtime(time()))[2], (localtime(time()))[1], (localtime(time()))[0]) unless ($timestamp);
+
+            if (is_number($code))
+            {
+                  printf("%s: %21s - E%03d: %s\n", $timestamp, $s_addr, $code, $description);
+            } else {
+                  printf("%s: %21s - %s: %s\n", $timestamp, $s_addr, $code, $description);
+            }
+        }
 }
 
 
@@ -128,7 +130,7 @@ $usage = <<EOT
 Usage: hlstats-resolve.pl [OPTION]...
 Resolve player IP addresses to hostnames.
 
-  -h, --help                      display this help and exit
+  -h, --help                      display this help and exit  
   -v, --version                   output version information and exit
   -d, --debug                     enable debugging output (-dd for more)
   -n, --nodebug                   disables above; reduces debug level
@@ -142,6 +144,7 @@ Resolve player IP addresses to hostnames.
   -r, --regroup                   only re-group hostnames--don't resolve any IPs
 
 Long options can be abbreviated, where such abbreviation is not ambiguous.
+Default values for options are indicated in square brackets [...].
 
 Most options can be specified in the configuration file:
   $opt_configfile
@@ -156,54 +159,54 @@ EOT
 
 if ($opt_configfile && -r $opt_configfile)
 {
-	$conf = ConfigReaderSimple->new($opt_configfile);
-	$conf->parse();
-	
-	%directives = (
-		"DBHost",			"db_host",
-		"DBUsername",		"db_user",
-		"DBPassword",		"db_pass",
-		"DBName",			"db_name",
-		"DNSTimeout",		"g_dns_timeout",
-		"DebugLevel",		"g_debug"
-	);
-	
-	&doConf($conf, %directives);
+        $conf = ConfigReaderSimple->new($opt_configfile);
+        $conf->parse();
+        
+        %directives = (
+                "DBHost",                       "db_host",
+                "DBUsername",           "db_user",
+                "DBPassword",           "db_pass",
+                "DBName",                       "db_name",
+                "DNSTimeout",           "g_dns_timeout",
+                "DebugLevel",           "g_debug"
+        );
+        
+        &doConf($conf, %directives);
 }
 else
 {
-	print "-- Warning: unable to open configuration file '$opt_configfile'\n";
+        print "-- Warning: unable to open configuration file '$opt_configfile'\n";
 }
 
 # Read Command Line Arguments
 
 GetOptions(
-	"help|h"			=> \$opt_help,
-	"version|v"			=> \$opt_version,
-	"debug|d+"			=> \$g_debug,
-	"nodebug|n+"		=> \$g_nodebug,
-	"db-host=s"			=> \$db_host,
-	"db-name=s"			=> \$db_name,
-	"db-password=s"		=> \$db_pass,
-	"db-username=s"		=> \$db_user,
-	"dns-timeout=i"		=> \$g_dns_timeout,
-	"regroup|r"			=> \$opt_regroup
+        "help|h"                        => \$opt_help,
+        "version|v"                     => \$opt_version,
+        "debug|d+"                      => \$g_debug,
+        "nodebug|n+"            => \$g_nodebug,
+        "db-host=s"                     => \$db_host,
+        "db-name=s"                     => \$db_name,
+        "db-password=s"         => \$db_pass,
+        "db-username=s"         => \$db_user,
+        "dns-timeout=i"         => \$g_dns_timeout,
+        "regroup|r"                     => \$opt_regroup
 ) or die($usage);
 
 if ($opt_help)
 {
-	print $usage;
-	exit(0);
+        print $usage;
+        exit(0);
 }
 
 if ($opt_version)
 {
-	print "hlstats-resolve.pl (HLstats) $g_version\n"
-		. "Real-time player and clan rankings and statistics for Half-Life\n\n"
-		. "Copyright (C) 2001  Simon Garner\n"
-		. "This is free software; see the source for copying conditions.  There is NO\n"
-		. "warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.\n";
-	exit(0);
+        print "hlstats-resolve.pl (HLstats) $g_version\n"
+                . "Real-time player and clan rankings and statistics for Half-Life\n\n"
+                . "Copyright (C) 2001  Simon Garner\n"
+                . "This is free software; see the source for copying conditions.  There is NO\n"
+                . "warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.\n";
+        exit(0);
 }
 
 $g_debug -= $g_nodebug;
@@ -211,11 +214,11 @@ $g_debug = 0 if ($g_debug < 0);
 
 if ($g_debug >= 2)
 {
-	$opt_quiet = 0;
+        $opt_quiet = 0;
 }
 else
 {
-	$opt_quiet = 1;	# quiet name resolution
+        $opt_quiet = 1; # quiet name resolution
 }
 
 $g_dns_resolveip = 1;
@@ -229,11 +232,7 @@ print "++ HLstats Resolve $g_version starting...\n\n";
 
 print "-- Connecting to MySQL database '$db_name' on '$db_host' as user '$db_user' ... ";
 
-$db_conn = DBI->connect(
-	"DBI:mysql:$db_name:$db_host",
-	$db_user, $db_pass
-) or die ("Can't connect to MySQL database '$db_name' on '$db_host'\n" .
-	"$DBI::errstr\n");
+&doConnect;
 
 print "connected OK\n";
 
@@ -246,128 +245,124 @@ print "-- DNS timeout is $g_dns_timeout seconds. Debug level is $g_debug.\n";
 
 if ($opt_regroup)
 {
-	my $result = &doQuery("
-		SELECT
-			id,
-			hostname
-		FROM
-			hlstats_Events_Connects
-		WHERE
-			hostname != ''
-	");
-	
-	my $total = $result->rows;
-	
-	if ($total > 0) {
-		print "\n++ Re-grouping hosts (total $total hostnames) ... ";
-	
-		my $resultHG = &queryHostGroups();
-	
-		if ($g_debug > 0)
-		{
-			print "\n\n";
-		}
-		else
-		{
-			print "    ";
-		}
-	
-		my $p = 1;
-		while( my($id, $hostname) = $result->fetchrow_array )
-		{
-			my $percent = ($p / $total) * 100;
-		
-			my $hostgroup = &getHostGroup($hostname, $resultHG);
-		
-			&execNonQuery("
-				UPDATE
-					hlstats_Events_Connects
-				SET
-					hostgroup='" . &quoteSQL($hostgroup) . "'
-				WHERE
-					id=$id
-			");
-	
-			if ($g_debug > 0)
-			{
-				printf("-> (%3d%%) %50s  =  %s\n", $percent, $hostname, $hostgroup);
-			}
-			else
-			{
-				printf("\b\b\b\b%3d%%", $percent);
-			}
-		
-			$p++;
-		}
-	
-		print "\n" unless ($g_debug > 0);
-	} else {
-		print "\n++ No Connects found!\n";
-	}
+        my $result = &doQuery("
+                SELECT
+                        id,
+                        hostname
+                FROM
+                        hlstats_Events_Connects
+                WHERE
+                        hostname != ''
+        ");
+        
+        my $total = $result->rows;
+        
+        if ($total > 0) {
+                print "\n++ Re-grouping hosts (total $total hostnames) ... ";
+                
+                if ($g_debug > 0)
+                {
+                        print "\n\n";
+                }
+                else
+                {
+                        print "    ";
+                }
+                
+                my $p = 1;
+                while( my($id, $hostname) = $result->fetchrow_array )
+                {
+                        my $percent = ($p / $total) * 100;
+                        
+                        my $hostgroup = &getHostGroup($hostname);
+                        
+                        &execNonQuery("
+                                UPDATE
+                                        hlstats_Events_Connects
+                                SET
+                                        hostgroup='" . &quoteSQL($hostgroup) . "'
+                                WHERE
+                                        id=$id
+                        ");
+                        
+                        if ($g_debug > 0)
+                        {
+                                printf("-> (%3d%%) %50s  =  %s\n", $percent, $hostname, $hostgroup);
+                        }
+                        else
+                        {
+                                printf("\b\b\b\b%3d%%", $percent);
+                        }
+                        
+                        $p++;
+                }
+                
+                print "\n" unless ($g_debug > 0);
+        } else {
+                print "\n++ No Connects found!\n";
+        }
 }
 else
 {
-	my $result = &doQuery("
-		SELECT
-			DISTINCT ipAddress,
-			hostname
-		FROM
-			hlstats_Events_Connects
-	");
-	
-	my $total = $result->rows;
-	if ($total > 0) {
-		print "\n++ Resolving IPs and re-grouping hosts (total $total connects) ... ";
-	
-		my $resultHG = &queryHostGroups();
-	
-		if ($g_debug > 0)
-		{
-			print "\n\n";
-		}
-		else
-		{
-			print "    ";
-		}
-	
-		my $p = 1;
-		while( my($ipAddress, $hostname) = $result->fetchrow_array )
-		{
-			my $percent = ($p / $total) * 100;
-			
-			if ($hostname eq "")
-			{
-				$hostname = &resolveIp($ipAddress, $opt_quiet);
-			}
-		
-			my $hostgroup = &getHostGroup($hostname, $resultHG);
-		
-			&execNonQuery("
-				UPDATE
-					hlstats_Events_Connects
-				SET
-					hostname='$hostname',
-					hostgroup='" . &quoteSQL($hostgroup) . "'
-				WHERE
-					ipAddress='$ipAddress'
-			");
-		
-			if ($g_debug > 0)
-			{
-				printf("-> (%3d%%) %15s  =  %50s  =  %s\n", $percent, $ipAddress, $hostname, $hostgroup);
-			}
-			else
-			{
-				printf("\b\b\b\b%3d%%", $percent);
-			}
-		
-			$p++;
-		}
-	
-		print "\n" unless ($g_debug > 0);
-	} else {
-		print "\n++ No Connects found!\n";
-	}
+        my $result = &doQuery("
+                SELECT
+                        DISTINCT ipAddress,
+                        hostname
+                FROM
+                        hlstats_Events_Connects
+        ");
+        
+        my $total = $result->rows;
+        if ($total > 0) {
+                print "\n++ Resolving IPs and re-grouping hosts (total $total connects) ... ";
+                
+                if ($g_debug > 0)
+                {
+                        print "\n\n";
+                }
+                else
+                {
+                        print "    ";
+                }
+                
+                my $p = 1;
+                while( my($ipAddress, $hostname) = $result->fetchrow_array )
+                {
+                        my $percent = ($p / $total) * 100;
+                        
+                        if ($hostname eq "")
+                        {
+                                $hostname = &resolveIp($ipAddress, $opt_quiet);
+                        }
+                        
+                        my $hostgroup = &getHostGroup($hostname);
+                        
+                        &execNonQuery("
+                                UPDATE
+                                        hlstats_Events_Connects
+                                SET
+                                        hostname='" . &quoteSQL($hostname) . "',
+                                        hostgroup='" . &quoteSQL($hostgroup) . "'
+                                WHERE
+                                        ipAddress='" . &quoteSQL($ipAddress) . "'
+                        ");
+                        
+                        if ($g_debug > 0)
+                        {
+                                printf("-> (%3d%%) %15s  =  %50s  =  %s\n", $percent, $ipAddress, $hostname, $hostgroup);
+                        }
+                        else
+                        {
+                                printf("\b\b\b\b%3d%%", $percent);
+                        }
+                        
+                        $p++;
+                }
+                
+                print "\n" unless ($g_debug > 0);
+        } else {
+                print "\n++ No Connects found!\n";
+        }
 }
 
 print "\n++ Operation complete.\n";

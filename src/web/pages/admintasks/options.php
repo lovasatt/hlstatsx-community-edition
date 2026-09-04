@@ -4,7 +4,7 @@ HLstatsX Community Edition - Real-time player and clan rankings and statistics
 Copyleft (L) 2008-20XX Nicholas Hastings (nshastings@gmail.com)
 http://www.hlxcommunity.com
 
-HLstatsX Community Edition is a continuation of 
+HLstatsX Community Edition is a continuation of
 ELstatsNEO - Real-time player and clan rankings and statistics
 Copyleft (L) 2008-20XX Malte Bayer (steam@neo-soft.org)
 http://ovrsized.neo-soft.org/
@@ -18,7 +18,7 @@ HLstatsX is an enhanced version of HLstats made by Simon Garner
 HLstats - Real-time player and clan rankings and statistics for Half-Life
 http://sourceforge.net/projects/hlstats/
 Copyright (C) 2001  Simon Garner
-            
+
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
 as published by the Free Software Foundation; either version 2
@@ -47,45 +47,45 @@ For support and installation notes visit http://www.hlxcommunity.com
     }
 
 ?>
-    
+
     <div style="width:60%;height:50px;border:0;padding:0;margin:auto;background-color:#F00;text-align:center;color:#FFF;font-size:medium;font-weight:bold;vertical-align:middle;">
-	Options with an asterisk (*) beside them require a restart of the perl daemon to fully take effect.</div>
+        Options with an asterisk (*) beside them require a restart of the perl daemon to fully take effect.</div>
     <br />
 <?php
 
     #[AllowDynamicProperties]
     class OptionGroup
     {
-	public $title = '';
-	public $options = array();
+        public $title = '';
+        public $options = array();
 
-	function __construct($title)
-	{
-	    $this->title = $title;
-	}
+        function __construct($title)
+        {
+            $this->title = $title;
+        }
 
-	function draw ()
-	{
-	    global $g_options;
+        function draw ()
+        {
+            global $g_options;
 ?>
     <p><strong><?php echo $this->title; ?></strong></p>
-    <table class="data-table" style="width:75%">
-	<?php
-	    foreach ($this->options as $opt)
-	    {
-		$opt->draw();
-	    }
+    <table class="data-table" style="width:75%;margin:auto;">
+        <?php
+            foreach ($this->options as $opt)
+            {
+                $opt->draw();
+            }
 ?>
     </table>
 <?php
-	}
-	
-	function update ()
-	{
-	    global $db;
-	    
-	    foreach ($this->options as $opt)
-	    {
+        }
+
+        function update ()
+        {
+            global $db;
+
+            foreach ($this->options as $opt)
+            {
                 // PHP 8 Fix: Check if key exists
                 if (!isset($_POST[$opt->name])) {
                     continue;
@@ -93,132 +93,128 @@ For support and installation notes visit http://www.hlxcommunity.com
 
                 $raw_val = (string)$_POST[$opt->name];
 
-		if (($this->title == 'Fonts') || ($this->title == 'General')) {
-		    $optval = $raw_val;
-		    $search_pattern  = array('/script/i', '/;/', '/%/');
-		    $replace_pattern = array('', '', '');
-		    $optval = preg_replace($search_pattern, $replace_pattern, $optval);
-		} else {
-		    $optval = valid_request($raw_val, false);
-    	    }
-		
+                if (($this->title == 'Fonts') || ($this->title == 'General') || ($this->title == 'Site Settings')) {
+                    $optval = $raw_val;
+                    $search_pattern  = array('/script/i', '/;/', '/%/');
+                    $replace_pattern = array('', '', '');
+                    $optval = preg_replace($search_pattern, $replace_pattern, $optval);
+                } else {
+                    $optval = valid_request($raw_val, false);
+                }
+
                 $opt_name_esc = $db->escape($opt->name);
                 $opt_val_esc = $db->escape($optval);
 
-		$result = $db->query("
-		    SELECT
-			value
-		    FROM
-			hlstats_Options
-		    WHERE
-			keyname='$opt_name_esc'
-		");
-		
-		if ($db->num_rows($result) == 1)
-		{
-		    $result = $db->query("
-			UPDATE
-			    hlstats_Options
-			SET
-			    value='$opt_val_esc'
-			WHERE
-			    keyname='$opt_name_esc'
-		    ");
-		}
-		else
-		{
-		    $result = $db->query("
-			INSERT INTO
-			    hlstats_Options
-			    (
-				keyname,
-				value
-			    )
-			VALUES
-			(
-			    '$opt_name_esc',
-			    '$opt_val_esc'
-			)
-		    ");
-		}
-	    }
-	}
+                $result = $db->query("
+                    SELECT
+                        value
+                    FROM
+                        hlstats_Options
+                    WHERE
+                        keyname='$opt_name_esc'
+                ");
+
+                if ($db->num_rows($result) == 1)
+                {
+                    $result = $db->query("
+                        UPDATE
+                            hlstats_Options
+                        SET
+                            value='$opt_val_esc'
+                        WHERE
+                            keyname='$opt_name_esc'
+                    ");
+                }
+                else
+                {
+                    $result = $db->query("
+                        INSERT INTO
+                            hlstats_Options
+                            (
+                                keyname,
+                                value
+                            )
+                        VALUES
+                        (
+                            '$opt_name_esc',
+                            '$opt_val_esc'
+                        )
+                    ");
+                }
+            }
+        }
     }
 
     #[AllowDynamicProperties]
     class Option
     {
-	public $name;
-	public $title;
-	public $type;
+        public $name;
+        public $title;
+        public $type;
 
-	function __construct($name, $title, $type)
-	{
-	    $this->name = $name;
-	    $this->title = $title;
-	    $this->type = $type;
-	}
+        function __construct($name, $title, $type)
+        {
+            $this->name = $name;
+            $this->title = $title;
+            $this->type = $type;
+        }
 
-	function draw()
-	{
-	    global $g_options, $optiondata, $db;
-            
+        function draw()
+        {
+            global $g_options, $optiondata, $db;
+
             // PHP 8 Fix: Null coalescing
-            $current_val = isset($optiondata[$this->name]) ? $optiondata[$this->name] : '';
-	    
+            $current_val = $optiondata[$this->name] ?? '';
+
 ?>
-		    <tr class="bg1" style="vertical-align:middle;">
-			<td class="fNormal" style="width:45%;"><?php
-	    echo $this->title . ":";
-			?></td>
-			<td style="width:55%;"><?php
-	    switch ($this->type)
-	    {
-		case 'textarea':
-		    echo "<textarea name=\"$this->name\" cols=\"35\" rows=\"4\" wrap=\"virtual\">";
-		    echo htmlspecialchars(html_entity_decode((string)$current_val), ENT_COMPAT);
-		    echo '</textarea>';
-		    break;
-		    
-		case 'styles':
-		    echo "<select name=\"$this->name\" style=\"width: 226px\">";
-		    $d = dir('styles');
-		    while (false !== ($e = $d->read()))  {
-			if (is_file("styles/$e") && ($e != '.') && ($e != '..')) {
-			    $ename = ucwords(strtolower(str_replace(array('_','.css'), array(' ',''), $e)));
-			    $sel = '';
-			    if ($e==$g_options['style'])
-				$sel = 'selected="selected"';
-			    echo "<option value=\"$e\"$sel>$ename</option>";
-			} 
-		    }
-		    $d->close();
-		    echo '</select>';
-		    break;
-		
-		case 'select':
-		    echo "<select name=\"$this->name\" style=\"width: 226px\">";
+                    <tr class="bg1" style="vertical-align:middle;">
+                        <td class="fNormal" style="width:45%;"><?php
+            echo $this->title . ":";
+                        ?></td>
+                        <td style="width:55%;"><?php
+            switch ($this->type)
+            {
+                case 'textarea':
+                    echo "<textarea name=\"$this->name\" cols=\"35\" rows=\"4\">";
+                    echo htmlspecialchars(html_entity_decode((string)$current_val, ENT_QUOTES | ENT_HTML5, 'UTF-8'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+                    echo '</textarea>';
+                    break;
+
+                case 'styles':
+                    echo "<select name=\"$this->name\" style=\"width: 226px\">";
+                    if (is_dir('styles') && ($d = dir('styles'))) {
+                        while (false !== ($e = $d->read())) {
+                            if (is_file("styles/$e") && ($e != '.') && ($e != '..') && preg_match('/\.css$/i', $e)) {
+                                $ename = ucwords(strtolower(str_replace(array('_','.css'), array(' ',''), $e)));
+                                $sel = ($e == $current_val || $e == ($g_options['style'] ?? '')) ? ' selected="selected"' : '';
+                                echo '<option value="' . htmlspecialchars($e, ENT_QUOTES, 'UTF-8') . '"' . $sel . '>' . htmlspecialchars($ename, ENT_QUOTES, 'UTF-8') . '</option>';
+                            }
+                        }
+                        $d->close();
+                    }
+                    echo '</select>';
+                    break;
+
+                case 'select':
+                    echo "<select name=\"$this->name\" style=\"width: 226px\">";
                     $name_esc = $db->escape($this->name);
-		    $result = $db->query("SELECT `value`,`text` FROM hlstats_Options_Choices WHERE keyname='$name_esc' ORDER BY isDefault desc");
-		    while ($rowdata = $db->fetch_array($result)) {
-			if ($rowdata['value'] == $current_val) {
-			    echo '<option value="'.$rowdata['value'].'" selected="selected">'.$rowdata['text'];
-			} else {
-			    echo '<option value="'.$rowdata['value'].'">'.$rowdata['text'];
-			}
-		    }
-		    echo '</select>';
-		    break;
-		    
-		default:
-		    echo "<input type=\"text\" name=\"$this->name\" size=\"35\" value=\"";
-		    echo htmlspecialchars(html_entity_decode((string)$current_val), ENT_COMPAT);
-		    echo '" class="textbox" maxlength="255" />';
-	    }
-			?></td>
-		    </tr>
+                    $result = $db->query("SELECT `value`,`text` FROM hlstats_Options_Choices WHERE keyname='$name_esc' ORDER BY isDefault DESC, text ASC");
+                    while ($rowdata = $db->fetch_array($result)) {
+                        $sel = ((string)$rowdata['value'] === (string)$current_val) ? ' selected="selected"' : '';
+                        echo '<option value="' . htmlspecialchars($rowdata['value'], ENT_QUOTES, 'UTF-8') . '"' . $sel . '>' . htmlspecialchars($rowdata['text'], ENT_QUOTES, 'UTF-8') . '</option>';
+                    }
+                    echo '</select>';
+                    break;
+
+                default:
+                    echo "<input type=\"text\" name=\"$this->name\" size=\"35\" value=\"";
+                    echo htmlspecialchars(html_entity_decode((string)$current_val, ENT_QUOTES | ENT_HTML5, 'UTF-8'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+                    echo '" class="textbox" maxlength="255" />';
+            }
+                        ?></td>
+                    </tr>
 <?php
-	}
+        }
     }
 
     $optiongroups = array();
@@ -242,7 +238,7 @@ For support and installation notes visit http://www.hlxcommunity.com
     $optiongroups[0]->options[] = new Option('modrewrite', 'Use modrewrite to make forum signature image compatible with more forum types. (To utilize this, you <strong>must</strong> have modrewrite enabled on your webserver and add the following text to a .htaccess file in the directory of hlstats.php)<br /><br /><textarea rows="3" cols="72" style="overflow:hidden;">
 RewriteEngine On
 RewriteRule sig-(.*)-(.*).png$ sig.php?player_id=$1&background=$2 [L]</textarea>', 'select');
-    
+
     $optiongroups[1] = new OptionGroup('GeoIP data & Google Map settings');
     $optiongroups[1]->options[] = new Option('countrydata', 'Show features requiring GeoIP data', 'select');
     $optiongroups[1]->options[] = new Option('show_google_map', 'Show Google worldmap', 'select');
@@ -261,7 +257,7 @@ RewriteRule sig-(.*)-(.*).png$ sig.php?player_id=$1&background=$2 [L]</textarea>
     $optiongroups[3]->options[] = new Option('counter_visit_timeout', 'Visit cookie timeout in minutes', 'text');
     $optiongroups[3]->options[] = new Option('counter_visits', 'Current Visits', 'text');
     $optiongroups[3]->options[] = new Option('counter_hits', 'Current Page Hits', 'text');
-    
+
     $optiongroups[20] = new OptionGroup('Paths');
     $optiongroups[20]->options[] = new Option('map_dlurl', 'Map Download URL<br /><span class="fSmall">(%MAP% = map, %GAME% = gamecode)</span>. Leave blank to suppress download link.', 'text');
 
@@ -274,13 +270,13 @@ RewriteRule sig-(.*)-(.*).png$ sig.php?player_id=$1&background=$2 [L]</textarea>
     $optiongroups[30]->options[] = new Option('display_style_selector', 'Display Style Selector?<br />Allow end users to change the style they are using.', 'select');
     $optiongroups[30]->options[] = new Option('display_gamelist', 'Enable Gamelist icons<br />Enables or Disables the game icons near the top-right of all pages.', 'select');
 
-    
+
     $optiongroups[35] = new OptionGroup('Ranking settings');
     $optiongroups[35]->options[] = new Option('rankingtype', '*Ranking type', 'select');
     $optiongroups[35]->options[] = new Option('MinActivity', '*HLstatsX will automatically hide players which have no event more days than this value. (Default 28 days)', 'text');
-    
+
     $optiongroups[40] = new OptionGroup('Daemon Settings');
-    $optiongroups[40]->options[] = new Option('Mode', '*Sets the player-tracking mode.<br><ul><LI><b>Steam ID</b>     - Recommended for public Internet server use. Players will be tracked by Steam ID.<LI><b>Player Name</b>  - Useful for shared-PC environments, such as Internet cafes, etc. Players will be tracked by nickname. <LI><b>IP Address</b>        - Useful for LAN servers where players do not have a real Steam ID. Players will be tracked by IP Address. </UL>', 'select');
+    $optiongroups[40]->options[] = new Option('Mode', '*Sets the player-tracking mode.<br /><ul><li><b>Steam ID</b>     - Recommended for public Internet server use. Players will be tracked by Steam ID.</li><li><b>Player Name</b>  - Useful for shared-PC environments, such as Internet cafes, etc. Players will be tracked by nickname. </li><li><b>IP Address</b>        - Useful for LAN servers where players do not have a real Steam ID. Players will be tracked by IP Address. </li></ul>', 'select');
     $optiongroups[40]->options[] = new Option('AllowOnlyConfigServers', '*Allow only servers set up in admin panel to be tracked. Other servers will NOT automatically added and tracked! This is a big security thing', 'select');
     $optiongroups[40]->options[] = new Option('DeleteDays', '*HLstatsX will automatically delete history events from the events tables when they are over this many days old. This is important for performance reasons. Set lower if you are logging a large number of game servers or find the load on the MySQL server is too high', 'text');
     $optiongroups[40]->options[] = new Option('DNSResolveIP', '*Resolve player IP addresses to hostnames. Requires a working DNS setup (on the box running hlstats.pl)', 'select');
@@ -296,7 +292,7 @@ RewriteRule sig-(.*)-(.*).png$ sig.php?player_id=$1&background=$2 [L]</textarea>
     $optiongroups[40]->options[] = new Option('LogChat', '*Log player chat to database', 'select');
     $optiongroups[40]->options[] = new Option('LogChatAdmins', '*Log admin chat to database', 'select');
     $optiongroups[40]->options[] = new Option('GlobalChat', '*Broadcast chat messages through all particapting servers. To all, none, or admins only', 'select');
-    
+
     $optiongroups[50] = new OptionGroup('Point calculation settings');
     $optiongroups[50]->options[] = new Option('SkillMaxChange', '*Maximum number of skill points a player will gain from each frag. Default 25', 'text');
     $optiongroups[50]->options[] = new Option('SkillMinChange', '*Minimum number of skill points a player will gain from each frag. Default 2', 'text');
@@ -306,29 +302,31 @@ RewriteRule sig-(.*)-(.*).png$ sig.php?player_id=$1&background=$2 [L]</textarea>
     $optiongroups[60] = new OptionGroup('Proxy Settings');
     $optiongroups[60]->options[] = new Option('Proxy_Key', '*Key to use when sending remote commands to Daemon, empty for disable', 'text');
     $optiongroups[60]->options[] = new Option('Proxy_Daemons', '*List of daemons to send PROXY events from (used by proxy-daemon.pl), use "," as delimiter, eg &lt;ip&gt;:&lt;port&gt;,&lt;ip&gt;:&lt;port&gt;,... ', 'text');
-    
+
     if (!empty($_POST))
     {
-	    foreach ($optiongroups as $og)
-	    {
-		$og->update();
-	    }
-	    message('success', 'Options updated successfully.');
+            foreach ($optiongroups as $og)
+            {
+                $og->update();
+            }
+            message('success', 'Options updated successfully.');
     }
-    
-    
+
+
+    $optiondata = array();
     $result = $db->query("SELECT keyname, value FROM hlstats_Options");
     while ($rowdata = $db->fetch_row($result))
     {
-	$optiondata[$rowdata[0]] = $rowdata[1];
+        $optiondata[$rowdata[0]] = $rowdata[1];
     }
-    
+
     foreach ($optiongroups as $og)
     {
-	$og->draw();
+        $og->draw();
     }
 ?>
-    <tr style="height:50px;">
-	<td style="text-align:center;" colspan="2"><input type="submit" value="  Apply  " class="submit" /></td>
+<table width="75%" border="0" cellspacing="0" cellpadding="0" style="margin:15px auto;">
+    <tr>
+        <td align="center"><input type="submit" value="  Apply  " class="submit" /></td>
     </tr>
 </table>

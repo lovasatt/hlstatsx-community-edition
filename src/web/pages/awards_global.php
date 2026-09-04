@@ -4,7 +4,7 @@ HLstatsX Community Edition - Real-time player and clan rankings and statistics
 Copyleft (L) 2008-20XX Nicholas Hastings (nshastings@gmail.com)
 http://www.hlxcommunity.com
 
-HLstatsX Community Edition is a continuation of 
+HLstatsX Community Edition is a continuation of
 ELstatsNEO - Real-time player and clan rankings and statistics
 Copyleft (L) 2008-20XX Malte Bayer (steam@neo-soft.org)
 http://ovrsized.neo-soft.org/
@@ -18,7 +18,7 @@ HLstatsX is an enhanced version of HLstats made by Simon Garner
 HLstats - Real-time player and clan rankings and statistics for Half-Life
 http://sourceforge.net/projects/hlstats/
 Copyright (C) 2001  Simon Garner
-            
+
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
 as published by the Free Software Foundation; either version 2
@@ -43,113 +43,118 @@ For support and installation notes visit http://www.hlxcommunity.com
     global $db, $game, $realgame, $g_options;
 
     // Security: Escape game variable
+    $game = isset($game) ? (string)$game : '';
     $game_esc = $db->escape($game);
+    $game_url = urlencode($game);
+    $realgame = isset($realgame) ? (string)$realgame : '';
 
     $resultAwards = $db->query("
-	SELECT
-	    hlstats_Awards.awardType,
-	    hlstats_Awards.code,
-	    hlstats_Awards.name,
-	    hlstats_Awards.verb,
-	    hlstats_Awards.g_winner_id,
-	    hlstats_Awards.g_winner_count,
-	    hlstats_Players.lastName AS g_winner_name,
-	    hlstats_Players.flag AS flag,
-	    hlstats_Players.country AS country
-	FROM
-	    hlstats_Awards
-	LEFT JOIN hlstats_Players ON
-	    hlstats_Players.playerId = hlstats_Awards.g_winner_id
-	WHERE
-	    hlstats_Awards.game='$game_esc'
-	ORDER BY
-	    hlstats_Awards.name
+        SELECT
+            hlstats_Awards.awardType,
+            hlstats_Awards.code,
+            hlstats_Awards.name,
+            hlstats_Awards.verb,
+            hlstats_Awards.g_winner_id,
+            hlstats_Awards.g_winner_count,
+            unhex(replace(hex(hlstats_Players.lastName), 'E280AE', '')) AS g_winner_name,
+            hlstats_Players.flag AS flag,
+            hlstats_Players.country AS country
+        FROM
+            hlstats_Awards
+        LEFT JOIN hlstats_Players ON
+            (hlstats_Players.playerId = hlstats_Awards.g_winner_id AND hlstats_Players.game = hlstats_Awards.game)
+        WHERE
+            hlstats_Awards.game = '$game_esc'
+        ORDER BY
+            hlstats_Awards.name
     ");
 ?>
 
 <div class="block">
     <?php printSectionTitle('Global Awards'); ?>
     <div class="subblock">
-	<table class="data-table">
+        <table class="data-table">
 <?php
     $i = 0;
     // PHP 8 Fix: Ensure numeric type and existence
     $cols = isset($g_options['awardglobalcols']) ? (int)$g_options['awardglobalcols'] : 5;
     if ($cols < 1 || $cols > 10)
     {
-	$cols = 5;
+        $cols = 5;
     }
-    $colwidth = round(100/$cols);
+    $colwidth = round(100 / $cols);
     while ($r = $db->fetch_array($resultAwards))
     {
-	if ($i == $cols)
-	{
-	    echo '</tr>'; $i = 0;
-	}
-	if ($i == 0)
-	{
-	    echo '<tr class="bg1">';
-	}
-   
-        // PHP 8 Fix: Cast to string for strtolower
-        $img_key = strtolower((string)$r['awardType'] . '_' . (string)$r['code']);
+        if ($i == $cols)
+        {
+            echo '</tr>';
+            $i = 0;
+        }
+        if ($i == 0)
+        {
+            echo '<tr class="bg1">';
+        }
 
-	if ($image = getImage("/games/$game/gawards/" . $img_key))
-	{
-	    $img = $image['url'];
-	}
-	elseif ($realgame && $image = getImage("/games/$realgame/gawards/" . $img_key))
-	{
-	    $img = $image['url'];
-	}
-	else
-	{
-	    $img = IMAGE_PATH.'/award.png';
-	}
-        
-        $safe_name = htmlspecialchars((string)$r['name']);
-        $safe_code = htmlspecialchars((string)$r['code']);
-        $safe_verb = htmlspecialchars((string)$r['verb']);
-        $safe_game = htmlspecialchars((string)$game);
-        
-	$weapon = "<img src=\"$img\" alt=\"$safe_code\" />";
-        
-	if ($r['g_winner_id'] > 0)
-	{
-	    if ($g_options['countrydata'] == 1) {
-                // PHP 8 Fix: Ensure string types
-                $flag = htmlspecialchars((string)$r['flag']);
-                $country = htmlspecialchars((string)$r['country']);
-		$imagestring = '<img src="'.getFlag($r['flag']).'" alt="'.$country.'" />&nbsp;&nbsp;';
-	    } else {
-		$imagestring = '';
-	    }
-	    $winnerstring = '<strong>'.htmlspecialchars((string)$r['g_winner_name'], ENT_COMPAT).'</strong>';
-	    $achvd = "{$imagestring} <a href=\"hlstats.php?mode=playerinfo&amp;player={$r['g_winner_id']}&amp;game={$safe_game}\">{$winnerstring}</a>";
-	    $wincount = $r['g_winner_count'];			
-	} else {
-	    $achvd = "<em>No Award Winner</em>";
-	    $wincount= "0";
-	}			
-   
-	echo "<td style=\"text-align:center;vertical-align:top;width:$colwidth%;\">
-	    <strong>$safe_name</strong><br /><br />"
-	    ."$weapon<br /><br />"
-	    ."$achvd<br />"
-	    .'<span class="fSmall">'. $wincount . ' ' . $safe_verb.'</span>
-	    </td>';
-	$i++;
+        // PHP 8 Fix: Cast to string for strtolower
+        $img_key = strtolower((string)($r['awardType'] ?? '') . '_' . (string)($r['code'] ?? ''));
+
+        if ($image = getImage("/games/$game/gawards/" . $img_key))
+        {
+            $img = $image['url'];
+        }
+        elseif ($realgame && $image = getImage("/games/$realgame/gawards/" . $img_key))
+        {
+            $img = $image['url'];
+        }
+        else
+        {
+            $img = IMAGE_PATH . '/award.png';
+        }
+
+        $safe_name = htmlspecialchars((string)($r['name'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        $safe_code = htmlspecialchars((string)($r['code'] ?? ''), ENT_QUOTES, 'UTF-8');
+        $safe_verb = htmlspecialchars((string)($r['verb'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+
+        $weapon = '<img src="' . htmlspecialchars((string)$img, ENT_QUOTES, 'UTF-8') . '" alt="' . $safe_code . '" />';
+
+        if ((int)($r['g_winner_id'] ?? 0) > 0)
+        {
+            $countrydata = (int)($g_options['countrydata'] ?? 0);
+            if ($countrydata === 1) {
+                $flag_code = !empty($r['flag']) ? (string)$r['flag'] : '0';
+                $country = htmlspecialchars((string)($r['country'] ?? 'Unknown Country'), ENT_QUOTES, 'UTF-8');
+                $imagestring = '<img src="' . getFlag($flag_code) . '" alt="' . $country . '" title="' . $country . '" />&nbsp;&nbsp;';
+            } else {
+                $imagestring = '';
+            }
+            $g_winner_id = (int)$r['g_winner_id'];
+            $winnerstring = '<strong>' . htmlspecialchars((string)($r['g_winner_name'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</strong>';
+            $achvd = "{$imagestring} <a href=\"hlstats.php?mode=playerinfo&amp;player={$g_winner_id}&amp;game={$game_url}\">{$winnerstring}</a>";
+            $wincount = number_format((int)($r['g_winner_count'] ?? 0));
+        } else {
+            $achvd = "<em>No Award Winner</em>";
+            $wincount = "0";
+        }
+
+        echo "<td style=\"text-align:center;vertical-align:top;width:$colwidth%;\">
+            <strong>$safe_name</strong><br /><br />"
+            ."$weapon<br /><br />"
+            ."$achvd<br />"
+            .'<span class="fSmall">' . $wincount . ' ' . $safe_verb . '</span>
+            </td>';
+        $i++;
     }
     if ($i != 0)
     {
-	for ($i = $i; $i < $cols; $i++)
-	{
-	    echo '<td class="bg1">&nbsp;</td>';
-	}
-	echo '</tr>';
-    } 
+        for (; $i < $cols; $i++)
+        {
+            echo '<td class="bg1">&nbsp;</td>';
+        }
+        echo '</tr>';
+    }
+    $db->free_result($resultAwards);
 ?>
 
-	</table>
+        </table>
     </div>
 </div>

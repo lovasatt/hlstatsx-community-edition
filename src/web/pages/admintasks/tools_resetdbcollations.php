@@ -4,7 +4,7 @@ HLstatsX Community Edition - Real-time player and clan rankings and statistics
 Copyleft (L) 2008-20XX Nicholas Hastings (nshastings@gmail.com)
 http://www.hlxcommunity.com
 
-HLstatsX Community Edition is a continuation of 
+HLstatsX Community Edition is a continuation of
 ELstatsNEO - Real-time player and clan rankings and statistics
 Copyleft (L) 2008-20XX Malte Bayer (steam@neo-soft.org)
 http://ovrsized.neo-soft.org/
@@ -18,7 +18,7 @@ HLstatsX is an enhanced version of HLstats made by Simon Garner
 HLstats - Real-time player and clan rankings and statistics for Half-Life
 http://sourceforge.net/projects/hlstats/
 Copyright (C) 2001  Simon Garner
-            
+
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
 as published by the Free Software Foundation; either version 2
@@ -48,135 +48,136 @@ For support and installation notes visit http://www.hlxcommunity.com
     }
 ?>
 
-&nbsp;&nbsp;&nbsp;&nbsp;<img src="<?php echo IMAGE_PATH; ?>/downarrow.gif" width="9" height="6" class="imageformat" alt=""><b>&nbsp;<?php echo htmlspecialchars($task->title); ?></b><p>
+&nbsp;&nbsp;&nbsp;&nbsp;<img src="<?php echo IMAGE_PATH; ?>/downarrow.gif" width="9" height="6" class="imageformat" alt="" /><b>&nbsp;<?php echo htmlspecialchars($task->title ?? '', ENT_QUOTES, 'UTF-8'); ?></b><br /><br />
 
 <?php
 
     if (isset($_POST['confirm'])){
-	$convert_to = DB_COLLATE;
-	$character_set = DB_CHARSET;
-        $print_only = (isset($_POST['printonly']) && $_POST['printonly'] > 0);
+        $convert_to = defined('DB_COLLATE') ? DB_COLLATE : 'utf8mb4_unicode_ci';
+        $character_set = defined('DB_CHARSET') ? DB_CHARSET : 'utf8mb4';
+        $db_name = defined('DB_NAME') ? DB_NAME : '';
+        $print_only = (!empty($_POST['printonly']) && (int)$_POST['printonly'] > 0);
 
-	if ($print_only) {
-	    echo '<strong>Run these statements against your MySql database</strong><br><br>';
-	    echo "ALTER DATABASE `".DB_NAME."` DEFAULT CHARACTER SET $character_set COLLATE $convert_to;<br>";
+        if ($print_only) {
+            echo '<strong>Run these statements against your MySql database</strong><br /><br />';
+            echo "ALTER DATABASE `" . $db_name . "` DEFAULT CHARACTER SET $character_set COLLATE $convert_to;<br />";
 
-	    $rs_tables = $db->query('SHOW TABLES');
+            $rs_tables = $db->query('SHOW TABLES');
             if (!$rs_tables) die("DB:> Cannot SHOW TABLES");
 
-	    while ($row_tables = $db->fetch_row($rs_tables))
-	    {
-		$table = $db->escape($row_tables[0]);
+            while ($row_tables = $db->fetch_row($rs_tables))
+            {
+                $table = $db->escape($row_tables[0]);
 
-		echo "ALTER TABLE `$table` CONVERT TO CHARACTER SET $character_set COLLATE $convert_to;<br>";
+                echo "ALTER TABLE `$table` CONVERT TO CHARACTER SET $character_set COLLATE $convert_to;<br />";
 
-		$rs = $db->query("SHOW FULL FIELDS FROM `$table` WHERE collation is not null AND collation <> '{$convert_to}'");
+                $rs = $db->query("SHOW FULL FIELDS FROM `$table` WHERE collation is not null AND collation <> '{$convert_to}'");
                 if (!$rs) die ("DB:> Cannot SHOW FULL FIELDS");
 
                 // PHP 8 Fix: Use class method instead of procedural mysqli_fetch_assoc
-		while ($row = $db->fetch_array($rs))
-		{
-		    if ($row['Collation'] == '')
-			continue;
-		    if ( strtolower((string)$row['Null']) == 'yes' )
-			$nullable = ' NULL ';
-		    else
-			$nullable = ' NOT NULL';
-                    
+                while ($row = $db->fetch_array($rs))
+                {
+                    if ($row['Collation'] == '')
+                        continue;
+                    if ( strtolower((string)$row['Null']) == 'yes' )
+                        $nullable = ' NULL ';
+                    else
+                        $nullable = ' NOT NULL';
+
                     // Fix: Logic error in original code (= vs ==)
-		    if ( $row['Default'] === NULL && trim($nullable) == 'NOT NULL')
-			$default = " DEFAULT ''";
-		    else if ( $row['Default'] === NULL )
-			$default = ' DEFAULT NULL';
-		    else if ($row['Default']!='')
-			$default = " DEFAULT '".$db->escape($row['Default'])."'";
-		    else
-			$default = '';
-		    
-		    $field = $db->escape($row['Field']);
-		    echo "ALTER TABLE `$table` CHANGE `$field` `$field` $row[Type] CHARACTER SET $character_set COLLATE $convert_to $nullable $default;<br>";
-		}
-	    }
-	} else {
-	    echo "Converting database, table, and row collations to {$character_set}:<ul>\n";
-	    set_time_limit(0);
-	    echo '<li>Changing '.DB_NAME.' default character set and collation... ';
-            
-            $db->query("ALTER DATABASE `".DB_NAME."` DEFAULT CHARACTER SET $character_set COLLATE $convert_to;") or die("DB:> Cannot ALTER DATABASE");
-	    
-            echo 'OK';
-	    $rs_tables = $db->query('SHOW TABLES');
+                    if ( $row['Default'] === NULL && trim($nullable) == 'NOT NULL')
+                        $default = " DEFAULT ''";
+                    else if ( $row['Default'] === NULL )
+                        $default = ' DEFAULT NULL';
+                    else if ($row['Default']!='')
+                        $default = " DEFAULT '".$db->escape($row['Default'])."'";
+                    else
+                        $default = '';
+
+                    $field = $db->escape($row['Field']);
+                    $type = $row['Type'];
+                    echo "ALTER TABLE `$table` CHANGE `$field` `$field` $type CHARACTER SET $character_set COLLATE $convert_to $nullable $default;<br />";
+                }
+            }
+        } else {
+            echo "Converting database, table, and row collations to {$character_set}:<ul>\n";
+            @set_time_limit(0);
+            echo '<li>Changing ' . $db_name . ' default character set and collation... ';
+
+            $db->query("ALTER DATABASE `" . $db_name . "` DEFAULT CHARACTER SET $character_set COLLATE $convert_to;") or die("DB:> Cannot ALTER DATABASE");
+
+            echo "OK</li>\n";
+            $rs_tables = $db->query('SHOW TABLES');
             if (!$rs_tables) die("DB:> Cannot SHOW TABLES");
 
-	    while ($row_tables = $db->fetch_row($rs_tables))
-	    {
-		$table = $db->escape($row_tables[0]);
+            while ($row_tables = $db->fetch_row($rs_tables))
+            {
+                $table = $db->escape($row_tables[0]);
 
-		echo "<li>Converting Table: $table ... ";
+                echo "<li>Converting Table: $table ... ";
 
-		$db->query("ALTER TABLE `$table` CONVERT TO CHARACTER SET $character_set COLLATE $convert_to;");
+                $db->query("ALTER TABLE `$table` CONVERT TO CHARACTER SET $character_set COLLATE $convert_to;");
 
-		echo 'OK';
+                echo "OK</li>\n";
 
-		$rs = $db->query("SHOW FULL FIELDS FROM `$table` WHERE collation is not null AND collation <> '{$convert_to}'");
+                $rs = $db->query("SHOW FULL FIELDS FROM `$table` WHERE collation is not null AND collation <> '{$convert_to}'");
                 if (!$rs) die("DB:> Cannot SHOW FULL FIELDS");
 
-		while ($row = $db->fetch_array($rs))
-		{
-		    if ($row['Collation'] == '')
-			continue;
-		    if ( strtolower((string)$row['Null']) == 'yes' )
-			$nullable = ' NULL ';
-		    else
-			$nullable = ' NOT NULL';
-                    
-                    // Fix: Logic error in original code (= vs ==)
-		    if ( $row['Default'] === NULL && trim($nullable) == 'NOT NULL')
-			$default = " DEFAULT ''";
-		    else if ( $row['Default'] === NULL )
-			$default = ' DEFAULT NULL';
-		    else if ($row['Default']!='')
-			$default = " DEFAULT '".$db->escape($row['Default'])."'";
-		    else
-			$default = '';
-		    
-		    $field = $db->escape($row['Field']);
-		    echo "<li>Converting Table: $table   Column: $field ... ";
-		    $db->query("ALTER TABLE `$table` CHANGE `$field` `$field` $row[Type] CHARACTER SET $character_set COLLATE $convert_to $nullable $default;");
-		    echo 'OK';
-		}
-	    }
-	    echo '</ul>';
-	    
-	    echo 'Done.<p>';
-	}
-	
-    } else {
-        
-?>        
+                while ($row = $db->fetch_array($rs))
+                {
+                    if ($row['Collation'] == '')
+                        continue;
+                    if ( strtolower((string)$row['Null']) == 'yes' )
+                        $nullable = ' NULL ';
+                    else
+                        $nullable = ' NOT NULL';
 
-<form method="POST">
-<table width="60%" align="center" border="0" cellspacing="0" cellpadding="0" class="border">
+                    // Fix: Logic error in original code (= vs ==)
+                    if ( $row['Default'] === NULL && trim($nullable) == 'NOT NULL')
+                        $default = " DEFAULT ''";
+                    else if ( $row['Default'] === NULL )
+                        $default = ' DEFAULT NULL';
+                    else if ($row['Default']!='')
+                        $default = " DEFAULT '".$db->escape($row['Default'])."'";
+                    else
+                        $default = '';
+
+                    $field = $db->escape($row['Field']);
+                    $type = $row['Type'];
+                    echo "<li>Converting Table: $table   Column: $field ... ";
+                    $db->query("ALTER TABLE `$table` CHANGE `$field` `$field` $type CHARACTER SET $character_set COLLATE $convert_to $nullable $default;");
+                    echo "OK</li>\n";
+                }
+            }
+            echo "</ul>\n";
+
+            echo "Done.<br /><br />";
+        }
+
+    } else {
+
+?>
+
+<form method="post">
+<table width="60%" border="0" cellspacing="0" cellpadding="0" class="border" style="margin:15px auto;">
 
 <tr>
     <td>
         <table width="100%" border="0" cellspacing="1" cellpadding="10">
-        
+
         <tr class="bg1">
             <td class="fNormal">
 
-Resets DB Collations if you get collation errors after an upgrade from another HLstats(X)-based system. <br><br>
-You should not lose any data, but be sure to back up your database before running to be on the safe side.<br><br><br>
+Resets DB Collations if you get collation errors after an upgrade from another HLstats(X)-based system.<br /><br />
+You should not lose any data, but be sure to back up your database before running to be on the safe side.<br /><br /><br />
 
-
-
-<input type="hidden" name="confirm" value="1">
-<input type="radio" name="printonly" value="0" checked> Run the commands on the database<br>
-<input type="radio" name="printonly" value="1"> Print the commands and I'll run them myself (recommended if you have a very large database likely to hang the script)<br>
-<center><input type="submit" value="Generate commands and do the above"></center>
+<input type="hidden" name="confirm" value="1" />
+<label style="cursor:pointer;"><input type="radio" name="printonly" value="0" checked="checked" /> Run the commands on the database</label><br />
+<label style="cursor:pointer;"><input type="radio" name="printonly" value="1" /> Print the commands and I'll run them myself (recommended if you have a very large database likely to hang the script)</label><br /><br />
+<div style="text-align:center;margin-top:15px;"><input type="submit" value="Generate commands and do the above" class="submit" /></div>
 </td>
         </tr>
-        
+
         </table></td>
 </tr>
 

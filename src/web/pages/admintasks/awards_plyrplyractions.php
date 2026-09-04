@@ -4,7 +4,7 @@ HLstatsX Community Edition - Real-time player and clan rankings and statistics
 Copyleft (L) 2008-20XX Nicholas Hastings (nshastings@gmail.com)
 http://www.hlxcommunity.com
 
-HLstatsX Community Edition is a continuation of 
+HLstatsX Community Edition is a continuation of
 ELstatsNEO - Real-time player and clan rankings and statistics
 Copyleft (L) 2008-20XX Malte Bayer (steam@neo-soft.org)
 http://ovrsized.neo-soft.org/
@@ -18,7 +18,7 @@ HLstatsX is an enhanced version of HLstats made by Simon Garner
 HLstats - Real-time player and clan rankings and statistics for Half-Life
 http://sourceforge.net/projects/hlstats/
 Copyright (C) 2001  Simon Garner
-            
+
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
 as published by the Free Software Foundation; either version 2
@@ -46,7 +46,8 @@ For support and installation notes visit http://www.hlxcommunity.com
     if (($auth->userdata['acclevel'] ?? 0) < 80) {
         die ('Access denied!');
     }
-    
+
+    $gamecode = (string)($gamecode ?? '');
     // Security: Escape gamecode
     $gamecode_esc = $db->escape($gamecode);
 
@@ -55,38 +56,38 @@ For support and installation notes visit http://www.hlxcommunity.com
     $edlist->columns[] = new EditListColumn('awardType', 'Type', 0, true, 'hidden', 'P');
     $edlist->columns[] = new EditListColumn('code', 'Action', 0, true, 'select', "hlstats_Actions.description/code/game='$gamecode_esc' AND for_PlayerPlayerActions='1'");
     $edlist->columns[] = new EditListColumn('name', 'Award Name', 20, true, 'text', '', 128);
-    $edlist->columns[] = new EditListColumn('verb', 'Verb Plural', 20, true, 'text', '', 64);
-    
-    
-    if ($_POST)
+    $edlist->columns[] = new EditListColumn('verb', 'Verb Plural', 20, true, 'text', '', 128);
+
+
+    if (!empty($_POST))
     {
-	if ($edlist->update())
-	    message('success', 'Operation successful.');
-	else
-	    message('warning', $edlist->error());
+        if ($edlist->update())
+            message('success', 'Operation successful.');
+        else
+            message('warning', $edlist->error());
     }
-    
-    
+
+
     $result = $db->query("
-	SELECT
-	    awardId,
-	    code,
-	    name,
-	    verb
-	FROM
-	    hlstats_Awards
-	WHERE
-	    game='$gamecode_esc'
-	    AND awardType='P'
-	ORDER BY
-	    code ASC
+        SELECT
+            awardId,
+            code,
+            name,
+            verb
+        FROM
+            hlstats_Awards
+        WHERE
+            game='$gamecode_esc'
+            AND awardType='P'
+        ORDER BY
+            code ASC
     ");
-    
+
     $edlist->draw($result);
 ?>
 
-<table width="75%" border="0" cellspacing="0" cellpadding="0">
+<table width="75%" border="0" cellspacing="0" cellpadding="0" style="margin:15px auto;">
 <tr>
-    <td align="center"><input type="submit" value="  Apply  " class="submit"></td>
+    <td align="center"><input type="submit" value="  Apply  " class="submit" /></td>
 </tr>
 </table>

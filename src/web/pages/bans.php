@@ -4,7 +4,7 @@ HLstatsX Community Edition - Real-time player and clan rankings and statistics
 Copyleft (L) 2008-20XX Nicholas Hastings (nshastings@gmail.com)
 http://www.hlxcommunity.com
 
-HLstatsX Community Edition is a continuation of 
+HLstatsX Community Edition is a continuation of
 ELstatsNEO - Real-time player and clan rankings and statistics
 Copyleft (L) 2008-20XX Malte Bayer (steam@neo-soft.org)
 http://ovrsized.neo-soft.org/
@@ -18,7 +18,7 @@ HLstatsX is an enhanced version of HLstats made by Simon Garner
 HLstats - Real-time player and clan rankings and statistics for Half-Life
 http://sourceforge.net/projects/hlstats/
 Copyright (C) 2001  Simon Garner
-            
+
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
 as published by the Free Software Foundation; either version 2
@@ -42,190 +42,197 @@ For support and installation notes visit http://www.hlxcommunity.com
 
     global $db, $game, $g_options;
 
-    // Security: Escape game variable
+    // Initialize variables
+    $game = isset($game) ? (string)$game : '';
     $game_esc = $db->escape($game);
+    $game_url = urlencode($game);
+    $scripturl = htmlspecialchars((string)($g_options['scripturl'] ?? ''), ENT_QUOTES, 'UTF-8');
 
 // Player Rankings
-    $db->query
+    $res_game = $db->query
     ("
-	SELECT
-	    hlstats_Games.name
-	FROM
-	    hlstats_Games
-	WHERE
-	    hlstats_Games.code = '$game_esc'
+        SELECT
+            hlstats_Games.name
+        FROM
+            hlstats_Games
+        WHERE
+            hlstats_Games.code = '$game_esc'
     ");
 
-    if ($db->num_rows() < 1) {
-        error("No such game '$game'.");
+    if ($db->num_rows($res_game) < 1) {
+        error("No such game '" . htmlspecialchars($game, ENT_QUOTES, 'UTF-8') . "'.");
     }
 
     // PHP 8 Fix: Replace list() which fails on empty result
-    $row = $db->fetch_row();
-    $gamename = ($row) ? $row[0] : '';
+    $row = $db->fetch_row($res_game);
+    $gamename = ($row) ? (string)$row[0] : ucfirst($game);
 
-    $db->free_result();
+    $db->free_result($res_game);
 
     if (isset($_GET['minkills'])) {
-	$minkills = valid_request((int)$_GET['minkills'], true);
+        $minkills = valid_request((int)$_GET['minkills'], true);
     } else {
-	$minkills = 0;
+        $minkills = 0;
     }
     // Ensure minkills is safe for SQL
-    $minkills = (int)$minkills;
+    $minkills = max(0, (int)$minkills);
 
     pageHeader
     (
-	array ($gamename, 'Cheaters &amp; Banned Players'),
-	array ($gamename=>"%s?game=$game", 'Cheaters &amp; Banned Players'=>'')
+        array ($gamename, 'Cheaters &amp; Banned Players'),
+        array ($gamename => "%s?game=$game_url", 'Cheaters &amp; Banned Players' => '')
     );
 
     $table = new Table(
-	array(
-	    new TableColumn(
-		'lastName',
-		'Player',
-		'width=26&flag=1&link=' . urlencode('mode=playerinfo&amp;player=%k')
-	    ),
-	    new TableColumn(
-		'ban_date',
-		'Ban Date',
-		'width=15&align=right'
-	    ),
-	    new TableColumn(
-		'skill',
-		'Points',
-		'width=6&align=right'
-	    ),
-	    new TableColumn(
-		'activity',
-		'Activity',
-		'width=10&sort=no&type=bargraph'
-	    ),
-	    new TableColumn(
-		'kills',
-		'Kills',
-		'width=5&align=right'
-	    ),
-	    new TableColumn(
-		'deaths',
-		'Deaths',
-		'width=5&align=right'
-	    ),
-	    new TableColumn(
-		'headshots',
-		'Headshots',
-		'width=7&align=right'
-	    ),
-	    new TableColumn(
-		'kpd',
-		'K:D',
-		'width=10&align=right'
-	    ),
-	    new TableColumn(
-		'hpk',
-		'HS:K',
-		'width=5&align=right'
-	    ),
-	    new TableColumn(
-		'acc',
-		'Accuracy',
-		'width=6&align=right&append=' . urlencode('%')
-	    )
-	),
-	'playerId',
-	'last_event',
-	'skill',
-	true
+        array(
+            new TableColumn(
+                'lastName',
+                'Player',
+                'width=26&flag=1&link=' . urlencode('mode=playerinfo&player=%k')
+            ),
+            new TableColumn(
+                'ban_date',
+                'Ban Date',
+                'width=15&align=right'
+            ),
+            new TableColumn(
+                'skill',
+                'Points',
+                'width=6&align=right'
+            ),
+            new TableColumn(
+                'activity',
+                'Activity',
+                'width=10&sort=no&type=bargraph'
+            ),
+            new TableColumn(
+                'kills',
+                'Kills',
+                'width=5&align=right'
+            ),
+            new TableColumn(
+                'deaths',
+                'Deaths',
+                'width=5&align=right'
+            ),
+            new TableColumn(
+                'headshots',
+                'Headshots',
+                'width=7&align=right'
+            ),
+            new TableColumn(
+                'kpd',
+                'K:D',
+                'width=10&align=right'
+            ),
+            new TableColumn(
+                'hpk',
+                'HS:K',
+                'width=5&align=right'
+            ),
+            new TableColumn(
+                'acc',
+                'Accuracy',
+                'width=6&align=right&append=' . urlencode('%')
+            )
+        ),
+        'playerId',
+        'last_event',
+        'skill',
+        true
     );
 
     $day_interval = 28;
 
     $resultCount = $db->query
     ("
-	SELECT
-	    COUNT(*)
-	FROM
-	    hlstats_Players
-	WHERE
-	    hlstats_Players.game = '$game_esc'
-	    AND hlstats_Players.hideranking = 2
-	    AND hlstats_Players.kills >= $minkills
+        SELECT
+            COUNT(*)
+        FROM
+            hlstats_Players
+        WHERE
+            hlstats_Players.game = '$game_esc'
+            AND hlstats_Players.hideranking = 2
+            AND hlstats_Players.kills >= $minkills
     ");
 
     // PHP 8 Fix: Replace list()
     $row = $db->fetch_row($resultCount);
     $numitems = ($row) ? (int)$row[0] : 0;
+    $db->free_result($resultCount);
 
     $result = $db->query
     ("
-	SELECT
-	    hlstats_Players.playerId,
-	    FROM_UNIXTIME(last_event,'%Y.%m.%d %T') as ban_date,
-	    hlstats_Players.flag,
-                        unhex(replace(hex(hlstats_Players.lastName), 'E280AE', '')) as lastName,
-	    hlstats_Players.skill,
-	    hlstats_Players.kills,
-	    hlstats_Players.deaths,
-	    IFNULL(ROUND(hlstats_Players.kills / IF(hlstats_Players.deaths = 0, 1, hlstats_Players.deaths), 2), '-') AS kpd,
-	    hlstats_Players.headshots,
-	    IFNULL(ROUND(hlstats_Players.headshots / hlstats_Players.kills, 2), '-') AS hpk,
-	    IFNULL(ROUND((hlstats_Players.hits / hlstats_Players.shots * 100), 0), 0) AS acc,
-	    activity
-	FROM
-	    hlstats_Players
-	WHERE
-	    hlstats_Players.game = '$game_esc'
-	    AND hlstats_Players.hideranking = 2
-	    AND hlstats_Players.kills >= $minkills
-	ORDER BY
-	    $table->sort $table->sortorder,
-	    $table->sort2 $table->sortorder,
-	    hlstats_Players.lastName ASC
-	LIMIT
-	    $table->startitem,
-	    $table->numperpage
+        SELECT
+            hlstats_Players.playerId,
+            FROM_UNIXTIME(last_event,'%Y.%m.%d %T') as ban_date,
+            hlstats_Players.flag,
+            unhex(replace(hex(hlstats_Players.lastName), 'E280AE', '')) as lastName,
+            hlstats_Players.skill,
+            hlstats_Players.kills,
+            hlstats_Players.deaths,
+            IFNULL(ROUND(hlstats_Players.kills / IF(hlstats_Players.deaths = 0, 1, hlstats_Players.deaths), 2), '-') AS kpd,
+            hlstats_Players.headshots,
+            IFNULL(ROUND(hlstats_Players.headshots / IF(hlstats_Players.kills = 0, 1, hlstats_Players.kills), 2), '-') AS hpk,
+            IFNULL(ROUND((hlstats_Players.hits / IF(hlstats_Players.shots = 0, 1, hlstats_Players.shots) * 100), 0), 0) AS acc,
+            activity
+        FROM
+            hlstats_Players
+        WHERE
+            hlstats_Players.game = '$game_esc'
+            AND hlstats_Players.hideranking = 2
+            AND hlstats_Players.kills >= $minkills
+        ORDER BY
+            $table->sort $table->sortorder,
+            $table->sort2 $table->sortorder,
+            hlstats_Players.lastName ASC
+        LIMIT
+            $table->startitem,
+            $table->numperpage
     ");
 ?>
 
 <div class="block">
     <?php printSectionTitle('Cheaters &amp; Banned Players'); ?>
-	<div class="subblock">
-	    <div style="float:left;">
-		<form method="get" action="<?php echo htmlspecialchars($g_options['scripturl']); ?>">
-		    <input type="hidden" name="mode" value="search" />
-		    <input type="hidden" name="game" value="<?php echo htmlspecialchars($game); ?>" />
-		    <input type="hidden" name="st" value="player" />
-		    <strong>&#8226;</strong> Find a player:
-		    <input type="text" name="q" size="20" maxlength="64" class="textbox" />
-		    <input type="submit" value="Search" class="smallsubmit" />
-		</form>
-	    </div>
-	</div><br /><br />
-	<div style="clear:both;padding-top:4px;"></div>
-	<?php $table->draw($result, $numitems, 95); ?><br /><br />
-	<div class="subblock">
-	    <div style="float:left;">
-		<form method="get" action="<?php echo htmlspecialchars($g_options['scripturl']); ?>">
-		    <?php
-			foreach ($_GET as $k=>$v)
-			{
+        <div class="subblock">
+            <div style="float:left;">
+                <form method="get" action="<?php echo $scripturl; ?>">
+                    <input type="hidden" name="mode" value="search" />
+                    <input type="hidden" name="game" value="<?php echo htmlspecialchars($game, ENT_QUOTES, 'UTF-8'); ?>" />
+                    <input type="hidden" name="st" value="player" />
+                    <strong>&#8226;</strong> Find a player:
+                    <input type="text" name="q" size="20" maxlength="64" class="textbox" />
+                    <input type="submit" value="Search" class="smallsubmit" />
+                </form>
+            </div>
+            <div style="clear:both;"></div>
+        </div><br /><br />
+        <div style="clear:both;padding-top:4px;"></div>
+        <?php $table->draw($result, $numitems, 95); ?><br /><br />
+        <div class="subblock">
+            <div style="float:left;">
+                <form method="get" action="<?php echo $scripturl; ?>">
+                    <?php
+                        foreach ($_GET as $k => $v)
+                        {
+                            if (is_array($v)) continue;
                             // PHP 8 Fix: Cast and check
                             $k = (string)$k;
-			    $v = valid_request((string)$v, false);
-			    if ($k != "minkills")
-			    {
-				echo "<input type=\"hidden\" name=\"" . htmlspecialchars($k) . "\" value=\"" . htmlspecialchars($v) . "\" />\n";
-			    }
-			}
-		    ?>
-		    <strong>&#8226;</strong> Show only players with
-		    <input type="text" name="minkills" size="4" maxlength="2" value="<?php echo $minkills; ?>" class="textbox" /> or more kills from a total <strong><?php echo number_format($numitems); ?></strong> banned players
-		    <input type="submit" value="Apply" class="smallsubmit" />
-		</form>
-	    </div>
-	    <div style="float:right;">
-		Go to: <a href="<?php echo htmlspecialchars($g_options["scripturl"]) . "?game=$game"; ?>"><?php echo htmlspecialchars($gamename); ?></a>
-	    </div>
+                            $v = valid_request((string)$v, false);
+                            if ($k !== "minkills")
+                            {
+                                echo "<input type=\"hidden\" name=\"" . htmlspecialchars($k, ENT_QUOTES, 'UTF-8') . "\" value=\"" . htmlspecialchars($v, ENT_QUOTES, 'UTF-8') . "\" />\n";
+                            }
+                        }
+                    ?>
+                    <strong>&#8226;</strong> Show only players with
+                    <input type="text" name="minkills" size="4" maxlength="4" value="<?php echo $minkills; ?>" class="textbox" /> or more kills from a total <strong><?php echo number_format($numitems); ?></strong> banned players
+                    <input type="submit" value="Apply" class="smallsubmit" />
+                </form>
+            </div>
+            <div style="float:right;">
+                Go to: <a href="<?php echo $scripturl . '?game=' . $game_url; ?>"><?php echo htmlspecialchars($gamename, ENT_QUOTES, 'UTF-8'); ?></a>
+            </div>
+            <div style="clear:both;"></div>
     </div>
 </div>
