@@ -330,7 +330,7 @@
     }
 
     /* Ensures all rank icons and ribbons stay sharp and consistent */
-    img[src*="ranks/"], 
+    img[src*="ranks/"],
     img[src*="mmranks/"],
     img[src*="ribbons/"],
     img[src*="awards/"],
@@ -481,6 +481,51 @@
         table, tr, td, th, .contents, .main-table, .data-table {
             border-color: var(--border-soft) !important;
         }
+
+        /* --- LIVESTATS (LIVE PLAYERS TABLE) DARK MODE OVERRIDE --- */
+        /* Universal dark mode override: clean dark background with uniform light text and no hover glow */
+        .livestats-table,
+        .livestats-table tr,
+        .livestats-table td,
+        .livestats-table tr[style],
+        .livestats-table td[style] {
+            background-color: var(--bg-block) !important;
+            color: var(--text-soft) !important;
+            border-color: var(--border-main) !important;
+        }
+
+        /* Subtle alternating row tint for better readability (zebra striping preserved) */
+        .livestats-table tr:nth-child(even) td {
+            background-color: rgba(255, 255, 255, 0.025) !important;
+        }
+
+        /* Team summary header and separator rows */
+        .livestats-table tr td[style*="border-top"] {
+            background-color: var(--bg-header) !important;
+            border-top: 1px solid var(--border-soft) !important;
+            color: var(--text-soft) !important;
+            font-weight: bold !important;
+        }
+
+        /* Player name link styling in dark mode */
+        .livestats-table a,
+        .livestats-table td a,
+        .livestats-table td a[style] {
+            color: var(--accent-blue) !important;
+            text-decoration: none !important;
+        }
+
+        .livestats-table a:hover {
+            text-decoration: underline !important;
+        }
+
+        /* Override "No Players" cell: solid dark background with standard readable light text */
+        .livestats-table td[style*="#EFEFEF"],
+        .livestats-table td[style*="background:#EFEFEF"] {
+            background-color: var(--bg-block) !important;
+            color: var(--text-soft) !important;
+        }
+        /* --- LIVESTATS (LIVE PLAYERS TABLE) DARK MODE OVERRIDE END--- */
 
         /* Table header fixes */
         .data-table-head, th,
