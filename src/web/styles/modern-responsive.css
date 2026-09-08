@@ -16,6 +16,7 @@
         --border-soft: #b5b5b5;
         --accent-red: #b00020;
         --accent-blue: #0b3cff;
+        --accent-green: #2ecc71;
         --shadow-indicator: rgba(0,0,0,0.1);
         --touch-height: 44px; /* 2026 professional touch target */
         --font-main: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
@@ -123,6 +124,13 @@
         padding: 0 !important;
     }
 
+    /* Preserve Discord brand color for invite and connect links */
+    a[href*="discord.gg"], a[href*="discord.com"] {
+        color: #5865F2 !important;
+    }
+    a[href*="discord.gg"]:hover, a[href*="discord.com"]:hover {
+        color: #7983f5 !important;
+    }
 
 @media screen and (max-width: 992px) {
 
@@ -397,6 +405,12 @@
             --selection-bg: #1f6fff;
             --shadow-indicator: rgba(255,255,255,0.05);
             --touch-height: 44px;
+        }
+
+        /* Discord Voice Member Pills in Dark Mode */
+        .subblock span[style*="border-radius:12px"] {
+            background: rgba(255, 255, 255, 0.08) !important;
+            border: 1px solid rgba(255, 255, 255, 0.12) !important;
         }
 
         /* --- OPENSTREETMAP / LEAFLET DARK MODE --- */

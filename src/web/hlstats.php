@@ -226,6 +226,7 @@ $valid_modes = array(
     'countryclansinfo',
     'teamspeak',
     'ventrilo',
+    'discord',
     'updater',
     'profile'
 );

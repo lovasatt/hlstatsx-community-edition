@@ -116,7 +116,7 @@ For support and installation notes visit http://www.hlxcommunity.com
 <head>
     <!-- Mobile Optimization Layer  -->
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: *.akamaihd.net *.steamstatic.com *.steamcommunity.com *.tile.openstreetmap.org *.openstreetmap.org server.arcgisonline.com *.arcgisonline.com *.opentopomap.org; script-src 'self' 'unsafe-inline' 'unsafe-eval';" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: *.discordapp.com *.akamaihd.net *.steamstatic.com *.steamcommunity.com *.tile.openstreetmap.org *.openstreetmap.org server.arcgisonline.com *.arcgisonline.com *.opentopomap.org; script-src 'self' 'unsafe-inline' 'unsafe-eval';" />
     <!-- PWA and App Integration -->
     <link rel="manifest" href="manifest.json" />
     <meta name="mobile-web-app-capable" content="yes" />

@@ -23,7 +23,8 @@ if (!defined('IN_HLSTATS')) {
 #[\AllowDynamicProperties]
 class teamspeakDisplayClass
 {
-    // Removes subsequent end of line charachter from the right part of a string
+    public $is_ts3 = false;
+
     function _stripEOL($evalString) {
         if ($evalString === false || $evalString === null) {
             return '';
@@ -36,23 +37,34 @@ class teamspeakDisplayClass
         return substr($evalString, 0, $newLen);
     }
 
-    // Opens a connection to the teamspeak server
+    // Connects and auto-detects TS2 vs TS3 protocol
     function _openConnection(&$socket, $host, $port, $timeout) {
         $errno = 0;
         $errstr = '';
-        @$socket = fsockopen($host, $port, $errno, $errstr, $timeout);
+        $socket = @fsockopen($host, $port, $errno, $errstr, $timeout);
 
         if ($socket) {
-            // PHP 8 safe fgets
+            stream_set_timeout($socket, 2);
             $line = fgets($socket, 4096);
-            if ($line !== false && $this->_stripEOL($line) == "[TS]") {
-                return true;
+            if ($line !== false) {
+                $trimmed = $this->_stripEOL($line);
+                // TeamSpeak 3 handshake
+                if (strpos($trimmed, 'TS3') === 0) {
+                    $this->is_ts3 = true;
+                    // Read welcome message line
+                    fgets($socket, 4096);
+                    return true;
+                }
+                // TeamSpeak 2 handshake
+                if ($trimmed == "[TS]") {
+                    $this->is_ts3 = false;
+                    return true;
+                }
             }
         }
         return false;
     }
 
-    // Closes the connection to the Teamspeak server
     function _closeConnection($socket) {
         if ($socket) {
             @fputs($socket, "quit\n");
@@ -60,8 +72,127 @@ class teamspeakDisplayClass
         }
     }
 
-    // Returns the part of evalString until a tab (or the end of a string) and deletes the
-    // returned part from evalString (including the possible tab that follows)
+    // --- TS3 SPECIFIC PROTOCOL HANDLERS ---
+    private function _unescapeTS3($str) {
+        $map = [
+            '\\s' => ' ',
+            '\\p' => '|',
+            '\\/' => '/',
+            '\\n' => "\n",
+            '\\r' => "\r",
+            '\\t' => "\t",
+            '\\a' => '',
+            '\\b' => '',
+            '\\v' => '',
+            '\\\\' => '\\'
+        ];
+        return strtr((string)$str, $map);
+    }
+
+    private function _parseTS3KeyValues($str) {
+        $result = [];
+        $parts = explode(' ', trim((string)$str));
+        foreach ($parts as $part) {
+            $pos = strpos($part, '=');
+            if ($pos !== false) {
+                $key = substr($part, 0, $pos);
+                $val = substr($part, $pos + 1);
+                $result[$key] = $this->_unescapeTS3($val);
+            } else {
+                $result[$part] = true;
+            }
+        }
+        return $result;
+    }
+
+    private function _parseTS3List($str) {
+        $items = [];
+        if (trim((string)$str) === '') return $items;
+        $entries = explode('|', $str);
+        foreach ($entries as $entry) {
+            $items[] = $this->_parseTS3KeyValues($entry);
+        }
+        return $items;
+    }
+
+    private function _readTS3Response($socket) {
+        $data = '';
+        $max_lines = 1000;
+        $count = 0;
+        while (!feof($socket) && $count++ < $max_lines) {
+            $line = fgets($socket, 8192);
+            if ($line === false) break;
+            $trimmed = trim($line);
+            if (strpos($trimmed, 'error id=') === 0) {
+                break;
+            }
+            if ($trimmed !== '') {
+                $data .= ($data !== '' ? ' ' : '') . $trimmed;
+            }
+        }
+        return $data;
+    }
+
+    // Query TeamSpeak 3 Virtual Server
+    private function _queryTS3Server($socket, $udpPort) {
+        // Select virtual server by UDP port
+        fputs($socket, "use port=" . (int)$udpPort . "\n");
+        $line = fgets($socket, 4096);
+        if ($line === false || strpos(trim($line), 'error id=0') !== 0) {
+            return false;
+        }
+
+        // 1. Server info
+        fputs($socket, "serverinfo\n");
+        $sinfo_raw = $this->_readTS3Response($socket);
+        $sinfo = $this->_parseTS3KeyValues($sinfo_raw);
+
+        // 2. Channels
+        fputs($socket, "channellist\n");
+        $chan_raw = $this->_readTS3Response($socket);
+        $raw_channels = $this->_parseTS3List($chan_raw);
+
+        // 3. Players (filter out ServerQuery bots)
+        fputs($socket, "clientlist\n");
+        $client_raw = $this->_readTS3Response($socket);
+        $raw_clients = $this->_parseTS3List($client_raw);
+
+        $mapped_channels = [];
+        foreach ($raw_channels as $ch) {
+            $cid = $ch['cid'] ?? 0;
+            $mapped_channels[$cid] = [
+                'channelid'   => $cid,
+                'channelname' => $ch['channel_name'] ?? 'Channel',
+                'parent'      => (int)($ch['pid'] ?? 0) === 0 ? -1 : (int)($ch['pid'] ?? 0)
+            ];
+        }
+
+        $mapped_players = [];
+        foreach ($raw_clients as $cl) {
+            // client_type: 0 = human player, 1 = ServerQuery bot
+            if (isset($cl['client_type']) && (int)$cl['client_type'] === 0) {
+                $pid = $cl['clid'] ?? 0;
+                $mapped_players[$pid] = [
+                    'playerid'   => $pid,
+                    'channelid'  => $cl['cid'] ?? 0,
+                    'playername' => $cl['client_nickname'] ?? 'Player'
+                ];
+            }
+        }
+
+        return [
+            'queryerror'  => 0,
+            'serverinfo'  => [
+                'server_name'     => $sinfo['virtualserver_name'] ?? 'TeamSpeak 3 Server',
+                'server_maxusers' => (int)($sinfo['virtualserver_maxclients'] ?? 32),
+                'server_uptime'   => (int)($sinfo['virtualserver_uptime'] ?? 0)
+            ],
+            'channellist' => $mapped_channels,
+            'playerlist'  => $mapped_players
+        ];
+    }
+
+    // --- LEGACY TS2 PROTOCOL METHODS ---
     function _stripPartFromString(&$evalString) {
         $evalString = (string)$evalString;
         $pos = strpos($evalString, "\t");
@@ -75,38 +206,27 @@ class teamspeakDisplayClass
         return $result;
     }
 
-    // Removes the surrounding quotes from evalString and returns the result
     function _stripQuotes($evalString) {
         $evalString = (string)$evalString;
         $len = strlen($evalString);
         if ($len == 0) return $evalString;
-
         if(strpos($evalString, '"') === 0) $evalString = substr($evalString, 1, $len - 1);
-        // Recalculate length after modification
         $len = strlen($evalString);
         if($len > 0 && strrpos($evalString, '"') === $len - 1) $evalString = substr($evalString, 0, $len - 1);
         return $evalString;
     }
 
-    // Request, read and parse the server info:
-    function _getServerInfo($socket) {
+    function _getServerInfoTS2($socket) {
         fputs($socket, "si\n");
         $result = array();
-
-        // Safety counter to prevent infinite loops
         $max_loops = 100;
         $i = 0;
-
         do {
             $line = fgets($socket, 4096);
             if ($line === false) break;
-
             $buffer = $this->_stripEOL($line);
-
-            // PHP 8 safe str check
             $is_ok = ($buffer === "OK");
             $is_error = (strtoupper(substr($buffer, 0, 5)) === "ERROR");
-
             if (!$is_ok && !$is_error) {
                 $pos = strpos($buffer, '=');
                 if ($pos !== False) {
@@ -115,208 +235,102 @@ class teamspeakDisplayClass
             }
             $i++;
         } while (!$is_ok && !$is_error && !feof($socket) && $i < $max_loops);
-
         return $result;
     }
 
-    function _setPlayerDisplayImage(&$playerInfo) {
-        $attr = (int)($playerInfo["attribute"] ?? 0);
-        // Determine the right userpicture:
-        if (($attr & 8) == 8) { $playerImage = "away"; }
-        else if (($attr & 32) == 32) { $playerImage = "mutespeakers"; }
-        else if (($attr & 16) == 16) { $playerImage = "mutemicrophone"; }
-        else if (($attr & 1) == 1) { $playerImage = "channelcommander"; }
-        else { $playerImage = "normal"; }
-        $playerInfo["displayimage"] = $playerImage;
-    }
-
-    function _setPlayerDisplayName(&$playerInfo) {
-        $uStatus = (int)($playerInfo["userstatus"] ?? 0);
-        $priv    = (int)($playerInfo["privileg"] ?? 0);
-        $attr    = (int)($playerInfo["attribute"] ?? 0);
-
-        // Determine the player status (U = Unregistered, R = Registered, SA = Server Admin,
-        // CA = Channel Admin, AO = Auto-Operator, AV = Auto-Voice, O = Operator, V = Voice)
-        if (($uStatus & 4) == 4) { $playerstatus = "R"; } else { $playerstatus = 'U'; }
-        if (($uStatus & 1) == 1) { $playerstatus .= " SA"; }
-        if (($priv & 1) == 1) { $playerstatus .= " CA"; }
-        if (($priv & 8) == 8) { $playerstatus .= " AO"; }
-        if (($priv & 16) == 16) { $playerstatus .= " AV"; }
-        if (($priv & 2) == 2) { $playerstatus .= " O"; }
-        if (($priv & 4) == 4) { $playerstatus .= " V"; }
-        if (($attr & 64) == 64) { $playerstatus .= " Rec"; }
-
-        // Determine the player attributes to be listed behind the player status (WV = Want Voice)
-        if (($attr & 2) == 2) { $playerattributes = ' WV'; } else { $playerattributes = ''; }
-
-        $pname = (string)($playerInfo["playername"] ?? '');
-        $playerInfo["displayname"] = $pname . " (" . $playerstatus . ")" . $playerattributes;
-    }
-
-    function _getPlayerList($socket) {
-        // Request, read and parse the player list
+    function _getPlayerListTS2($socket) {
         fputs($socket, "pl\n");
         $first_line = fgets($socket, 4096);
         $buffer = $this->_stripEOL($first_line !== false ? $first_line : "");
         $result = array();
-
         if (strtoupper(substr($buffer, 0, 5)) == "ERROR") { return $result; }
-
-        $max_loops = 5000; // Safety
+        $max_loops = 5000;
         $i = 0;
-
         do {
             $line = fgets($socket, 4096);
             if ($line === false) break;
-
             $buffer = $this->_stripEOL($line);
-
             $is_ok = ($buffer === "OK");
             $is_error = (strtoupper(substr($buffer, 0, 5)) === "ERROR");
-
             if (!$is_ok && !$is_error) {
                 $playerid = $this->_stripPartFromString($buffer);
                 $result[$playerid] = array(
                     "playerid" => $playerid,
                     "channelid" => $this->_stripPartFromString($buffer),
-                    "receivedpackets" => $this->_stripPartFromString($buffer),
-                    "receivedbytes" => $this->_stripPartFromString($buffer),
-                    "sentpackets" => $this->_stripPartFromString($buffer),
-                    "sentbytes" => $this->_stripPartFromString($buffer),
-                    "paketlost" => (int)$this->_stripPartFromString($buffer) / 100,
-                    "pingtime" => $this->_stripPartFromString($buffer),
-                    "totaltime" => $this->_stripPartFromString($buffer),
-                    "idletime" => $this->_stripPartFromString($buffer),
-                    "privileg" => $this->_stripPartFromString($buffer),
-                    "userstatus" => $this->_stripPartFromString($buffer),
-                    "attribute" => $this->_stripPartFromString($buffer),
-                    "ip" => $this->_stripPartFromString($buffer),
-                    "playername" => $this->_stripQuotes($this->_stripPartFromString($buffer)),
-                    "loginname" => $this->_stripQuotes($this->_stripPartFromString($buffer))
+                    "playername" => $this->_stripQuotes($this->_stripPartFromString($buffer))
                 );
-                $this->_setPlayerDisplayImage($result[$playerid]);
-                $this->_setPlayerDisplayName($result[$playerid]);
             }
             $i++;
         } while (!$is_ok && !$is_error && !feof($socket) && $i < $max_loops);
         return $result;
     }
 
-    function _getLimitedPlayerList($socket, $channelList) {
-        $playerList = $this->_getPlayerList($socket);
-        $result = array();
-        foreach($playerList as $playerInfo) {
-            foreach($channelList as $channelInfo) {
-                if ($playerInfo["channelid"] == $channelInfo["channelid"]) {
-                    $result[$playerInfo["playerid"]] = $playerInfo;
-                }
-            }
-        }
-        return $result;
-    }
-
-    function _setChannelDisplayName(&$channelInfo) {
-        if ($channelInfo["parent"] != -1) {
-            $channelInfo["displayname"] = $channelInfo["channelname"];
-        } else {
-            // Determine the channel status (U = Unregisterd, R = Registered, M = Moderated,
-            // P = Passworded, S = Sub-channels, D = Default).
-            $flags = (int)($channelInfo["flags"] ?? 0);
-            if (($flags & 1) == 1) { $channelstatus = 'U'; } else { $channelstatus = 'R'; }
-            if (($flags & 2) == 2) { $channelstatus .= 'M'; }
-            if (($flags & 4) == 4) { $channelstatus .= 'P'; }
-            if (($flags & 8) == 8) { $channelstatus .= 'S'; }
-            if (($flags & 16) == 16) { $channelstatus .= 'D'; }
-            $channelInfo["displayname"] = $channelInfo["channelname"] . " (" . $channelstatus . ")";
-        }
-    }
-
-    function _getChannelList($socket) {
-        // Request, read and parse the channel list
+    function _getChannelListTS2($socket) {
         fputs($socket, "cl\n");
         $first_line = fgets($socket, 4096);
         $buffer = $this->_stripEOL($first_line !== false ? $first_line : "");
         $result = array();
         if (strtoupper(substr($buffer, 0, 5)) == "ERROR") { return $result; }
-
         $max_loops = 5000;
         $i = 0;
-
         do {
             $line = fgets($socket, 4096);
             if ($line === false) break;
-
             $buffer = $this->_stripEOL($line);
-
             $is_ok = ($buffer === "OK");
             $is_error = (strtoupper(substr($buffer, 0, 5)) === "ERROR");
-
             if (!$is_ok && !$is_error) {
                 $channelid = $this->_stripPartFromString($buffer);
                 $result[$channelid] = array(
                     "channelid" => $channelid,
-                    "codec" => $this->_stripPartFromString($buffer),
-                    "parent" => $this->_stripPartFromString($buffer),
-                    "order" => $this->_stripPartFromString($buffer),
-                    "maxplayers" => $this->_stripPartFromString($buffer),
-                    "channelname" => $this->_stripQuotes($this->_stripPartFromString($buffer)),
-                    "flags" => $this->_stripPartFromString($buffer),
-                    "password" => $this->_stripPartFromString($buffer),
-                    "topic" => $this->_stripQuotes($this->_stripPartFromString($buffer))
+                    "channelname" => $this->_stripQuotes($this->_stripPartFromString($buffer))
                 );
-                $this->_setChannelDisplayName($result[$channelid]);
             }
             $i++;
         } while (!$is_ok && !$is_error && !feof($socket) && $i < $max_loops);
         return $result;
     }
 
-    function _getLimitedChannelList($socket, $limitChannel) {
-        $channelList = $this->_getChannelList($socket);
-        $result = array();
-        foreach($channelList as $channelInfo) {
-            if ($channelInfo["parent"] == -1) {
-                if ($channelInfo["channelname"] == $limitChannel) {
-                    $result[$channelInfo["channelid"]] = $channelInfo;
-                    foreach($channelList as $subChannelInfo) {
-                        if ($subChannelInfo["parent"] == $channelInfo["channelid"]) {
-                            $result[$subChannelInfo["channelid"]] = $subChannelInfo;
-                        }
-                    }
-                }
-            }
-        }
-        return $result;
-    }
-
-    function _selectServer($socket, $port) {
-        // Request the server to select the server which is hosted on the port set in serverUDPPort
+    function _selectServerTS2($socket, $port) {
         fputs($socket, "sel ".$port . "\n");
-
         $line = fgets($socket, 4096);
-        // Read server response on request to select a server
         return ($this->_stripEOL($line !== false ? $line : "") == "OK");
     }
 
-    // Queries the Teamspeak server
+    // MAIN QUERY DISPATCHER (TS2 + TS3)
     function queryTeamspeakServerEx($settings) {
         $result = array();
         $socket = null;
 
-        // Try to establish a connection to the teamspeak server
-        if (! $this->_openConnection($socket, $settings["serveraddress"], $settings["serverqueryport"], 0.3)) {
+        // Try connect (2 sec timeout)
+        if (! $this->_openConnection($socket, $settings["serveraddress"], $settings["serverqueryport"], 2.0)) {
             $result["queryerror"] = 1;
-        } else if (! $this->_selectServer($socket, $settings["serverudpport"])) {
-            $result["queryerror"] = 2;
-            $this->_closeConnection($socket);
-        } else {
-            $result["queryerror"] = 0;
-            $result["serverinfo"] = $this->_getServerInfo($socket);
-            $result["channellist"] = ($settings["limitchannel"] == "") ? $this->_getChannelList($socket) : $this->_getLimitedChannelList($socket, $settings["limitchannel"]);
-            $result["playerlist"] = ($settings["limitchannel"] == "") ? $this->_getPlayerList($socket) : $this->_getLimitedPlayerList($socket, $result["channellist"]);
-            $this->_closeConnection($socket);
+            return $result;
         }
-        return $result;
+
+        // Branch by detected protocol
+        if ($this->is_ts3) {
+            $ts3_result = $this->_queryTS3Server($socket, $settings["serverudpport"]);
+            $this->_closeConnection($socket);
+            if ($ts3_result === false) {
+                $result["queryerror"] = 2;
+                return $result;
+            }
+            return $ts3_result;
+        } else {
+            // Legacy TS2
+            if (! $this->_selectServerTS2($socket, $settings["serverudpport"])) {
+                $result["queryerror"] = 2;
+                $this->_closeConnection($socket);
+            } else {
+                $result["queryerror"] = 0;
+                $result["serverinfo"] = $this->_getServerInfoTS2($socket);
+                $result["channellist"] = $this->_getChannelListTS2($socket);
+                $result["playerlist"] = $this->_getPlayerListTS2($socket);
+                $this->_closeConnection($socket);
+            }
+            return $result;
+        }
     }
 
     function queryTeamspeakServer($serverAddress, $serverUDPPort, $serverQueryPort) {
@@ -327,338 +341,15 @@ class teamspeakDisplayClass
         return $this->queryTeamspeakServerEx($settings);
     }
 
-    function _orderAlphaGetString($string) {
-        $lowerstring = strtolower((string)$string);
-        $result = "";
-        for ($i = 0; $i < strlen($lowerstring); $i++) {
-            if (strpos("0123456789abcdefghijklmnopqrstuvwxyz", substr($lowerstring, $i, 1)) !== false) {
-                $result .= substr($lowerstring, $i, 1);
-            }
-        }
-        return $result;
-    }
-
-    function _orderAlpha($str1, $str2) {
-        return strcmp($this->_orderAlphaGetString($str1), $this->_orderAlphaGetString($str2));
-    }
-
-    function _compareChannel($a, $b) {
-        $orderA = (int)($a["order"] ?? 0);
-        $orderB = (int)($b["order"] ?? 0);
-        if ($orderA != $orderB) {
-            return ($orderA < $orderB) ? -1 : 1;
-        }
-        return $this->_orderAlpha((string)($a["displayname"] ?? ''), (string)($b["displayname"] ?? ''));
-    }
-
-    function _comparePlayer($a, $b) {
-        $userstatusA = (int)($a["userstatus"] ?? 0);
-        $userstatusB = (int)($b["userstatus"] ?? 0);
-        $userlevela = $userstatusA & 1;
-        $userlevelb = $userstatusB & 1;
-        if ($userlevela != $userlevelb) {
-            return ($userlevela < $userlevelb) ? 1 : -1;
-        }
-        return $this->_orderAlpha((string)($a["displayname"] ?? ''), (string)($b["displayname"] ?? ''));
-    }
-
-    function sortServerInfo(&$serverInfo) {
-        if (isset($serverInfo["channellist"]) && is_array($serverInfo["channellist"])) {
-            usort($serverInfo["channellist"], array($this, "_compareChannel"));
-        }
-        if (isset($serverInfo["playerlist"]) && is_array($serverInfo["playerlist"])) {
-            usort($serverInfo["playerlist"], array($this, "_comparePlayer"));
-        }
-    }
-
-    function _formatTime($totaltime) {
-        $totaltime = (int)$totaltime;
-        $hours = floor($totaltime / 3600);
-        $minutes = floor(($totaltime % 3600) / 60);
-        return (($hours < 10) ? "0" : "") . $hours . ":" . (($minutes < 10) ? "0" : "") . $minutes;
-    }
-
-    // Returns the codec name
-    function _getCodecName($codec) {
-        $codec = (int)$codec;
-        if ($codec == 0) { return "CELP 5.1 Kbit"; }
-        else if ($codec == 1) { return "CELP 6.3 Kbit"; }
-        else if ($codec == 2) { return "GSM 14.8 Kbit"; }
-        else if ($codec == 3) { return "GSM 16.4 Kbit"; }
-        else if ($codec == 4) { return "CELP Windows 5.2 Kbit"; }
-        else if ($codec == 5) { return "Speex 3.4 Kbit"; }
-        else if ($codec == 6) { return "Speex 5.2 Kbit"; }
-        else if ($codec == 7) { return "Speex 7.2 Kbit"; }
-        else if ($codec == 8) { return "Speex 9.3 Kbit"; }
-        else if ($codec == 9) { return "Speex 12.3 Kbit"; }
-        else if ($codec == 10) { return "Speex 16.3 Kbit"; }
-        else if ($codec == 11) { return "Speex 19.5 Kbit"; }
-        else if ($codec == 12) { return "Speex 25.9 Kbit"; }
-        else { return "Unknown (" . $codec . ")"; }
-    }
-
     function getDefaultSettings() {
-        $result = array();
-        $result["serveraddress"] = "";
-        $result["serverudpport"] = 8767;
-        $result["serverqueryport"] = 51234;
-        $result["limitchannel"] = "";
-        $result["forbiddennicknamechars"] = "()[]{}";
-        return $result;
+        return [
+            "serveraddress"   => "",
+            "serverudpport"   => 9987,
+            "serverqueryport" => 10011,
+            "limitchannel"    => ""
+        ];
     }
-
-    // Main function (queries, sorts and displays the teamspeak serverinfo). Its code is not
-    // very readable... well what shall I say about it... it was hard to write so it should
-    // be hard to read >:)
-    function displayTeamspeakEx($settings) {
-        $serverInfo = $this->queryTeamspeakServerEx($settings);
-
-        echo("<div id=\"teamspeakdisplay\">\n");
-        if ($serverInfo["queryerror"] != 0) {
-            // PHP 8 Fix: Ensure numeric check
-            $popupInfo = "Server address: " . htmlspecialchars((string)$settings["serveraddress"]) . (((int)$settings["serverudpport"] != 8767) ? (":" . $settings["serverudpport"]): "");
-            if ($serverInfo["queryerror"] == 1) {
-                $popupInfo .= ", Error: could not connect to query port";
-            } else {
-                $popupInfo .= ", Error: no server running on port " . $settings["serverudpport"];
-            }
-            echo("<table><tr><td>");
-            echo("<img src=\"teamspeakdisplay/teamspeak_offline.png\" alt=\"\" title=\"" . $popupInfo . "\">");
-            echo("</td><td class=\"teamspeakserver\" title=\"" . $popupInfo . "\">");
-            echo("Server offline");
-            echo("</td></tr></table>\n");
-        } else {
-            $this->sortServerInfo($serverInfo);
-
-            // Generate javascript for teamspeak hyperlinks
-            $jsTeamspeakId = md5($settings["serveraddress"] . ":" . $settings["serverudpport"]);
-
-            // Basic escaping for JS to prevent XSS in generated JS
-            $safe_address = addslashes((string)$settings["serveraddress"]);
-            $safe_forbidden = addslashes((string)$settings["forbiddennicknamechars"]);
-
-            echo("<script type=\"text/javascript\"><!--\n");
-            echo("function stringOk_" . $jsTeamspeakId . "(string, forbiddenChars) {\n");
-            echo("      for(var i = 0; i < string.length; i++) {\n");
-            echo("              if (forbiddenChars.indexOf(string.charAt(i)) > -1) {\n");
-            echo("                      return false;\n");
-            echo("              }\n");
-            echo("      }\n");
-            echo("      return true;\n");
-            echo("}\n");
-            echo("function enterServer_" . $jsTeamspeakId . "() {\n");
-            echo("      enterSubChannel_" . $jsTeamspeakId . "(null, false, null);\n");
-            echo("}\n");
-            echo("function enterChannel_" . $jsTeamspeakId . "(channelName, channelPassworded) {\n");
-            echo("      enterSubChannel_" . $jsTeamspeakId . "(channelName, channelPassworded, null);\n");
-            echo("}\n");
-            echo("function enterSubChannel_" . $jsTeamspeakId . "(channelName, channelPassworded, subChannelName) {\n");
-            echo("      var serveraddress = 'teamspeak://" . $safe_address . ":" . $settings["serverudpport"] . "';\n");
-            echo("      var nickname=window.prompt('Enter your nickname', '');\n");
-            echo("      if (nickname == null) {\n");
-            echo("              return;\n");
-            echo("      } else if (! stringOk_" . $jsTeamspeakId . "(nickname, '" . $safe_forbidden . "')) {\n");
-            echo("              window.alert('Could not enter the teamspeak server because the nickname you entered contains one or more of these forbidden characters: " . $safe_forbidden . "');\n");
-            echo("              return;\n");
-            echo("      } else if (nickname == \"\") {\n");
-            echo("              window.alert('Could not enter the teamspeak server because you did not enter your nickname');\n");
-            echo("              return;\n");
-            echo("      }\n");
-            echo("      serveraddress = serveraddress + \"/nickname=\" + escape(nickname);\n");
-
-            $has_server_pwd = (isset($serverInfo["serverinfo"]["server_password"]) && (string)$serverInfo["serverinfo"]["server_password"] === "1");
-            if ($has_server_pwd) {
-                $srv_name = (string)($serverInfo["serverinfo"]["server_name"] ?? 'Server');
-                echo("  var password=window.prompt('Enter the teamspeak server password for " . addslashes($srv_name) . "', '');\n");
-                echo("  if (password == null) {\n");
-                echo("          return;\n");
-                echo("  } else if (password == \"\") {\n");
-                echo("          window.alert('Could not enter the teamspeak server because you did not enter a server password');\n");
-                echo("          return;\n");
-                echo("  }\n");
-                echo("  serveraddress = serveraddress + \"?password=\" + escape(password);\n");
-            }
-            echo("      if (channelName != null) { serveraddress = serveraddress + \"?channel=\" + escape(channelName); }\n");
-            echo("      if (channelPassworded) {\n");
-            echo("              var channelpassword=window.prompt('Enter the channel password for channel ' + channelName, '');\n");
-            echo("              if (channelpassword == null) {\n");
-            echo("                      return;\n");
-            echo("              } else if (channelpassword == \"\") {\n");
-            echo("                      window.alert('Could not enter the teamspeak server because you did not enter a channel password');\n");
-            echo("                      return;\n");
-            echo("              }\n");
-            echo("              serveraddress = serveraddress + \"?channelpassword=\" + escape(channelpassword);\n");
-            echo("      }\n");
-            echo("      if (subChannelName != null) { serveraddress = serveraddress + \"?subchannel=\" + escape(subChannelName); }\n");
-            echo("      window.location=serveraddress;\n");
-            echo("}\n");
-            echo("//--></script>\n");
-
-            // PHP 8 Safe formatting
-            $max_players = isset($serverInfo["serverinfo"]["server_maxusers"]) ? (int)$serverInfo["serverinfo"]["server_maxusers"] : 0;
-            $server_uptime = isset($serverInfo["serverinfo"]["server_uptime"]) ? (int)$serverInfo["serverinfo"]["server_uptime"] : 0;
-
-            $popupInfo = "Server address: " . htmlspecialchars((string)$settings["serveraddress"]) . (((int)$settings["serverudpport"] != 8767) ? (":" . $settings["serverudpport"]): "") . ", Max players: " . $max_players . ", Uptime: " . $this->_formatTime($server_uptime);
-
-            // Print the topmost element of the teamspeak tree
-            echo("<table><tr><td>");
-            echo("<img src=\"teamspeakdisplay/teamspeak_online.png\" alt=\"\" title=\"" . $popupInfo . "\">");
-            echo("</td><td class=\"teamspeakserver\" title=\"" . $popupInfo . "\">");
-            echo("<a class=\"teamspeakserver\" href=\"javascript:enterServer_" . $jsTeamspeakId . "();\">");
-            $server_name = isset($serverInfo["serverinfo"]["server_name"]) ? (string)$serverInfo["serverinfo"]["server_name"] : "Teamspeak Server";
-            echo(str_replace(" ", "&nbsp;", htmlspecialchars($server_name)));
-            echo("</a>");
-            echo("</td></tr></table>\n");
-
-            // Count the number of channels to be listed:
-            $currentchannels = 0;
-            if (isset($serverInfo["channellist"]) && is_array($serverInfo["channellist"])) {
-                foreach($serverInfo["channellist"] as $channelInfo) {
-                    if ($channelInfo["parent"] == -1) {
-                        $currentchannels++;
-                    }
-                }
-            }
-
-            // Initialize the channelcounter to zero
-            $counter = 0;
-
-            // Loop through all channels:
-            if (isset($serverInfo["channellist"]) && is_array($serverInfo["channellist"])) {
-                foreach($serverInfo["channellist"] as $channelInfo) { if ($channelInfo["parent"] == -1) {
-
-                    // determine number of players in channel
-                    $currentplayers = 0;
-                    if (isset($serverInfo["playerlist"]) && is_array($serverInfo["playerlist"])) {
-                        foreach($serverInfo["playerlist"] as $playerInfo) {
-                            if($playerInfo["channelid"] == $channelInfo["channelid"]) $currentplayers++;
-                        }
-                    }
-
-                    // Count the number of channels to be listed:
-                    $currentplayersandsubchannels = $currentplayers;
-                    foreach($serverInfo["channellist"] as $subchannelInfo) {
-                        if ($subchannelInfo["parent"] == $channelInfo["channelid"]) {
-                            $currentplayersandsubchannels++;
-                        }
-                    }
-
-                    $chan_max = isset($channelInfo["maxplayers"]) ? (int)$channelInfo["maxplayers"] : 0;
-                    $popupInfo = "Max players: " . $chan_max . ", Codec: " . $this->_getCodecName($channelInfo["codec"]);
-                    if (($channelInfo["topic"] ?? "") != "") { $popupInfo = $popupInfo . ", Topic: " . $channelInfo["topic"]; }
-
-                    // Display channel:
-                    echo("<table><tr><td>");
-                    echo("<img src=\"teamspeakdisplay/treeimage" . ((($counter + 1) == $currentchannels) ? "3" : "2") . ".png\" alt=\"\">");
-                    echo("<img src=\"teamspeakdisplay/channel.png\" alt=\"\" title=\"" . $popupInfo . "\">");
-                    echo("</td><td class=\"teamspeakchannel\" title=\"" . $popupInfo . "\">");
-                    echo("<a class=\"teamspeakchannel\" href=\"javascript:enterChannel_" . $jsTeamspeakId . "('" . addslashes((string)$channelInfo["channelname"]) . "', " . ((($channelInfo["password"] ?? '') == "1") ? "true" : "false") . ");\">");
-                    echo(str_replace(" ", "&nbsp;", htmlspecialchars((string)$channelInfo["displayname"])));
-                    echo("</a>");
-                    echo("</td></tr></table>\n");
-
-                    // Initialize the playercounter for this channel to zero
-                    $counter_playerandsubchannels = 0;
-
-                    // Loop through all players in the current channel:
-                    if (isset($serverInfo["playerlist"]) && is_array($serverInfo["playerlist"])) {
-                        foreach($serverInfo["playerlist"] as $playerInfo) {
-
-                            // Is the current player in the current channel?
-                            if ($playerInfo["channelid"] == $channelInfo["channelid"]) {
-
-                                $popupInfo = "Time online: " . $this->_formatTime($playerInfo["totaltime"] ?? 0) . ", Time idle: " . $this->_formatTime($playerInfo["idletime"] ?? 0) . ", Ping: " . ($playerInfo["pingtime"] ?? 0) . "ms";
-
-                                // Display player:
-                                echo("<table><tr><td>");
-                                echo("<img src=\"teamspeakdisplay/treeimage" . ((($counter + 1) == $currentchannels) ? "4" : "1") . ".png\" alt=\"\">");
-                                echo("<img src=\"teamspeakdisplay/treeimage" . ((($counter_playerandsubchannels + 1) == $currentplayersandsubchannels) ? "3" : "2") . ".png\" alt=\"\">");
-                                echo("<img src=\"teamspeakdisplay/player_" . $playerInfo["displayimage"] . ".png\" alt=\"" . $playerInfo["displayimage"] . "\" title=\"" . $popupInfo . "\">");
-                                echo("</td><td class=\"teamspeakplayer\" title=\"" . $popupInfo . "\">");
-                                echo(str_replace(" ", "&nbsp;", htmlspecialchars((string)$playerInfo["displayname"])));
-                                echo("</td></tr></table>\n");
-
-                                // Increase the player counter:
-                                $counter_playerandsubchannels++;
-                            }
-                        }
-                    }
-
-                    // Loop through all channels:
-                    foreach($serverInfo["channellist"] as $subchannelInfo) { if ($subchannelInfo["parent"] == $channelInfo["channelid"]) {
-                        // determine number of players in channel
-                        $currentplayers = 0;
-                        if (isset($serverInfo["playerlist"]) && is_array($serverInfo["playerlist"])) {
-                            foreach($serverInfo["playerlist"] as $playerInfo) {
-                                if($playerInfo["channelid"] == $subchannelInfo["channelid"]) $currentplayers++;
-                            }
-                        }
-
-                        $sub_max = isset($subchannelInfo["maxplayers"]) ? (int)$subchannelInfo["maxplayers"] : 0;
-                        $popupInfo = "Max players: " . $sub_max . ", Codec: " . $this->_getCodecName($subchannelInfo["codec"]);
-                        if (($subchannelInfo["topic"] ?? "") != "") { $popupInfo = $popupInfo . ", Topic: " . $subchannelInfo["topic"]; }
-
-                        // Display channel:
-                        echo("<table><tr><td>");
-                        echo("<img src=\"teamspeakdisplay/treeimage" . ((($counter + 1) == $currentchannels) ? "4" : "1") . ".png\" alt=\"\">");
-                        echo("<img src=\"teamspeakdisplay/treeimage" . ((($counter_playerandsubchannels + 1) == $currentplayersandsubchannels) ? "3" : "2") . ".png\" alt=\"\">");
-                        echo("<img src=\"teamspeakdisplay/channel.png\" alt=\"\" title=\"" . $popupInfo . "\">");
-                        echo("</td><td class=\"teamspeaksubchannel\" title=\"" . $popupInfo . "\">");
-                        echo("<a class=\"teamspeaksubchannel\" href=\"javascript:enterSubChannel_" . $jsTeamspeakId . "('" . addslashes((string)$channelInfo["channelname"]) . "', " . ((($channelInfo["password"] ?? '') == "1") ? "true" : "false") . ", '" . addslashes((string)$subchannelInfo["channelname"]) . "');\">");
-                        echo(str_replace(" ", "&nbsp;", htmlspecialchars((string)$subchannelInfo["displayname"])));
-                        echo("</a>");
-                        echo("</td></tr></table>\n");
-
-                        // Initialize the playercounter for this channel to zero
-                        $counter_player = 0;
-
-                        // Loop through all players in the current channel:
-                        if (isset($serverInfo["playerlist"]) && is_array($serverInfo["playerlist"])) {
-                            foreach($serverInfo["playerlist"] as $playerInfo) {
-
-                                // Is the current player in the current channel?
-                                if ($playerInfo["channelid"] == $subchannelInfo["channelid"]) {
-
-                                    $popupInfo = "Time online: " . $this->_formatTime($playerInfo["totaltime"] ?? 0) . ", Time idle: " . $this->_formatTime($playerInfo["idletime"] ?? 0) . ", Ping: " . ($playerInfo["pingtime"] ?? 0) . "ms";
-
-                                    // Display player:
-                                    echo("<table><tr><td>");
-                                    echo("<img src=\"teamspeakdisplay/treeimage" . ((($counter + 1) == $currentchannels) ? "4" : "1") . ".png\" alt=\"\">");
-                                    echo("<img src=\"teamspeakdisplay/treeimage" . ((($counter_playerandsubchannels + 1) == $currentplayersandsubchannels) ? "4" : "1") . ".png\" alt=\"\">");
-                                    echo("<img src=\"teamspeakdisplay/treeimage" . ((($counter_player + 1) == $currentplayers) ? "3" : "2") . ".png\" alt=\"\">");
-                                    echo("<img src=\"teamspeakdisplay/player_" . $playerInfo["displayimage"] . ".png\" alt=\"" . $playerInfo["displayimage"] . "\" title=\"" . $popupInfo . "\">");
-                                    echo("</td><td class=\"teamspeakplayer\" title=\"" . $popupInfo . "\">");
-                                    echo(str_replace(" ", "&nbsp;", htmlspecialchars((string)$playerInfo["displayname"])));
-                                    echo("</td></tr></table>\n");
-
-                                    // Increase the player counter:
-                                    $counter_player++;
-                                }
-                            }
-                        }
-
-                        // Increase the channelcounter
-                        $counter_playerandsubchannels++;
-                    } }
-
-                    // Increase the channelcounter
-                    $counter++;
-                } }
-            }
-        }
-        echo("</div>\n");
-    }
-
-    function displayTeamspeak($serverAddress, $serverUDPPort=8767, $serverQueryPort=51234) {
-        $settings = $this->getDefaultSettings();
-        $settings["serveraddress"] = $serverAddress;
-        $settings["serverudpport"] = $serverUDPPort;
-        $settings["serverqueryport"] = $serverQueryPort;
-        $this->displayTeamspeakEx($settings);
-    }
-
 }
 
-// Create an instance of the Teamspeak Display Class
+// Global instance
 $teamspeakDisplay = new teamspeakDisplayClass;
-?>
