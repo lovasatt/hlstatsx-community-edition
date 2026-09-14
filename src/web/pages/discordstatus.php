@@ -42,8 +42,8 @@ class CDiscordStatus
 
         $guild_id = trim((string)$guild_id);
 
-        // Validate Discord snowflake ID format (17 to 21 digits)
-        if (!preg_match('/^[0-9]{17,21}$/', $guild_id)) {
+        // Validate Discord snowflake ID format (17 to 25 digits)
+        if (!preg_match('/^[0-9]{17,25}$/', $guild_id)) {
             $this->m_error = 'Invalid Discord Server ID (Guild ID).';
             return false;
         }

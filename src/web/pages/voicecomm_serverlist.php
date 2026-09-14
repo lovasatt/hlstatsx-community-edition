@@ -94,7 +94,7 @@
 ?>
         <tr class="bg1">
             <td class="fHeading">
-                <img src="<?php echo IMAGE_PATH; ?>/teamspeak/teamspeak.gif" alt="tsicon" />
+                <img src="<?php echo IMAGE_PATH; ?>/teamspeak/teamspeak.png" alt="tsicon" width="16" height="16" style="vertical-align:middle;" />
                 &nbsp;<a href="<?php echo $scripturl; ?>?mode=teamspeak&amp;game=<?php echo $url_game; ?>&amp;tsId=<?php echo $ts_server_id; ?>"><?php echo $safe_name; ?></a>
             </td>
             <td>
