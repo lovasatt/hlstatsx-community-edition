@@ -7,7 +7,8 @@ RUN apt-get update && apt-get install -y \
 
 RUN sed -i '/pam_loginuid.so/s/^/#/' /etc/pam.d/cron
 
-RUN cpanm --notest Math::Int64 MaxMind::DB::Reader GeoIP2::Database::Reader Syntax::Keyword::Try
+# RUN cpanm --notest Math::Int64 MaxMind::DB::Reader GeoIP2::Database::Reader Syntax::Keyword::Try
+RUN apt-get update && apt-get install -y libmath-int64-perl libmaxmind-db-reader-perl libgeoip2-perl libsyntax-keyword-try-perl && rm -rf /var/lib/apt/lists/*
 
 RUN useradd -m hlstats
 WORKDIR /home/hlstats/scripts
