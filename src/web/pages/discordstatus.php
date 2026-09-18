@@ -24,9 +24,20 @@ class CDiscordStatus
     private function sanitizeInviteUrl($url)
     {
         $url = trim((string)$url);
-        if (preg_match('~^https://(?:discord\.gg|discord\.com/invite)/[A-Za-z0-9_-]+$~i', $url)) {
-            return $url;
+        if ($url === '') {
+            return '';
         }
+
+        // Extracts the invite code from any Discord URL format (with or without trailing slash, http/https, discord.gg or discord.com)
+        if (preg_match('~(?:discord\.gg/|discord\.com/invite/)([A-Za-z0-9_.-]+)~i', $url, $m)) {
+            return 'https://discord.gg/' . rtrim($m[1], '/');
+        }
+
+        // If the user pasted just the raw invite code (e.g. 'AbCdEf12' or 'clan-lounge')
+        if (preg_match('/^[A-Za-z0-9_.-]{3,32}$/', $url)) {
+            return 'https://discord.gg/' . $url;
+        }
+
         return '';
     }
 
@@ -48,13 +59,27 @@ class CDiscordStatus
             return false;
         }
 
-        // 90-second local cache to avoid rate limits (HTTP 429)
+        // Cache engine: 90s for success, 15s for error responses to prevent API rate limits (HTTP 429)
         $cache_dir = defined('TEMP_PATH') ? TEMP_PATH : sys_get_temp_dir();
         $cache_file = rtrim($cache_dir, '/\\') . '/discord_widget_' . $guild_id . '.json';
         $json = null;
 
-        if (file_exists($cache_file) && (time() - filemtime($cache_file) < 90)) {
-            $json = @file_get_contents($cache_file);
+        if (file_exists($cache_file)) {
+            $age = time() - filemtime($cache_file);
+            $cached_raw = @file_get_contents($cache_file);
+            if ($cached_raw) {
+                $test = json_decode($cached_raw, true);
+                if (is_array($test)) {
+                    $is_cached_err = !empty($test['__hlx_error']);
+                    if (($is_cached_err && $age < 15) || (!$is_cached_err && $age < 90)) {
+                        if ($is_cached_err) {
+                            $this->m_error = (string)$test['__hlx_error'];
+                            return false;
+                        }
+                        $json = $cached_raw;
+                    }
+                }
+            }
         }
 
         if (!$json) {
@@ -78,6 +103,7 @@ class CDiscordStatus
 
             if ($curl_errno !== 0) {
                 $this->m_error = 'cURL Connection Error (' . $curl_errno . '): ' . $curl_err;
+                @file_put_contents($cache_file, json_encode(['__hlx_error' => $this->m_error]), LOCK_EX);
                 return false;
             }
 
@@ -87,16 +113,18 @@ class CDiscordStatus
                     @file_put_contents($cache_file, $json, LOCK_EX);
                 } else {
                     $this->m_error = 'Invalid data format received from Discord API.';
+                    @file_put_contents($cache_file, json_encode(['__hlx_error' => $this->m_error]), LOCK_EX);
                     return false;
                 }
             } else {
                 if ($code === 429) {
                     $this->m_error = 'Discord API rate limit reached (HTTP 429). Please try again shortly.';
                 } elseif ($code === 403 || $code === 404) {
-                    $this->m_error = 'Discord widget is disabled on the server, or the Server ID is incorrect (HTTP ' . $code . ').';
+                    $this->m_error = 'Discord widget is disabled in Discord Server Settings, or the Server ID is incorrect (HTTP ' . $code . ').';
                 } else {
                     $this->m_error = 'Discord API returned unexpected HTTP status code: ' . $code;
                 }
+                @file_put_contents($cache_file, json_encode(['__hlx_error' => $this->m_error]), LOCK_EX);
                 return false;
             }
         }
@@ -116,9 +144,18 @@ class CDiscordStatus
 
         $this->m_channels = count($raw_channels);
 
-        $api_invite = $this->sanitizeInviteUrl($data['instant_invite'] ?? '');
-        if (!empty($api_invite)) {
+        // Priority Invite Link Resolution:
+        // 1. If admin specified an invite in HLstatsX password field, ALWAYS honor it.
+        // 2. If left empty, automatically use the instant_invite provided by the Discord API widget.
+        $custom_invite = $this->sanitizeInviteUrl($fallback_invite);
+        $api_invite    = $this->sanitizeInviteUrl($data['instant_invite'] ?? '');
+
+        if (!empty($custom_invite)) {
+            $this->m_invite = $custom_invite;
+        } elseif (!empty($api_invite)) {
             $this->m_invite = $api_invite;
+        } else {
+            $this->m_invite = '';
         }
 
         // Build channel index sorted by position

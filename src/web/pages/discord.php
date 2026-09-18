@@ -56,6 +56,73 @@ $safe_invite = htmlspecialchars($dc->m_invite, ENT_QUOTES, 'UTF-8');
 
 $is_online = ($request_success === true && empty($dc->m_error));
 
+// --- VISUAL TEST MODE (Set to true to preview all channels, badges, rich presence and pagination) ---
+$test_mode = false;
+
+if ($test_mode) {
+    $request_success = true;
+    $is_online = true;
+    $dc->m_error    = '';
+    $dc->m_name     = 'HLstatsX Discord Community Hub';
+    $dc->m_online   = 64;
+    $dc->m_channels = 4;
+    $dc->m_invite   = 'https://discord.gg/hlstatsx-preview';
+
+    // Mock voice channels tree
+    $dc->m_voice_tree = [
+        [
+            'id'       => '101',
+            'name'     => 'General Voice Lounge',
+            'position' => 1,
+            'users'    => [
+                ['id' => '1', 'username' => '[TEST]CommunityLead [CS2]', 'avatar' => '', 'activity' => 'Counter-Strike 2', 'is_muted' => false, 'is_deaf' => false, 'is_bot' => false],
+                ['id' => '2', 'username' => 'MusicBot',             'avatar' => '', 'activity' => 'Spotify',          'is_muted' => false, 'is_deaf' => false, 'is_bot' => true],
+                ['id' => '3', 'username' => 'CasualPlayer (TF2)',  'avatar' => '', 'activity' => 'Team Fortress 2',  'is_muted' => true,  'is_deaf' => false, 'is_bot' => false]
+            ]
+        ],
+        [
+            'id'       => '102',
+            'name'     => 'Counter-Strike 2 Ranked #1',
+            'position' => 2,
+            'users'    => [
+                ['id' => '4', 'username' => '[Test]ProGamer_CS2', 'avatar' => '', 'activity' => 'Counter-Strike 2', 'is_muted' => false, 'is_deaf' => false, 'is_bot' => false],
+                ['id' => '5', 'username' => 'NoAudioGuy',   'avatar' => '', 'activity' => 'Counter-Strike 2', 'is_muted' => true,  'is_deaf' => true,  'is_bot' => false]
+            ]
+        ],
+        [
+            'id'       => '103',
+            'name'     => 'Counter-Strike: Source Lounge',
+            'position' => 3,
+            'users'    => [
+                ['id' => '6', 'username' => 'SourceVeteran | CSS', 'avatar' => '', 'activity' => 'Counter-Strike: Source', 'is_muted' => false, 'is_deaf' => false, 'is_bot' => false]
+            ]
+        ],
+        [
+            'id'       => '104',
+            'name'     => 'AFK / Muted Room',
+            'position' => 4,
+            'users'    => []
+        ]
+    ];
+
+    // Mock members directory with multiple statuses and rich presence games (12+ users to test pagination)
+    $dc->m_directory = [
+        ['id' => '1',  'username' => 'AdminTom [CS2]',       'status' => 'online', 'avatar' => '', 'activity' => 'Counter-Strike 2',        'is_bot' => false],
+        ['id' => '2',  'username' => 'ProGamer_CS2',         'status' => 'online', 'avatar' => '', 'activity' => 'Counter-Strike 2',        'is_bot' => false],
+        ['id' => '3',  'username' => 'HeavyGuy (TF2)',       'status' => 'online', 'avatar' => '', 'activity' => 'Team Fortress 2',         'is_bot' => false],
+        ['id' => '4',  'username' => 'OldSchool | CSS',      'status' => 'idle',   'avatar' => '', 'activity' => 'Counter-Strike: Source',   'is_bot' => false],
+        ['id' => '5',  'username' => 'DevGamer',             'status' => 'dnd',    'avatar' => '', 'activity' => 'Visual Studio Code',      'is_bot' => false],
+        ['id' => '6',  'username' => 'HLstatsX-SyncBot',     'status' => 'online', 'avatar' => '', 'activity' => 'Statistics Engine',        'is_bot' => true],
+        ['id' => '7',  'username' => 'RustSurvivor',         'status' => 'online', 'avatar' => '', 'activity' => 'Rust',                     'is_bot' => false],
+        ['id' => '8',  'username' => 'DotaStrategist',       'status' => 'idle',   'avatar' => '', 'activity' => 'Dota 2',                   'is_bot' => false],
+        ['id' => '9',  'username' => 'SleepingGamer',        'status' => 'idle',   'avatar' => '', 'activity' => '',                         'is_bot' => false],
+        ['id' => '10', 'username' => 'SilentNinja',          'status' => 'dnd',    'avatar' => '', 'activity' => '',                         'is_bot' => false],
+        ['id' => '11', 'username' => 'CompetitivePlayer_CS2','status' => 'online', 'avatar' => '', 'activity' => 'Counter-Strike 2',        'is_bot' => false],
+        ['id' => '12', 'username' => 'SupportMedic (TF2)',   'status' => 'online', 'avatar' => '', 'activity' => 'Team Fortress 2',         'is_bot' => false]
+    ];
+}
+// --- VISUAL TEST MODE END ---
+
 // Fetch supported games from HLstatsX for automatic icon resolution
 $hlx_games = [];
 $g_res = $db->query("SELECT code, name FROM hlstats_Games");
@@ -122,17 +189,26 @@ if (!function_exists('getGameBadgeHtml')) {
     <?php printSectionTitle('Discord Server Information'); ?>
     <div class="subblock">
         <table class="data-table" style="width:100%;">
-          <tr class="bg1">
+          <?php $info_idx = 0; ?>
+          <tr class="<?php echo ($info_idx++ % 2 == 0) ? 'bg1' : 'bg2'; ?>">
               <td style="width:20%; font-weight:bold;">Community:</td>
               <td><?php echo $safe_name; ?> <?php if (!empty($dc->m_name) && strcasecmp($safe_name, $dc->m_name) !== 0): ?>&mdash; <em><?php echo htmlspecialchars($dc->m_name, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?></em><?php endif; ?></td>
           </tr>
           <?php if (!empty($safe_descr)): ?>
-          <tr class="bg2">
+          <tr class="<?php echo ($info_idx++ % 2 == 0) ? 'bg1' : 'bg2'; ?>">
               <td style="font-weight:bold;">Description:</td>
               <td><?php echo $safe_descr; ?></td>
           </tr>
           <?php endif; ?>
-          <tr class="<?php echo !empty($safe_descr) ? 'bg1' : 'bg2'; ?>">
+          <tr class="<?php echo ($info_idx++ % 2 == 0) ? 'bg1' : 'bg2'; ?>">
+              <td style="font-weight:bold;">Server ID (Guild ID):</td>
+              <td><code><?php echo htmlspecialchars($guild_id, ENT_QUOTES, 'UTF-8'); ?></code></td>
+          </tr>
+          <tr class="<?php echo ($info_idx++ % 2 == 0) ? 'bg1' : 'bg2'; ?>">
+              <td style="font-weight:bold;">Access &amp; Invite:</td>
+              <td><?php echo !empty($safe_invite) ? '<span style="color:#2ecc71; font-weight:bold;">Public / Invite active</span>' : '<span style="color:#f39c12; font-weight:bold;">Closed / Private</span>'; ?></td>
+          </tr>
+          <tr class="<?php echo ($info_idx++ % 2 == 0) ? 'bg1' : 'bg2'; ?>">
               <td style="font-weight:bold;">Active Presence:</td>
                 <td>
                     <?php if ($is_online): ?>
@@ -142,11 +218,11 @@ if (!function_exists('getGameBadgeHtml')) {
                     <?php endif; ?>
                 </td>
             </tr>
-            <tr class="bg1">
+            <tr class="<?php echo ($info_idx++ % 2 == 0) ? 'bg1' : 'bg2'; ?>">
                 <td style="font-weight:bold;">Voice Rooms:</td>
                 <td><?php echo (int)$dc->m_channels; ?> registered voice channels</td>
             </tr>
-            <tr class="bg2">
+            <tr class="<?php echo ($info_idx++ % 2 == 0) ? 'bg1' : 'bg2'; ?>">
                 <td style="font-weight:bold;">Join Server:</td>
                 <td>
                     <?php if (!empty($safe_invite)): ?>
@@ -210,24 +286,24 @@ if (!function_exists('getGameBadgeHtml')) {
                                 $u_avatar = htmlspecialchars($u['avatar'], ENT_QUOTES, 'UTF-8');
                                 $u_act = $u['activity'];
                             ?>
-                                <span style="display:inline-block; background:rgba(0,0,0,0.12); border-radius:12px; padding:3px 8px; margin:2px 4px 2px 0; vertical-align:middle;">
+                                <span class="discord-user-pill" style="display:inline-flex; align-items:center; background:rgba(0,0,0,0.12); border-radius:12px; padding:2px 8px 3px 8px; margin:2px 4px 2px 0; vertical-align:middle;">
                                     <?php if (!empty($u_avatar) && preg_match('/^https?:\/\//i', $u_avatar)): ?>
-                                        <img src="<?php echo $u_avatar; ?>" alt="" width="16" height="16" loading="lazy" style="border-radius:50%; vertical-align:middle; margin-right:4px;" />
+                                        <img src="<?php echo $u_avatar; ?>" alt="" width="18" height="18" loading="lazy" style="border-radius:50%; margin-right:5px; flex-shrink:0;" />
                                     <?php else: ?>
-                                        <img src="<?php echo IMAGE_PATH; ?>/discord/discord.png" alt="" width="16" height="16" loading="lazy" style="border-radius:50%; vertical-align:middle; margin-right:4px;" />
+                                        <img src="<?php echo IMAGE_PATH; ?>/discord/discord.png" alt="" width="18" height="18" loading="lazy" style="border-radius:50%; margin-right:5px; flex-shrink:0;" />
                                     <?php endif; ?>
-                                    <strong style="max-width:130px; display:inline-block; vertical-align:middle; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="<?php echo $uname; ?>"><?php echo $uname; ?></strong>
+                                    <strong style="max-width:130px; display:inline-block; line-height:1.35; padding:1px 0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="<?php echo $uname; ?>"><?php echo $uname; ?></strong>
                                     <?php if (!empty($u['is_bot'])): ?>
-                                        <span style="background:#5865F2; color:#ffffff; font-size:9px; font-weight:bold; padding:1px 4px; border-radius:3px; margin-left:3px; vertical-align:middle;">BOT</span>
+                                        <span style="background:#5865F2; color:#ffffff; font-size:9px; font-weight:bold; padding:1px 4px; border-radius:3px; margin-left:4px; flex-shrink:0;">BOT</span>
                                     <?php endif; ?>
                                     <?php if (!empty($u_act)): ?>
-                                        <span style="font-size:11px; color:#3498db; margin-left:4px; font-weight:bold; vertical-align:middle;"><?php echo getGameBadgeHtml($u_act, $hlx_games); ?></span>
+                                        <span style="font-size:11px; color:#3498db; margin-left:4px; font-weight:bold; flex-shrink:0;"><?php echo getGameBadgeHtml($u_act, $hlx_games); ?></span>
                                     <?php endif; ?>
                                     <?php if (!empty($u['is_muted'])): ?>
-                                        <img src="<?php echo IMAGE_PATH; ?>/discord/muted.png" alt="Muted" title="Microphone Muted" width="14" height="14" style="vertical-align:middle; margin-left:4px;" />
+                                        <img src="<?php echo IMAGE_PATH; ?>/discord/muted.png" alt="Muted" title="Microphone Muted" width="14" height="14" style="margin-left:4px; flex-shrink:0;" />
                                     <?php endif; ?>
                                     <?php if (!empty($u['is_deaf'])): ?>
-                                        <img src="<?php echo IMAGE_PATH; ?>/discord/deafened.png" alt="Deafened" title="Deafened (Audio &amp; Mic Muted)" width="14" height="14" style="vertical-align:middle; margin-left:4px;" />
+                                        <img src="<?php echo IMAGE_PATH; ?>/discord/deafened.png" alt="Deafened" title="Deafened (Audio &amp; Mic Muted)" width="14" height="14" style="margin-left:4px; flex-shrink:0;" />
                                     <?php endif; ?>
                                 </span>
                             <?php endforeach; ?>
@@ -281,7 +357,7 @@ if (!function_exists('getGameBadgeHtml')) {
                 <form method="get" action="hlstats.php" style="display:inline; margin:0;">
                   <input type="hidden" name="mode" value="discord" />
                   <?php if (!empty($game)): ?>
-                  <input type="hidden" name="game" value="<?php echo htmlspecialchars($game, ENT_QUOTES, 'UTF-8'); ?>" />
+                  <input type="hidden" name="game" value="<?php echo htmlspecialchars((string)($game ?? ''), ENT_QUOTES, 'UTF-8'); ?>" />
                   <?php endif; ?>
                   <input type="hidden" name="dcId" value="<?php echo $dcId; ?>" />
                   <label for="per_page_select" style="color:inherit; opacity:0.8; margin-right:4px;">Members per page:</label>
@@ -326,9 +402,9 @@ if (!function_exists('getGameBadgeHtml')) {
                     <tr class="<?php echo $row_class; ?>">
                         <td style="text-align:center; vertical-align:middle;">
                             <?php if (!empty($m_avatar) && preg_match('/^https?:\/\//i', $m_avatar)): ?>
-                                <img src="<?php echo $m_avatar; ?>" alt="" width="22" height="22" loading="lazy" style="border-radius:50%; vertical-align:middle;" />
+                                <img src="<?php echo $m_avatar; ?>" alt="" width="18" height="18" loading="lazy" style="border-radius:50%; vertical-align:middle;" />
                             <?php else: ?>
-                                <img src="<?php echo IMAGE_PATH; ?>/discord/discord.png" alt="" width="22" height="22" loading="lazy" style="border-radius:50%; vertical-align:middle;" />
+                                <img src="<?php echo IMAGE_PATH; ?>/discord/discord.png" alt="" width="18" height="18" loading="lazy" style="border-radius:50%; vertical-align:middle;" />
                             <?php endif; ?>
                         </td>
                         <td class="fHeading" style="vertical-align:middle;">
@@ -371,7 +447,6 @@ if (!function_exists('getGameBadgeHtml')) {
                     <?php endif; ?>
                 </div>
             <?php endif; ?>
-
-        <?php endif; ?>
+        </div>
     </div>
-</div>
+<?php endif; ?>

@@ -71,20 +71,23 @@ For support and installation notes visit http://www.hlxcommunity.com
     $edlist = new EditList('serverId', 'hlstats_Servers_VoiceComm', '', true);
     $edlist->columns[] = new EditListColumn('name', 'Server Name', 25, false, 'text', '', 128);
     $edlist->columns[] = new EditListColumn('addr', 'IP / Hostname (or Discord Guild ID)', 22, true, 'text', '', 128);
-    $edlist->columns[] = new EditListColumn('password', 'Password (or Discord Invite URL)', 20, false, 'text', '', 128);
+    $edlist->columns[] = new EditListColumn('password', 'Password (Discord Invite URL / API Key)', 20, false, 'text', '', 128);
     $edlist->columns[] = new EditListColumn('UDPPort', 'UDP Port (TS)', 6, false, 'text', '', 5);
     $edlist->columns[] = new EditListColumn('queryPort', 'Query Port (TS/Vent)', 6, false, 'text', '', 5);
     $edlist->columns[] = new EditListColumn('descr', 'Notes', 20, false, 'text', '', 255);
-    $edlist->columns[] = new EditListColumn('serverType', 'Server Type', 16, true, 'select', '' . '/-- select --;0/Teamspeak;1/Ventrilo;2/Discord');
+    $edlist->columns[] = new EditListColumn('serverType', 'Server Type', 16, true, 'select', '' . '/-- select --;0/TeamSpeak;1/Ventrilo;2/Discord');
 
 if (!empty($_POST)) {
     $custom_error = false;
 
     // Collect row IDs marked for deletion so they will not trigger duplicate errors
     $deleted_ids = [];
-    foreach ($_POST as $k => $v) {
-        if (strpos($k, 'd_') === 0 && !empty($v)) {
-            $deleted_ids[] = (int)substr($k, 2);
+    if (isset($_POST['rows']) && is_array($_POST['rows'])) {
+        foreach ($_POST['rows'] as $rid) {
+            $rid_int = (int)$rid;
+            if (!empty($_POST[$rid_int . '_delete'])) {
+                $deleted_ids[] = $rid_int;
+            }
         }
     }
     $has_delete = !empty($deleted_ids);
@@ -118,11 +121,7 @@ if (!empty($_POST)) {
             return false;
         }
 
-        $sql = "SELECT serverId FROM hlstats_Servers_VoiceComm
-                WHERE (
-                    (addr = '$addr_esc' AND UDPPort = $udp AND queryPort = $query)
-                    OR (serverType = 2 AND addr = '$addr_esc')
-                )";
+        $sql = "SELECT serverId FROM hlstats_Servers_VoiceComm WHERE addr = '$addr_esc' AND UDPPort = $udp AND queryPort = $query";
 
         if ($exclude_id > 0) {
             $sql .= " AND serverId != $exclude_id";
@@ -142,7 +141,7 @@ if (!empty($_POST)) {
         return false;
     };
 
-    // --- 1. VALIDATE NEW SERVER SUBMISSION ---
+    // --- 1. VALIDATE AND PREPARE NEW SERVER SUBMISSION ---
     if ($has_new_input || (!$has_existing_servers && !$has_delete)) {
         if ($new_addr === '') {
             message('warning', 'Error: IP / Hostname (or Discord Guild ID) is required.');
@@ -155,106 +154,121 @@ if (!empty($_POST)) {
         } else {
             $stype_int = (int)$new_stype;
 
-            // Discord check: must be a 17-25 numeric Guild ID (prevents pasting invite links into IP/ID)
             if ($stype_int === 2) {
+                // Discord: 17-25 numeric Guild ID
                 if (!preg_match('/^[0-9]{17,25}$/', $new_addr)) {
                     message('warning', 'Error: Discord Server ID must be a numeric ID (17-25 digits). Do not paste invite links into IP / Hostname!');
                     $custom_error = true;
                 }
-                $new_udp = 0;
+                $new_udp   = 0;
                 $new_query = 0;
+                $_POST['new_UDPPort']   = '0';
+                $_POST['new_queryPort'] = '0';
+
+                // Normalize Discord invite URL
+                if (!empty($_POST['new_password'])) {
+                    $pass_trimmed = trim((string)$_POST['new_password']);
+                    if (!preg_match('~^https?://~i', $pass_trimmed)) {
+                        $_POST['new_password'] = 'https://' . $pass_trimmed;
+                    }
+                }
             } else {
+                // Clean TeamSpeak / Ventrilo address: strip protocol prefixes (ts3server://, http://, ://)
+                $new_addr = preg_replace('~^([a-z0-9_]+://|://)~i', '', $new_addr);
+                $new_addr = rtrim($new_addr, '/');
+
+                // Split hostname and port if provided as host:port (e.g. voice.com:9987)
+                if (strpos($new_addr, ':') !== false && !filter_var($new_addr, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6)) {
+                    $parts = explode(':', $new_addr, 2);
+                    $new_addr = $parts[0];
+                    if (empty($_POST['new_UDPPort']) && is_numeric($parts[1])) {
+                        $_POST['new_UDPPort'] = (string)(int)$parts[1];
+                    }
+                }
+                $_POST['new_addr'] = $new_addr;
+
                 $raw_udp   = trim((string)($_POST['new_UDPPort'] ?? ''));
                 $raw_query = trim((string)($_POST['new_queryPort'] ?? ''));
 
-                if ($raw_udp !== '' && (!preg_match('/^[0-9]+$/', $raw_udp) || (int)$raw_udp < 1 || (int)$raw_udp > 65535)) {
+                // Set default ports before duplicate check
+                if ($raw_udp === '')   $raw_udp   = ($stype_int === 0) ? '9987' : '3784';
+                if ($raw_query === '') $raw_query = ($stype_int === 0) ? '10011' : '3784';
+
+                if (!preg_match('/^[0-9]+$/', $raw_udp) || (int)$raw_udp < 1 || (int)$raw_udp > 65535) {
                     message('warning', 'Error: UDP Port must be between 1 and 65535.');
                     $custom_error = true;
                 }
-                if ($raw_query !== '' && (!preg_match('/^[0-9]+$/', $raw_query) || (int)$raw_query < 1 || (int)$raw_query > 65535)) {
+                if (!preg_match('/^[0-9]+$/', $raw_query) || (int)$raw_query < 1 || (int)$raw_query > 65535) {
                     message('warning', 'Error: Query Port must be between 1 and 65535.');
                     $custom_error = true;
                 }
 
                 $new_udp   = (int)$raw_udp;
                 $new_query = (int)$raw_query;
+                $_POST['new_UDPPort']   = (string)$new_udp;
+                $_POST['new_queryPort'] = (string)$new_query;
             }
 
-            // Duplicate Check: Prevent duplicate new server
+            // Duplicate check with final ports and cleaned address
             if (!$custom_error && $check_duplicate($stype_int, $new_addr, $new_udp, $new_query)) {
                 $type_name = ($stype_int === 2) ? 'Discord' : (($stype_int === 1) ? 'Ventrilo' : 'Teamspeak');
-                message('warning', "Error: Duplicate server! A {$type_name} server with this address / ID already exists.");
+                message('warning', "Error: Duplicate server! A {$type_name} server with address/ID '{$new_addr}' and ports ({$new_udp}/{$new_query}) already exists in the database.");
                 $custom_error = true;
             }
-        }
-    }
 
-    // --- 2. PREPARE NEW SERVER DEFAULTS IF VALID ---
-    if (!$custom_error && $new_addr !== '' && $new_stype !== '') {
-        $stype_int = (int)$new_stype;
-
-        if ($stype_int === 2) {
-            $_POST['new_UDPPort']   = 0;
-            $_POST['new_queryPort'] = 0;
-
-            // Auto-prepend https:// to Discord invite if omitted
-            if (!empty($_POST['new_password'])) {
-                $pass_trimmed = trim((string)$_POST['new_password']);
-                if (!preg_match('~^https?://~i', $pass_trimmed)) {
-                    $_POST['new_password'] = 'https://' . $pass_trimmed;
+            // Auto-resolve server name if left empty
+            if (!$custom_error && empty(trim((string)($_POST['new_name'] ?? '')))) {
+                if ($stype_int === 2) {
+                    $_POST['new_name'] = hlx_fetch_discord_name($new_addr, $_POST['new_password'] ?? '');
+                } else {
+                    $_POST['new_name'] = $new_addr;
                 }
-            }
-        } else {
-            $_POST['new_UDPPort']   = (int)($_POST['new_UDPPort'] ?? 0);
-            $_POST['new_queryPort'] = (int)($_POST['new_queryPort'] ?? 0);
-        }
-
-        // Auto-resolve empty server name via Discord API or fallback
-        if (empty(trim((string)($_POST['new_name'] ?? '')))) {
-            if ($stype_int === 2) {
-                $_POST['new_name'] = hlx_fetch_discord_name($new_addr, $_POST['new_password'] ?? '');
-            } else {
-                $_POST['new_name'] = $new_addr;
             }
         }
     }
 
     // --- 3. HANDLE EXISTING SERVER UPDATES (Catches duplicates before MariaDB SQL error) ---
-    if (!$custom_error) {
-        // Collect all existing row IDs from POST (supports both addr_1 and addr[1])
-        $existing_ids = [];
-        foreach ($_POST as $k => $v) {
-            if (preg_match('/^addr_([0-9]+)$/', $k, $m)) {
-                $existing_ids[] = (int)$m[1];
-            }
-        }
-        if (isset($_POST['addr']) && is_array($_POST['addr'])) {
-            foreach (array_keys($_POST['addr']) as $aid) {
-                $existing_ids[] = (int)$aid;
-            }
-        }
-        $existing_ids = array_unique($existing_ids);
-
-        foreach ($existing_ids as $id) {
+    if (!$custom_error && isset($_POST['rows']) && is_array($_POST['rows'])) {
+        foreach ($_POST['rows'] as $rid) {
+            $id = (int)$rid;
             if (in_array($id, $deleted_ids, true)) continue; // Skip rows being deleted
 
-            $addr_val  = trim((string)($_POST['addr_' . $id] ?? $_POST['addr'][$id] ?? ''));
-            $stype_int = (int)($_POST['serverType_' . $id] ?? $_POST['serverType'][$id] ?? 0);
-            $udp       = ($stype_int === 2) ? 0 : (int)($_POST['UDPPort_' . $id] ?? $_POST['UDPPort'][$id] ?? 0);
-            $query     = ($stype_int === 2) ? 0 : (int)($_POST['queryPort_' . $id] ?? $_POST['queryPort'][$id] ?? 0);
+            $addr_val  = trim((string)($_POST[$id . '_addr'] ?? ''));
+            $stype_int = (int)($_POST[$id . '_serverType'] ?? 0);
 
-            // Normalize integer ports in $_POST so EditList saves clean values
-            $_POST['UDPPort_' . $id]   = $udp;
-            $_POST['queryPort_' . $id] = $query;
+            if ($stype_int === 2) {
+                $_POST[$id . '_UDPPort']   = '0';
+                $_POST[$id . '_queryPort'] = '0';
+                $udp   = 0;
+                $query = 0;
 
-            // Validation: Discord ID must be numeric snowflake (17-25 digits)
-            if ($stype_int === 2 && !preg_match('/^[0-9]{17,25}$/', $addr_val)) {
-                message('warning', "Error on row #{$id}: Discord Server ID must be a numeric ID (17-25 digits). Do not paste invite links into IP / Hostname!");
-                $custom_error = true;
-                break;
+                if (!preg_match('/^[0-9]{17,25}$/', $addr_val)) {
+                    message('warning', "Error on row #{$id}: Discord Server ID must be a numeric ID (17-25 digits).");
+                    $custom_error = true;
+                    break;
+                }
+
+                // Normalize Discord invite URL
+                if (!empty($_POST[$id . '_password'])) {
+                    $pass_trimmed = trim((string)$_POST[$id . '_password']);
+                    if (!preg_match('~^https?://~i', $pass_trimmed)) {
+                        $_POST[$id . '_password'] = 'https://' . $pass_trimmed;
+                    }
+                }
+            } else {
+                $raw_udp   = trim((string)($_POST[$id . '_UDPPort'] ?? ''));
+                $raw_query = trim((string)($_POST[$id . '_queryPort'] ?? ''));
+
+                // Normalize default ports if left empty by user on existing row
+                if ($raw_udp === '')   $raw_udp   = ($stype_int === 0) ? '9987' : '3784';
+                if ($raw_query === '') $raw_query = ($stype_int === 0) ? '10011' : '3784';
+
+                $udp   = (int)$raw_udp;
+                $query = (int)$raw_query;
+                $_POST[$id . '_UDPPort']   = (string)$udp;
+                $_POST[$id . '_queryPort'] = (string)$query;
             }
 
-            // Duplicate Check: Catch duplicates in PHP before MariaDB throws a database error
             if ($check_duplicate($stype_int, $addr_val, $udp, $query, $id)) {
                 $type_name = ($stype_int === 2) ? 'Discord' : (($stype_int === 1) ? 'Ventrilo' : 'Teamspeak');
                 message('warning', "Error on row #{$id}: Duplicate server! A {$type_name} server with address / ID '" . htmlspecialchars($addr_val, ENT_QUOTES, 'UTF-8') . "' already exists.");
@@ -262,14 +276,13 @@ if (!empty($_POST)) {
                 break;
             }
 
-            // Fallback name resolution if an existing server name was cleared
-            $current_name = trim((string)($_POST['name_' . $id] ?? $_POST['name'][$id] ?? ''));
+            $current_name = trim((string)($_POST[$id . '_name'] ?? ''));
             if (empty($current_name)) {
-                $inv = (string)($_POST['password_' . $id] ?? $_POST['password'][$id] ?? '');
+                $inv = (string)($_POST[$id . '_password'] ?? '');
                 if ($stype_int === 2) {
-                    $_POST['name_' . $id] = hlx_fetch_discord_name($addr_val, $inv);
+                    $_POST[$id . '_name'] = hlx_fetch_discord_name($addr_val, $inv);
                 } else {
-                    $_POST['name_' . $id] = $addr_val;
+                    $_POST[$id . '_name'] = $addr_val;
                 }
             }
         }
@@ -286,9 +299,88 @@ if (!empty($_POST)) {
 }
 
 echo '
-<b>Note:</b> When adding a Discord server:<br /><br />
-1. In Discord app settings: Open <em>Server Settings &rarr; Activity (Engagement)</em>, turn on <em>Enable Server Widget</em>, and select a welcome/landing channel.<br />
-2. In HLX: Paste the numeric Server ID (17-25 digits) into <em>IP / Hostname</em>, copy the invite link to that landing channel into <em>Password</em>, and leave port fields empty (all voice rooms sync automatically).<br /><br />
+<div style="margin-bottom: 18px;">
+    <b>Voice Server Setup Guides (Click on a service to expand):</b><br /><br />
+
+    <details style="margin-bottom: 8px; cursor: pointer;">
+        <summary style="font-weight: bold; color: inherit;">Discord Server Widget</summary>
+        <div style="padding: 8px 0 4px 15px; font-size: 11px; line-height: 1.6; cursor: default;">
+            1. <strong>In Discord:</strong> Open <em>Server Settings &rarr; Widget</em> (under Activity / Engagement). Enable <strong>Enable Server Widget</strong> and select a default invite channel.<br />
+            2. <strong>In HLX:</strong> Paste the 17&ndash;25 digit numeric <strong>Server ID</strong> into <em>IP / Hostname</em>.<br />
+            3. <strong>Server Name (Optional):</strong> You can leave <em>Server Name</em> blank; HLstatsX will automatically query and save your Discord community\'s real name via the widget API.<br />
+            4. <strong>Invite Link (Optional):</strong> If a landing channel was selected in Discord, the invite link is automatically retrieved. You can paste a custom/vanity invite link into <em>Password</em> to override it, or leave both empty to keep the server closed/private (status and channels only, without a join link).<br />
+            5. Leave <em>UDP Port</em> and <em>Query Port</em> empty (or set to 0). Note: Discord widgets only display voice channels that are publicly visible to @everyone.
+        </div>
+    </details>
+
+    <details style="margin-bottom: 8px; cursor: pointer;">
+        <summary style="font-weight: bold; color: inherit;">TeamSpeak 2 (Legacy)</summary>
+        <div style="padding: 8px 0 4px 15px; font-size: 11px; line-height: 1.6; cursor: default;">
+            &bull; <strong>HLX Fields:</strong> Enter the server IP/hostname. Default UDP Port is <code>8767</code> (Voice) and Query Port is <code>51234</code> (TCP).<br />
+            &bull; <strong>Authentication:</strong> Leave <em>Password</em> empty. TS2 ServerQuery operates anonymously by default; no extra permissions or accounts are required.<br />
+            &bull; <strong>Firewall:</strong> Ensure UDP <code>8767</code> and TCP <code>51234</code> are open and reachable from your web server.
+        </div>
+    </details>
+
+    <details style="margin-bottom: 8px; cursor: pointer;">
+        <summary style="font-weight: bold; color: inherit;">TeamSpeak 3 (Telnet ServerQuery)</summary>
+        <div style="padding: 8px 0 4px 15px; font-size: 11px; line-height: 1.6; cursor: default;">
+            &bull; <strong>HLX Fields:</strong> Enter the server IP/hostname. Default UDP Port is <code>9987</code> (Voice) and Query Port is <code>10011</code> (TCP).<br />
+            &bull; <strong>Password Field:</strong> Leave empty for open servers, or enter only the client voice connect password if your virtual server requires a password for players to join.<br />
+            &bull; <strong>Flood Protection:</strong> Add your web server\'s IP to <code>query_ip_whitelist.txt</code> (or <code>query_ip_allowlist.txt</code>) in the TS3 root folder to prevent rate-limit bans.<br />
+            &bull; <strong>One-time Guest Permission Setup:</strong> The viewer operates anonymously without storing admin credentials in the database. Connect via Telnet (e.g. <code>telnet 127.0.0.1 10011</code> or PuTTY) and grant the following 6 permissions to the <em>Guest Server Query</em> group (<code>sgid=1</code>):<br /><br />
+
+            <code>login serveradmin &lt;password&gt;</code><br />
+            <code>use sid=1 (or use port=9987)</code><br />
+            <code>servergroupaddperm sgid=1 permsid=b_virtualserver_select permvalue=1 permnegated=0 permskip=0</code><br />
+            <em>&rarr; Purpose: Allows selecting the virtual server by port or SID (required for `use port=9987`).</em><br /><br />
+
+            <code>servergroupaddperm sgid=1 permsid=b_virtualserver_info_view permvalue=1 permnegated=0 permskip=0</code><br />
+            <em>&rarr; Purpose: Retrieves general server properties: real server name, platform, version, and max slots (`serverinfo`).</em><br /><br />
+
+            <code>servergroupaddperm sgid=1 permsid=b_virtualserver_connectioninfo_view permvalue=1 permnegated=0 permskip=0</code><br />
+            <em>&rarr; Purpose: Retrieves connection metrics and real uptime. In TS 3.13+, missing this permission causes `serverinfo` to fail with `failed_permid=25`.</em><br /><br />
+
+            <code>servergroupaddperm sgid=1 permsid=b_virtualserver_channel_list permvalue=1 permnegated=0 permskip=0</code><br />
+            <em>&rarr; Purpose: Retrieves the channel tree, room names, and topics (`channellist -topic`).</em><br /><br />
+
+            <code>servergroupaddperm sgid=1 permsid=b_virtualserver_client_list permvalue=1 permnegated=0 permskip=0</code><br />
+            <em>&rarr; Purpose: Retrieves connected players, nicknames, channel commander, mute, and deaf flags (`clientlist`).</em><br /><br />
+
+            <code>servergroupaddperm sgid=1 permsid=b_client_skip_channelgroup_permissions permvalue=1 permnegated=0 permskip=0</code><br />
+            <em>&rarr; Purpose: Master bypass. When a query client binds to port 9987, it is placed into the default channel. This permission prevents default Channel Group restrictions from blocking server-level query commands.</em><br /><br />
+
+            <code>quit</code><br />
+            <em>(Alternatively via YaTQA GUI: Permissions &rarr; Server Query Groups &rarr; Guest Server Query &rarr; enable the 6 permissions above).</em><br />
+            &bull; <strong>Firewall:</strong> Ensure UDP <code>9987</code> (voice) and TCP <code>10011</code> (query) are allowed through the firewall.
+        </div>
+    </details>
+
+    <details style="margin-bottom: 8px; cursor: pointer;">
+        <summary style="font-weight: bold; color: inherit;">TeamSpeak 6 (HTTP REST WebQuery)</summary>
+        <div style="padding: 8px 0 4px 15px; font-size: 11px; line-height: 1.6; cursor: default;">
+            &bull; <strong>Server Startup:</strong> Start your TS6 instance with HTTP query enabled: <code>--query-http-enable --query-http-port 10080</code>.<br />
+            &bull; <strong>HLX Fields:</strong> Enter the server IP. Set UDP Port to <code>9987</code> (Voice), Query Port strictly to <strong><code>10080</code></strong> (HTTP REST WebQuery), and paste your <strong>WebQuery API key</strong> directly into the <em>Password</em> field.<br />
+            &bull; <strong>Dual Password (Optional):</strong> If your server requires a client connect password for players AND you use an API key, enter them in the Password field as: <code>connect_password|your_api_key</code>.<br />
+            &bull; <strong>API Key Generation:</strong> Connect via Telnet/ServerQuery and generate an API key for the viewer:<br />
+            <code>login serveradmin &lt;password&gt;</code><br />
+            <code>use sid=1</code><br />
+            <code>apikeyadd scope=read</code> &rarr; <em>(Returns: apikey=&lt;your_32_char_key&gt;)</em><br />
+            <code>quit</code><br /><br />
+            &bull; <strong>Permissions:</strong> No Telnet Guest permissions are needed because the API key authenticates directly via the <code>x-api-key</code> HTTP header.<br />
+            &bull; <strong>Firewall &amp; Whitelist:</strong> Ensure UDP <code>9987</code> and TCP <code>10080</code> are open in your firewall. Keep your web server\'s IP in the allowlist if flood protection is enabled.
+        </div>
+    </details>
+
+    <details style="margin-bottom: 12px; cursor: pointer;">
+        <summary style="font-weight: bold; color: inherit;">Ventrilo 3.x</summary>
+        <div style="padding: 8px 0 4px 15px; font-size: 11px; line-height: 1.6; cursor: default;">
+            &bull; <strong>HLX Fields:</strong> Enter the server IP/hostname. Default UDP Port and Query Port are both <code>3784</code>.<br />
+            &bull; <strong>Password:</strong> Leave empty, or enter the server password if required for clients to connect.<br />
+            &bull; <strong>Server Configuration:</strong> Ensure status queries are enabled in your <code>ventrilo_srv.ini</code> file (specifically set <code>IntStatus=1</code>), and both UDP and TCP port <code>3784</code> are open through the firewall.
+        </div>
+    </details>
+</div>
 ';
 
     $result = $db->query("

@@ -364,7 +364,7 @@ class CVentriloStatus
     function Request()
     {
         $ventserv = new Vent;
-        $ventserv->setTimeout( 100000 );                // 100 ms timeout
+        $ventserv->setTimeout( 500000 );                // 500 ms timeout for reliable network queries
         if ( $ventserv->makeRequest( $this->m_cmdcode, $this->m_cmdhost, $this->m_cmdport, $this->m_cmdpass )) {
             // PHP 8 Fix: explode does not support regex, use preg_split
             $res = preg_split("/[\n\r\t]+/", (string)$ventserv->getResponse(), -1, PREG_SPLIT_NO_EMPTY);
@@ -375,8 +375,130 @@ class CVentriloStatus
                     $this->Parse($line);
                 }
             }
+        } else {
+            if (empty($this->m_error)) {
+                $this->m_error = !empty($ventserv->error) ? $ventserv->error : 'Connection timed out or host unreachable.';
+            }
         }
 
+        return 0;
+    }
+
+    // --- JSON FILE-CACHE ENGINE (90s for success, 10s for failure) ---
+    function ToCacheArray(): array
+    {
+        $channels = [];
+        foreach ($this->m_channellist as $ch) {
+            $channels[] = [
+                'cid'  => $ch->m_cid,
+                'pid'  => $ch->m_pid,
+                'prot' => $ch->m_prot,
+                'name' => $ch->m_name,
+                'comm' => $ch->m_comm
+            ];
+        }
+
+        $clients = [];
+        foreach ($this->m_clientlist as $cl) {
+            $clients[] = [
+                'uid'   => $cl->m_uid,
+                'admin' => $cl->m_admin,
+                'phan'  => $cl->m_phan,
+                'cid'   => $cl->m_cid,
+                'ping'  => $cl->m_ping,
+                'sec'   => $cl->m_sec,
+                'name'  => $cl->m_name,
+                'comm'  => $cl->m_comm
+            ];
+        }
+
+        return [
+            'error'        => $this->m_error,
+            'name'         => $this->m_name,
+            'phonetic'     => $this->m_phonetic,
+            'comment'      => $this->m_comment,
+            'maxclients'   => $this->m_maxclients,
+            'codec_desc'   => $this->m_voicecodec_desc,
+            'format_desc'  => $this->m_voiceformat_desc,
+            'uptime'       => $this->m_uptime,
+            'platform'     => $this->m_platform,
+            'version'      => $this->m_version,
+            'channelcount' => $this->m_channelcount,
+            'clientcount'  => $this->m_clientcount,
+            'channels'     => $channels,
+            'clients'      => $clients
+        ];
+    }
+
+    function FromCacheArray(array $d): void
+    {
+        $this->m_error            = $d['error'] ?? null;
+        $this->m_name             = $d['name'] ?? null;
+        $this->m_phonetic         = $d['phonetic'] ?? null;
+        $this->m_comment          = $d['comment'] ?? null;
+        $this->m_maxclients       = $d['maxclients'] ?? null;
+        $this->m_voicecodec_desc  = $d['codec_desc'] ?? null;
+        $this->m_voiceformat_desc = $d['format_desc'] ?? null;
+        $this->m_uptime           = $d['uptime'] ?? null;
+        $this->m_platform         = $d['platform'] ?? null;
+        $this->m_version          = $d['version'] ?? null;
+        $this->m_channelcount     = $d['channelcount'] ?? 0;
+        $this->m_clientcount      = $d['clientcount'] ?? 0;
+
+        $this->m_channellist = [];
+        if (!empty($d['channels']) && is_array($d['channels'])) {
+            foreach ($d['channels'] as $ch_data) {
+                $chan = new CVentriloChannel;
+                $chan->m_cid  = $ch_data['cid'] ?? null;
+                $chan->m_pid  = $ch_data['pid'] ?? null;
+                $chan->m_prot = $ch_data['prot'] ?? null;
+                $chan->m_name = $ch_data['name'] ?? null;
+                $chan->m_comm = $ch_data['comm'] ?? null;
+                $this->m_channellist[] = $chan;
+            }
+        }
+
+        $this->m_clientlist = [];
+        if (!empty($d['clients']) && is_array($d['clients'])) {
+            foreach ($d['clients'] as $cl_data) {
+                $cli = new CVentriloClient;
+                $cli->m_uid   = $cl_data['uid'] ?? null;
+                $cli->m_admin = $cl_data['admin'] ?? null;
+                $cli->m_phan  = $cl_data['phan'] ?? null;
+                $cli->m_cid   = $cl_data['cid'] ?? null;
+                $cli->m_ping  = $cl_data['ping'] ?? null;
+                $cli->m_sec   = $cl_data['sec'] ?? null;
+                $cli->m_name  = $cl_data['name'] ?? null;
+                $cli->m_comm  = $cl_data['comm'] ?? null;
+                $this->m_clientlist[] = $cli;
+            }
+        }
+    }
+
+    function RequestCached(int $cache_time = 90): int
+    {
+        $cache_dir = defined('TEMP_PATH') ? TEMP_PATH : sys_get_temp_dir();
+        $cache_file = rtrim($cache_dir, '/\\') . '/ve_query_' . md5($this->m_cmdhost . '_' . $this->m_cmdport . '_' . $this->m_cmdcode) . '.json';
+
+        if (file_exists($cache_file)) {
+            $age = time() - filemtime($cache_file);
+            $content = @file_get_contents($cache_file);
+            if ($content) {
+                $decoded = json_decode($content, true);
+                if (is_array($decoded) && json_last_error() === JSON_ERROR_NONE) {
+                    $is_err = !empty($decoded['error']) || empty($decoded['name']);
+                    if (($is_err && $age < 10) || (!$is_err && $age < $cache_time)) {
+                        $this->FromCacheArray($decoded);
+                        return 0;
+                    }
+                }
+            }
+        }
+
+        $this->Request();
+
+        $cache_data = $this->ToCacheArray();
+        @file_put_contents($cache_file, json_encode($cache_data), LOCK_EX);
         return 0;
     }
 };
@@ -556,6 +678,7 @@ class Vent
     public $timeout;                    // timeout for socket read in *microseconds* ( 1,000,000 microsec = 1 sec )
     public $packets = array();  // hold all the decoded response packets, in correct order
     public $response;                   // all the decoded data
+    public $error = '';                 // captured error string without echoing directly
 
     function getClock()                 { return $this->clock; }
     function getTimeout()                       { return $this->timeout; }
@@ -563,8 +686,7 @@ class Vent
     function &getPackets()              { return $this->packets; }              // by ref
     function getResponse()              { return $this->response; }
 
-    /* makeRequest: send off a request to the vent server, return true/false. I'm not checking
-    *   for valid IP or hostname - someone else can add this stuff.
+    /* makeRequest: send off a request to the vent server, return true/false.
     *   Note: The password field is no longer required for 2.3 or higher servers. Even if a server
     *     is password protected, it will return status info.
     */
@@ -573,14 +695,15 @@ class Vent
         $this->clock = smallCast( time(), 16 );         // reset the clock for each request
         $this->packets = array();                                       // start fresh
         $this->response = '';
+        $this->error = '';
 
         $request = new VentRequestPacket( $cmd, $this->clock, $pass );
 
         $errno = 0; $errstr = '';
-        $sfh = fsockopen( "udp://$ip", $port, $errno, $errstr );
+        $sfh = @fsockopen( "udp://$ip", (int)$port, $errno, $errstr, 2 );
 
         if ( !$sfh ) {
-            echo("Socket Error: $errno - $errstr\n");
+            $this->error = "Socket Error: $errno - $errstr";
             return false;
         }
 
@@ -592,20 +715,21 @@ class Vent
         */
         while( false !== ($pck = fread( $sfh, VENT_MAXPACKETSIZE )) ) {
             if (  count( $this->packets ) >= VENT_MAXPACKETNO ) {
-                echo("ERROR: Received more packets than the maximum allowed in a response.\n");
+                $this->error = "Received more packets than the maximum allowed in a response.";
                 fclose( $sfh );
                 return false;
             }
 
             // decode this packet. If we get invalid packet back, there was an error in the decode.
             $rpobj = new VentResponsePacket( $pck );
-            if ( !$rpobj->isValid() ) { 
-                fclose( $sfh ); 
-                return false; 
+            if ( !$rpobj->isValid() ) {
+                $this->error = "Invalid response packet received.";
+                fclose( $sfh );
+                return false;
             }
 
             /* check the id / clock. They should match the request, if not - skip it.
-            * also skip if there's a duplicate packet. Could throw an error here.
+            * also skip if there's a duplicate packet.
             */
             if (( $rpobj->id != $this->clock ) || ( isset( $this->packets[$rpobj->pck] ))) { continue; }
 
@@ -616,18 +740,19 @@ class Vent
 
         if (count($this->packets) == 0) {
             // No packets received
+            $this->error = "No response packets received from Ventrilo server.";
             return false;
         }
 
         // check if we've got the right number of packets
         if ( $this->packets[0]->totpck != count( $this->packets )) {
-            echo("ERROR: Received less packets than expected in the response.\n");
+            $this->error = "Received fewer packets than expected in response.";
             return false;
         }
 
         // the order may not be correct. sort on the key.
         if ( !ksort( $this->packets, SORT_NUMERIC )) {
-            echo("ERROR: Failed to sort the response packets in order.\n");
+            $this->error = "Failed to sort response packets in order.";
             return false;
         }
 
@@ -639,14 +764,14 @@ class Vent
 
         $rlen = strlen( $this->response );
         if ( $rlen != $this->packets[0]->totlen ) {
-            echo("ERROR: Response data is $rlen bytes. Expected {$this->packets[0]->totlen} bytes.\n");
+            $this->error = "Response data length mismatch.";
             return false;
         }
 
         $crc = Vent::getCRC( $this->response );
 
         if ( $crc != $this->packets[0]->crc ) {
-            echo("ERROR: response crc is $crc. Expected: {$this->packets[0]->crc}.\n");
+            $this->error = "Response CRC checksum mismatch.";
             return false;
         }
 
@@ -670,8 +795,6 @@ class Vent
     }
 
 
-  /* constructor: (need to change method name for PHP5)
-   */
     function __construct()
     {
         $this->timeout = 500000;                // default to 0.5 second timeout
@@ -710,8 +833,7 @@ class VentPacket
     public $crc;                        // checksum
 
     /* mapHeader: Easy way to keep the correct order. We can use the array for loops when byte
-     *  order is important, and still access each element by name. Using a straight hash would
-     *  have lost the ordering.
+     *  order is important, and still access each element by name.
      */
     function mapHeader()
     {
@@ -758,9 +880,7 @@ class VentRequestPacket extends VentPacket
         $key = $rnd;
     }
 
-    /* encodeHeader: Encoded after the data portion. Do some sanity checks here,
-     *          make sure all the header info is here, and we've got encoded data of
-     *          the correct length...
+    /* encodeHeader: Encoded after the data portion. Do some sanity checks here.
      */
     function encodeHeader()
     {
@@ -778,8 +898,7 @@ class VentRequestPacket extends VentPacket
             $to_encode .= pack( "n", $this->head_items[$i] );
         }
 
-        /* Need to encode as unsigned chars, not shorts. That's the reason for the pack & unpack.
-         *      Index starts at 1 for unpack return array, not 0.
+        /* Need to encode as unsigned chars, not shorts.
          */
         $chars = unpack( "C*", $to_encode );
 
@@ -793,8 +912,7 @@ class VentRequestPacket extends VentPacket
         $this->header = $enchead;
     }
 
-    /* encodeData: The data has to be encoded first because the datakey is part of the
-     *          header, and it needs to encoded along with the rest of the header.
+    /* encodeData: The data has to be encoded first because the datakey is part of the header.
      */
     function encodeData()
     {
@@ -815,8 +933,6 @@ class VentRequestPacket extends VentPacket
     }
 
 
-    /* Constructor (Need to change to __Constructor() for PHP5?)
-     */
     function __construct( $cmd, $id, $pass )
     {
         $this->mapHeader();                                                     // set up the references
@@ -829,7 +945,6 @@ class VentRequestPacket extends VentPacket
         $this->len = $this->totlen;
         $this->totpck = 1;
         $this->pck = 0;
-/*              $this->crc = Vent::getCRC( $this->rawdata );  */
         $this->crc = Vent::getCRC( $this->rawdata );
         $this->encodeData();                                            // $this->data & datakey set here.
         $this->encodeHeader();                                          // $this->header & headkey set here.
@@ -851,8 +966,7 @@ class VentResponsePacket extends VentPacket
         return $this->m_valid;
     }
 
-    /* decodeHeader: run through the header portion of the packet, get the key, decode,
-     *  and perform some sanity checks.
+    /* decodeHeader: run through the header portion of the packet, get the key, decode.
      */
     function decodeHeader()
     {
@@ -866,13 +980,10 @@ class VentResponsePacket extends VentPacket
         $a2 = $key >> 8;
 
         if ( $a1 == 0 ) {
-            echo("ERROR: Invalid packet. Header key is invalid.\n");
             return false;
         }
 
         /* First step is to decode each unsigned char using the cypher key.
-         *      Once we finish 2 bytes treat them as a short, get the endian right,
-         *      and stick them in the proper header item slot.
          */
         $item_no = 1;           // for $this->head_items array. we skip the unencoded headkey, at index 0.
 
@@ -890,12 +1001,10 @@ class VentResponsePacket extends VentPacket
 
         // simple sanity checks
         if (( $this->zero != 0 ) || ( $this->cmd != 3 )) {
-            echo("ERROR: Invalid packet. Expected 0 & 3, found {$this->zero} & {$this->cmd}.\n");
             return false;
         }
 
         if ( $this->len != strlen( $this->data )) {
-            echo("ERROR: Invalid packet. Data is ". strlen( $this->data ) ." bytes, expected {$this->len}.\n");
             return false;
         }
 
@@ -903,8 +1012,7 @@ class VentResponsePacket extends VentPacket
         return true;
     }
 
-    /* decodeData: use the datakey to find the cyphers and decode the data portion of the
-        packet. Straightforward.
+    /* decodeData: use the datakey to find the cyphers and decode the data portion of the packet.
     */
     function decodeData()
     {
@@ -914,7 +1022,6 @@ class VentResponsePacket extends VentPacket
         $a2 = $this->datakey >> 8;
 
         if ( $a1 == 0 ) {
-            echo("ERROR: Invalid packet. Data key is invalid.\n");
             return false;
         }
 
@@ -929,15 +1036,11 @@ class VentResponsePacket extends VentPacket
         return true;
     }
 
-    /* constructor: change for PHP5.
-    */
     function __construct( $packet )
     {
         $plen = strlen( (string)$packet );
 
         if (( $plen > VENT_MAXPACKETSIZE ) || ( $plen < VENT_HEADSIZE )) {
-            echo("ERROR: Response packet was $plen bytes. It should be between ");
-            echo( VENT_HEADSIZE ." and ". VENT_MAXPACKETSIZE ." bytes.\n");
             return;
         }
 

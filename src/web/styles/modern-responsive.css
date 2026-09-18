@@ -132,6 +132,22 @@
         color: #7983f5 !important;
     }
 
+    /* Preserve TeamSpeak brand color for connect links */
+    a[href*="ts3server://"] {
+        color: #2575fc !important;
+    }
+    a[href*="ts3server://"]:hover {
+        color: #4da3ff !important;
+    }
+
+    /* Preserve Ventrilo brand color for connect links */
+    a[href*="ventrilo://"] {
+        color: #FE7200 !important;
+    }
+    a[href*="ventrilo://"]:hover {
+        color: #ff8c2b !important;
+    }
+
 @media screen and (max-width: 992px) {
 
     /* --- BUTTONS AND TOUCH INTERFACE IMPROVEMENTS --- */
@@ -367,6 +383,14 @@
         transition: filter 0.2s ease !important;
     }
 
+    /* Compact pagination dropdown for voice server member directories */
+    #per_page_select {
+        width: auto !important;
+        min-width: unset !important;
+        display: inline-block !important;
+        margin-bottom: 0 !important;
+    }
+
     /* --- COMPACT FOOTER BUTTONS (Admin / Logout) --- */
     /* Targetting links inside fSmall to create compact UI elements */
     .fSmall a[href*="mode=admin"], 
@@ -408,6 +432,7 @@
         }
 
         /* Discord Voice Member Pills in Dark Mode */
+        .discord-user-pill,
         .subblock span[style*="border-radius:12px"] {
             background: rgba(255, 255, 255, 0.08) !important;
             border: 1px solid rgba(255, 255, 255, 0.12) !important;

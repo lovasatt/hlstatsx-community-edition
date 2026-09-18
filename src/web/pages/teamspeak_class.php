@@ -24,6 +24,8 @@ if (!defined('IN_HLSTATS')) {
 class teamspeakDisplayClass
 {
     public $is_ts3 = false;
+    public $is_ts6 = false;
+    public $error = '';
 
     function _stripEOL($evalString) {
         if ($evalString === false || $evalString === null) {
@@ -41,7 +43,7 @@ class teamspeakDisplayClass
     function _openConnection(&$socket, $host, $port, $timeout) {
         $errno = 0;
         $errstr = '';
-        $socket = @fsockopen($host, $port, $errno, $errstr, $timeout);
+        $socket = @fsockopen($host, (int)$port, $errno, $errstr, $timeout);
 
         if ($socket) {
             stream_set_timeout($socket, 2);
@@ -62,6 +64,7 @@ class teamspeakDisplayClass
                 }
             }
         }
+        $this->error = "Connection timed out or host unreachable ($host:$port).";
         return false;
     }
 
@@ -70,6 +73,107 @@ class teamspeakDisplayClass
             @fputs($socket, "quit\n");
             @fclose($socket);
         }
+    }
+
+    // ==========================================
+    // --- TS6 HTTP REST WEBQUERY ENGINE (JSON) ---
+    // ==========================================
+    private function _queryTS6Http($host, $queryPort, $udpPort, $apiKey) {
+        $base_url = "http://{$host}:{$queryPort}/1";
+
+        $headers = ['Accept: application/json'];
+        if (!empty($apiKey)) {
+            $headers[] = 'x-api-key: ' . trim($apiKey);
+        }
+
+        $fetch_json = function($endpoint) use ($base_url, $headers) {
+            $ch = curl_init($base_url . $endpoint);
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_TIMEOUT        => 3,
+                CURLOPT_CONNECTTIMEOUT => 2,
+                CURLOPT_HTTPHEADER     => $headers
+            ]);
+            $res = curl_exec($ch);
+            $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_close($ch);
+
+            if ($http_code === 200 && !empty($res)) {
+                $data = json_decode($res, true);
+                if (is_array($data) && isset($data['status']['code']) && (int)$data['status']['code'] === 0) {
+                    return $data['body'] ?? [];
+                }
+            }
+            return false;
+        };
+
+        // 1. Fetch virtual server info
+        $serverinfo_body = $fetch_json('/serverinfo');
+        if ($serverinfo_body === false || empty($serverinfo_body[0])) {
+            $this->error = "TS6 WebQuery authentication failed or invalid response from port {$queryPort}.";
+            return false;
+        }
+        $sdata = $serverinfo_body[0];
+
+        // 2. Fetch channel list with topics
+        $chan_body = $fetch_json('/channellist?-topic');
+        $raw_channels = is_array($chan_body) ? $chan_body : [];
+
+        // 3. Fetch client list with flags (away, mute, deaf, times, uid)
+        $client_body = $fetch_json('/clientlist?-away&-voice&-times&-uid');
+        $raw_clients = is_array($client_body) ? $client_body : [];
+
+        $mapped_channels = [];
+        foreach ($raw_channels as $ch) {
+            $cid = (int)($ch['cid'] ?? 0);
+            $mapped_channels[$cid] = [
+                'channelid'   => $cid,
+                'channelname' => (string)($ch['channel_name'] ?? 'Channel'),
+                'topic'       => (string)($ch['channel_topic'] ?? ''),
+                'parent'      => ((int)($ch['pid'] ?? 0) === 0) ? -1 : (int)($ch['pid'] ?? 0),
+                'order'       => (int)($ch['channel_order'] ?? 0)
+            ];
+        }
+
+        $mapped_players = [];
+        foreach ($raw_clients as $cl) {
+            // Filter out ServerQuery bots: client_type 1 (keep human players only)
+            if (isset($cl['client_type']) && (int)$cl['client_type'] === 0) {
+                $pid = (int)($cl['clid'] ?? 0);
+                $is_away = !empty($cl['client_away']);
+                $is_muted = (!empty($cl['client_input_muted']) || !empty($cl['client_input_hardware_deactivated']));
+                $is_deaf = (!empty($cl['client_output_muted']) || !empty($cl['client_output_hardware_deactivated']));
+                $idle_time = (int)($cl['client_idle_time'] ?? 0);
+
+                $mapped_players[$pid] = [
+                    'playerid'     => $pid,
+                    'channelid'    => (int)($cl['cid'] ?? 0),
+                    'playername'   => (string)($cl['client_nickname'] ?? 'Player'),
+                    'is_away'      => $is_away,
+                    'away_message' => $is_away ? (string)($cl['client_away_message'] ?? 'Away') : '',
+                    'is_muted'     => $is_muted,
+                    'is_deaf'      => $is_deaf,
+                    'is_cc'        => !empty($cl['client_is_channel_commander']),
+                    'idle_time'    => $idle_time > 0 ? (int)round($idle_time / 1000) : 0,
+                    'unique_id'    => (string)($cl['client_unique_identifier'] ?? '')
+                ];
+            }
+        }
+
+        $this->is_ts6 = true;
+
+        return [
+            'queryerror'  => 0,
+            'serverinfo'  => [
+                'server_name'     => (string)($sdata['virtualserver_name'] ?? 'TeamSpeak Server'),
+                'server_platform' => (string)($sdata['virtualserver_platform'] ?? 'Linux'),
+                'server_maxusers' => (int)($sdata['virtualserver_maxclients'] ?? 32),
+                'server_uptime'   => (int)($sdata['virtualserver_uptime'] ?? 0),
+                'server_version'  => (string)($sdata['virtualserver_version'] ?? '6.x')
+            ],
+            'channellist' => $mapped_channels,
+            'playerlist'  => $mapped_players
+        ];
     }
 
     // --- TS3 SPECIFIC PROTOCOL HANDLERS ---
@@ -117,7 +221,7 @@ class teamspeakDisplayClass
 
     private function _readTS3Response($socket) {
         $data = '';
-        $max_lines = 1000;
+        $max_lines = 2000;
         $count = 0;
         while (!feof($socket) && $count++ < $max_lines) {
             $line = fgets($socket, 8192);
@@ -134,11 +238,23 @@ class teamspeakDisplayClass
     }
 
     // Query TeamSpeak 3 Virtual Server
-    private function _queryTS3Server($socket, $udpPort) {
+    private function _queryTS3Server($socket, $udpPort, $password = '') {
+        // If password is provided, login as serveradmin for full access
+        if (!empty($password)) {
+            $user = 'serveradmin';
+            $pass = $password;
+            if (strpos($password, ':') !== false) {
+                list($user, $pass) = explode(':', $password, 2);
+            }
+            fputs($socket, "login " . $user . " " . $this->_unescapeTS3($pass) . "\n");
+            fgets($socket, 4096); // Read login response
+        }
+
         // Select virtual server by UDP port
         fputs($socket, "use port=" . (int)$udpPort . "\n");
         $line = fgets($socket, 4096);
         if ($line === false || strpos(trim($line), 'error id=0') !== 0) {
+            $this->error = 'Virtual server with UDP port ' . $udpPort . ' could not be selected.';
             return false;
         }
 
@@ -147,23 +263,25 @@ class teamspeakDisplayClass
         $sinfo_raw = $this->_readTS3Response($socket);
         $sinfo = $this->_parseTS3KeyValues($sinfo_raw);
 
-        // 2. Channels
-        fputs($socket, "channellist\n");
+        // 2. Channels with topics
+        fputs($socket, "channellist -topic\n");
         $chan_raw = $this->_readTS3Response($socket);
         $raw_channels = $this->_parseTS3List($chan_raw);
 
-        // 3. Players (filter out ServerQuery bots)
-        fputs($socket, "clientlist\n");
+        // 3. Players (with flags to retrieve Mute, Deaf, Away and times)
+        fputs($socket, "clientlist -away -voice -times -uid\n");
         $client_raw = $this->_readTS3Response($socket);
         $raw_clients = $this->_parseTS3List($client_raw);
 
         $mapped_channels = [];
         foreach ($raw_channels as $ch) {
-            $cid = $ch['cid'] ?? 0;
+            $cid = (int)($ch['cid'] ?? 0);
             $mapped_channels[$cid] = [
                 'channelid'   => $cid,
-                'channelname' => $ch['channel_name'] ?? 'Channel',
-                'parent'      => (int)($ch['pid'] ?? 0) === 0 ? -1 : (int)($ch['pid'] ?? 0)
+                'channelname' => (string)($ch['channel_name'] ?? 'Channel'),
+                'topic'       => (string)($ch['channel_topic'] ?? ''),
+                'parent'      => ((int)($ch['pid'] ?? 0) === 0) ? -1 : (int)($ch['pid'] ?? 0),
+                'order'       => (int)($ch['channel_order'] ?? 0)
             ];
         }
 
@@ -171,11 +289,23 @@ class teamspeakDisplayClass
         foreach ($raw_clients as $cl) {
             // client_type: 0 = human player, 1 = ServerQuery bot
             if (isset($cl['client_type']) && (int)$cl['client_type'] === 0) {
-                $pid = $cl['clid'] ?? 0;
+                $pid = (int)($cl['clid'] ?? 0);
+                $is_away = !empty($cl['client_away']);
+                $is_muted = (!empty($cl['client_input_muted']) || !empty($cl['client_input_hardware_deactivated']));
+                $is_deaf = (!empty($cl['client_output_muted']) || !empty($cl['client_output_hardware_deactivated']));
+                $idle_time = (int)($cl['client_idle_time'] ?? 0);
+
                 $mapped_players[$pid] = [
-                    'playerid'   => $pid,
-                    'channelid'  => $cl['cid'] ?? 0,
-                    'playername' => $cl['client_nickname'] ?? 'Player'
+                    'playerid'     => $pid,
+                    'channelid'    => (int)($cl['cid'] ?? 0),
+                    'playername'   => (string)($cl['client_nickname'] ?? 'Player'),
+                    'is_away'      => $is_away,
+                    'away_message' => $is_away ? (string)($cl['client_away_message'] ?? 'Away') : '',
+                    'is_muted'     => $is_muted,
+                    'is_deaf'      => $is_deaf,
+                    'is_cc'        => !empty($cl['client_is_channel_commander']),
+                    'idle_time'    => $idle_time > 0 ? (int)round($idle_time / 1000) : 0,
+                    'unique_id'    => (string)($cl['client_unique_identifier'] ?? '')
                 ];
             }
         }
@@ -183,9 +313,11 @@ class teamspeakDisplayClass
         return [
             'queryerror'  => 0,
             'serverinfo'  => [
-                'server_name'     => $sinfo['virtualserver_name'] ?? 'TeamSpeak 3 Server',
+                'server_name'     => (string)($sinfo['virtualserver_name'] ?? 'TeamSpeak Server'),
+                'server_platform' => (string)($sinfo['virtualserver_platform'] ?? 'Linux'),
                 'server_maxusers' => (int)($sinfo['virtualserver_maxclients'] ?? 32),
-                'server_uptime'   => (int)($sinfo['virtualserver_uptime'] ?? 0)
+                'server_uptime'   => (int)($sinfo['virtualserver_uptime'] ?? 0),
+                'server_version'  => (string)($sinfo['virtualserver_version'] ?? '3.x')
             ],
             'channellist' => $mapped_channels,
             'playerlist'  => $mapped_players
@@ -297,29 +429,85 @@ class teamspeakDisplayClass
         return ($this->_stripEOL($line !== false ? $line : "") == "OK");
     }
 
-    // MAIN QUERY DISPATCHER (TS2 + TS3)
+    // ==========================================
+    // --- MAIN DISPATCHER: TS6 -> TS3 -> TS2 ---
+    // ==========================================
     function queryTeamspeakServerEx($settings) {
+        $raw_host = trim((string)($settings["serveraddress"] ?? '127.0.0.1'));
+        // Sanitize hostname: strip protocol prefixes (ts3server://, http://, ://) and trailing slashes
+        $host = preg_replace('~^([a-z0-9_]+://|://)~i', '', $raw_host);
+        $host = rtrim($host, '/');
+        if (strpos($host, ':') !== false) {
+            $parts = explode(':', $host, 2);
+            $host = $parts[0];
+        }
+
+        $qport = (int)($settings["serverqueryport"] ?? 10011);
+        $uport = (int)($settings["serverudpport"] ?? 9987);
+
+        // Smart API key detection from password settings
+        $raw_pass = trim((string)($settings["apikey"] ?? $settings["password"] ?? $settings["serverpassword"] ?? ''));
+        $api_key = '';
+        if (strpos($raw_pass, '|') !== false) {
+            list(, $api_key) = explode('|', $raw_pass, 2);
+        } elseif (strpos($raw_pass, 'apikey:') === 0) {
+            $api_key = substr($raw_pass, 7);
+        } elseif ($qport === 10080 || strlen($raw_pass) >= 30) {
+            $api_key = $raw_pass;
+        }
+        $api_key = trim($api_key);
+
+        // Cache: 90s for success, only 10s for errors (faster recovery while testing)
+        $cache_dir = defined('TEMP_PATH') ? TEMP_PATH : sys_get_temp_dir();
+        $cache_file = rtrim($cache_dir, '/\\') . '/ts_query_' . md5($host . '_' . $qport . '_' . $uport) . '.json';
+
+        if (file_exists($cache_file)) {
+            $age = time() - filemtime($cache_file);
+            $cached_content = @file_get_contents($cache_file);
+            if ($cached_content) {
+                $decoded = json_decode($cached_content, true);
+                if (is_array($decoded) && json_last_error() === JSON_ERROR_NONE) {
+                    $is_cached_err = isset($decoded['queryerror']) && (int)$decoded['queryerror'] !== 0;
+                    if (($is_cached_err && $age < 10) || (!$is_cached_err && $age < 90)) {
+                        return $decoded;
+                    }
+                }
+            }
+        }
+
+        // 1. TRY TS6 HTTP REST WEBQUERY (if port 10080 or API key provided)
+        if ($qport === 10080 || !empty($api_key)) {
+            $ts6_data = $this->_queryTS6Http($host, $qport, $uport, $api_key);
+            if ($ts6_data !== false) {
+                @file_put_contents($cache_file, json_encode($ts6_data), LOCK_EX);
+                return $ts6_data;
+            }
+        }
+
         $result = array();
         $socket = null;
 
-        // Try connect (2 sec timeout)
-        if (! $this->_openConnection($socket, $settings["serveraddress"], $settings["serverqueryport"], 2.0)) {
-            $result["queryerror"] = 1;
+        // Fast 1.5-second socket timeout
+        if (! $this->_openConnection($socket, $host, $qport, 1.5)) {
+            $result = ["queryerror" => 1, "error_msg" => $this->error];
+            @file_put_contents($cache_file, json_encode($result), LOCK_EX);
             return $result;
         }
 
         // Branch by detected protocol
         if ($this->is_ts3) {
-            $ts3_result = $this->_queryTS3Server($socket, $settings["serverudpport"]);
+            $ts3_result = $this->_queryTS3Server($socket, $uport, $raw_pass);
             $this->_closeConnection($socket);
             if ($ts3_result === false) {
-                $result["queryerror"] = 2;
+                $result = ["queryerror" => 2, "error_msg" => $this->error];
+                @file_put_contents($cache_file, json_encode($result), LOCK_EX);
                 return $result;
             }
+            @file_put_contents($cache_file, json_encode($ts3_result), LOCK_EX);
             return $ts3_result;
         } else {
             // Legacy TS2
-            if (! $this->_selectServerTS2($socket, $settings["serverudpport"])) {
+            if (! $this->_selectServerTS2($socket, $uport)) {
                 $result["queryerror"] = 2;
                 $this->_closeConnection($socket);
             } else {
@@ -329,6 +517,7 @@ class teamspeakDisplayClass
                 $result["playerlist"] = $this->_getPlayerListTS2($socket);
                 $this->_closeConnection($socket);
             }
+            @file_put_contents($cache_file, json_encode($result), LOCK_EX);
             return $result;
         }
     }
@@ -343,9 +532,10 @@ class teamspeakDisplayClass
 
     function getDefaultSettings() {
         return [
-            "serveraddress"   => "",
+            "serveraddress"   => "127.0.0.1",
             "serverudpport"   => 9987,
             "serverqueryport" => 10011,
+            "apikey"          => "",
             "limitchannel"    => ""
         ];
     }
