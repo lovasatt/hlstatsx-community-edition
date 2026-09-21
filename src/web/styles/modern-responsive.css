@@ -148,6 +148,21 @@
         color: #ff8c2b !important;
     }
 
+    /* Preserve Steam brand colors for client, chat, and community links */
+    a[href*="steam://friends/joinchat"] {
+        color: #f39c12 !important;
+    }
+    a[href*="steam://friends/joinchat"]:hover {
+        color: #ffa834 !important;
+    }
+
+    a[href*="steam://"], a[href*="steamcommunity.com"] {
+        color: #2575fc !important;
+    }
+    a[href*="steam://"]:hover, a[href*="steamcommunity.com"]:hover {
+        color: #5295ff !important;
+    }
+
 @media screen and (max-width: 992px) {
 
     /* --- BUTTONS AND TOUCH INTERFACE IMPROVEMENTS --- */

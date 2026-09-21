@@ -92,6 +92,7 @@ class teamspeakDisplayClass
                 CURLOPT_RETURNTRANSFER => true,
                 CURLOPT_TIMEOUT        => 3,
                 CURLOPT_CONNECTTIMEOUT => 2,
+                CURLOPT_ENCODING       => "",
                 CURLOPT_HTTPHEADER     => $headers
             ]);
             $res = curl_exec($ch);

@@ -227,6 +227,7 @@ $valid_modes = array(
     'teamspeak',
     'ventrilo',
     'discord',
+    'steamgroup',
     'updater',
     'profile'
 );

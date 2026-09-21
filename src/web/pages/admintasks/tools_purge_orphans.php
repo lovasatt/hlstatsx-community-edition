@@ -59,6 +59,15 @@ if (isset($_POST['confirm']))
     }
     echo "OK</li>\n";
 
+    // Purge orphaned map statistics for hidden/disabled games
+    echo "<li>Cleaning Table: hlstats_Maps_Counts ... ";
+    if (!empty($active_games)) {
+        $db->query("DELETE FROM hlstats_Maps_Counts WHERE game NOT IN ($code_list)");
+    } else {
+        $db->query("TRUNCATE TABLE hlstats_Maps_Counts");
+    }
+    echo "OK</li>\n";
+
     echo "<li>Cleaning Table: hlstats_server_load ... ";
     if (!empty($active_servers)) {
         $serv_list = implode(",", array_map('intval', array_keys($active_servers)));
@@ -70,13 +79,22 @@ if (isset($_POST['confirm']))
     }
     echo "OK</li>\n";
 
-    echo "<li>Cleaning Table: hlstats_Heatmap_Config ... ";
-    if (!empty($active_games)) {
-        $db->query("DELETE FROM hlstats_Heatmap_Config WHERE game NOT IN ($code_list)");
-    } else {
-        $db->query("TRUNCATE TABLE hlstats_Heatmap_Config");
-    }
+    // FIX: Only purge Heatmap Configs for games that do NOT exist in hlstats_Games at all.
+    // Do NOT delete configs for temporarily hidden games, as map coordinates would be permanently lost.
+    echo "<li>Cleaning Table: hlstats_Heatmap_Config (orphaned games only) ... ";
+    $db->query("DELETE FROM hlstats_Heatmap_Config WHERE game NOT IN (SELECT code FROM hlstats_Games)");
     echo "OK</li>\n";
+
+    // Clean MySQL Player Steam Cache (removes stale player profiles older than 30 days)
+    echo "<li>Cleaning Table: hlstats_SteamCache ... ";
+    $chk_tbl = $db->query("SHOW TABLES LIKE 'hlstats_SteamCache'");
+    if ($chk_tbl && $db->num_rows($chk_tbl) > 0) {
+        $expire_cutoff = time() - 2592000; // 30 days
+        $db->query("DELETE FROM `hlstats_SteamCache` WHERE `updated` < $expire_cutoff");
+        echo "OK</li>\n";
+    } else {
+        echo "Skipped (Table does not exist)</li>\n";
+    }
 
     // 3. FILESYSTEM PURGE (Stream-based with Path Fallback)
     echo "<li>Streaming progress folder for cleanup ... ";
@@ -137,8 +155,35 @@ if (isset($_POST['confirm']))
             echo "<span style='color:orange;'>ERROR (Could not open directory stream)</span></li>";
         }
     } else {
-        echo "<span style='color:orange;'>ERROR (Directory not found: $progress_dir)</span></li>";
+        echo "<span style='color:orange;'>ERROR (Directory not found: " . htmlspecialchars((string)$progress_dir, ENT_QUOTES, 'UTF-8') . ")</span></li>";
     }
+
+    // 4. VOICECOMM & STEAM GROUP CACHE PURGE
+    echo "<li>Cleaning Voice and Steam Group cache files ... ";
+    $base_temp = defined('TEMP_PATH') ? TEMP_PATH : sys_get_temp_dir();
+    $clean_base = rtrim(str_replace('\\', '/', $base_temp), '/');
+    $del_count_cache = 0;
+    $now = time();
+
+    // Clean expired voice and community group cache files (Discord, TS, Ventrilo, Steam Group)
+    $voice_patterns = [
+        $clean_base . '/discord_widget_*.json',
+        $clean_base . '/ts_query_*.json',
+        $clean_base . '/ve_query_*.json',
+        $clean_base . '/steam_group_*.json'
+    ];
+
+    foreach ($voice_patterns as $pattern) {
+        $v_files = @glob($pattern);
+        if (!empty($v_files) && is_array($v_files)) {
+            foreach ($v_files as $v_file) {
+                if (is_file($v_file)) {
+                    if (@unlink($v_file)) $del_count_cache++;
+                }
+            }
+        }
+    }
+    echo "OK ($del_count_cache expired files removed)</li>\n";
 
     echo "</ul>\n";
     echo "Done.<br /><br />";
@@ -159,9 +204,11 @@ else
                     <li>Delete graph images for all games set to <strong>Hidden</strong>.</li>
                     <li>Remove images for servers no longer in the active database.</li>
                     <li>Clean up player signatures and expired cache files.</li>
+                    <li>Purge stale player Steam profile caches older than 30 days from MySQL.</li>
+                    <li>Clean up expired Voice Server and Steam Group viewer cache files.</li>
                 </ul>
                 <br /><br />
-                <strong>Note:</strong> This process is irreversible. Due to the high number of players (29k+), the cleanup may take up to 1 minute to complete. Please do not navigate away until the 'Done' message appears.<br /><br />
+                <strong>Note:</strong> This process is irreversible. Due to the high volume of database and filesystem records, the cleanup may take up to 1 minute to complete. Please do not navigate away until the 'Done' message appears.<br /><br />
                 <input type="hidden" name="confirm" value="1" />
                 <input type="submit" value="  Click here to confirm Purge  " class="submit" />
             </td>

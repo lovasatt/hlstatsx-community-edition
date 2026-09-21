@@ -9,6 +9,7 @@
     if (!defined('TS')) define('TS', 0);
     if (!defined('VENT')) define('VENT', 1);
     if (!defined('DISCORD')) define('DISCORD', 2);
+    if (!defined('STEAMGROUP')) define('STEAMGROUP', 3);
 
     $game = isset($game) ? (string)$game : '';
     $url_game = urlencode($game);
@@ -45,6 +46,7 @@
         $ts_servers = array();
         $vent_servers = array();
         $discord_servers = array();
+        $steam_servers = array();
 
         while ($row = $db->fetch_array($result)) {
             $row_type = (int)($row['serverType'] ?? 0);
@@ -54,11 +56,12 @@
                 $vent_servers[] = $row;
             } else if ($row_type == DISCORD) {
                 $discord_servers[] = $row;
+            } else if ($row_type == STEAMGROUP) {
+                $steam_servers[] = $row;
             }
         }
         $db->free_result($result);
 
-        // Közös zebracsíkozás-számláló az összes szervertípushoz
         $row_idx = 0;
 
         if (!empty($ts_servers))
@@ -188,7 +191,7 @@
                     &nbsp;<a href="<?php echo $scripturl; ?>?mode=ventrilo&amp;game=<?php echo $url_game; ?>&amp;veId=<?php echo $ve_server_id; ?>"><?php echo $safe_name; ?></a>
                 </td>
                 <td>
-                    <a href="ventrilo://<?php echo $safe_addr . ':' . $ve_port; ?>/servername=<?php echo $safe_ve_name; ?>">
+                    <a href="ventrilo://<?php echo $safe_addr . ':' . $ve_port; ?>/servername=<?php echo rawurlencode($display_name); ?>">
                     <?php echo $safe_addr . ':' . $ve_port; ?>
                     </a>
                 </td>
@@ -269,6 +272,57 @@
 <?php
             }
         }
+
+        if (!empty($steam_servers))
+        {
+            require_once(PAGE_PATH . '/steamstatus.php');
+            foreach($steam_servers as $sg_server)
+            {
+                $sg_info = new CSteamGroupStatus;
+                $sg_ident = (string)$sg_server['addr'];
+                $sg_ok = $sg_info->Request($sg_ident);
+
+                $raw_db_name  = trim((string)$sg_server['name']);
+                $display_name = ($raw_db_name !== '') ? $raw_db_name : (!empty($sg_info->m_name) ? $sg_info->m_name : 'Steam Group');
+                $safe_name    = htmlspecialchars($display_name, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+                $safe_descr   = htmlspecialchars((string)$sg_server['descr'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+                $sg_server_id = (int)$sg_server['serverId'];
+                $sg_url_ident = urlencode($sg_info->m_group_url ?: $sg_ident);
+                $join_url     = "https://steamcommunity.com/groups/{$sg_url_ident}";
+
+                if ($sg_ok && empty($sg_info->m_error)) {
+                    $sg_slots_html = '<span style="color:#2ecc71; font-weight:bold;">🟢 ' . number_format($sg_info->m_members_in_game) . ' in-game / ' . number_format($sg_info->m_members_count) . ' members</span>';
+                } else {
+                    $sg_slots_html = '<span style="color:#e74c3c; font-weight:bold;">🔴 Offline</span>';
+                }
+
+                $row_class = ($row_idx++ % 2 === 0) ? 'bg1' : 'bg2';
+?>
+            <tr class="<?php echo $row_class; ?>">
+                <td class="fHeading">
+                    <img src="<?php echo IMAGE_PATH; ?>/steamgroup/steam.png" alt="steam" width="16" height="16" style="vertical-align:middle;" />
+                    &nbsp;<a href="<?php echo $scripturl; ?>?mode=steamgroup&amp;game=<?php echo $url_game; ?>&amp;stId=<?php echo $sg_server_id; ?>"><?php echo $safe_name; ?></a>
+                </td>
+                <td>
+                    <a href="<?php echo $join_url; ?>" target="_blank" rel="noopener noreferrer" style="color:#2575fc; font-weight:bold; text-decoration:none;">
+                      🔗 View Group
+                    </a>
+                </td>
+                <td><span style="color:#888;">None</span></td>
+                <td style="text-align:right;">
+                    <span style="color:#888;">&mdash;</span>
+                </td>
+                <td style="text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums;">
+                    <?php echo $sg_slots_html; ?>
+                </td>
+                <td>
+                    <?php echo !empty($safe_descr) ? $safe_descr : '<span style="color:#888;">&mdash;</span>'; ?>
+                </td>
+            </tr>
+<?php
+            }
+        }
+
 ?>
         </table>
     </div>

@@ -713,8 +713,14 @@ class Vent
         /* read response packets off the stream. with UDP, packets can (and often)
         *   come out of order, so we'll put then back together after closing the socket.
         */
-        while( false !== ($pck = fread( $sfh, VENT_MAXPACKETSIZE )) ) {
-            if (  count( $this->packets ) >= VENT_MAXPACKETNO ) {
+        while (true) {
+            $pck = fread( $sfh, VENT_MAXPACKETSIZE );
+            // PHP 8 safe: break on socket timeout or EOF
+            if ($pck === false || strlen($pck) === 0) {
+                break;
+            }
+
+            if ( count( $this->packets ) >= VENT_MAXPACKETNO ) {
                 $this->error = "Received more packets than the maximum allowed in a response.";
                 fclose( $sfh );
                 return false;
@@ -734,6 +740,11 @@ class Vent
             if (( $rpobj->id != $this->clock ) || ( isset( $this->packets[$rpobj->pck] ))) { continue; }
 
             $this->packets[$rpobj->pck] = $rpobj;
+
+            // Performance boost: If all expected packets arrived, break immediately without waiting for timeout
+            if (isset($rpobj->totpck) && (int)$rpobj->totpck > 0 && count($this->packets) >= (int)$rpobj->totpck) {
+                break;
+            }
         }
 
         fclose( $sfh );

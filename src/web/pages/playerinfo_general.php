@@ -52,8 +52,7 @@ For support and installation notes visit http://www.hlxcommunity.com
                     <td style="vertical-align:top;">Player Profile<br /></td>
                     <td style="text-align:center; vertical-align:middle;" rowspan="7" id="player_avatar">
                         <?php
-                            $db->query
-                            ("
+                            $db->query("
                                 SELECT
                                     hlstats_PlayerUniqueIds.uniqueId,
                                     CASE
@@ -61,7 +60,7 @@ For support and installation notes visit http://www.hlxcommunity.com
                                             THEN hlstats_PlayerUniqueIds.uniqueId
                                         WHEN hlstats_PlayerUniqueIds.uniqueId LIKE '%U:1:%'
                                             THEN CAST('76561197960265728' AS unsigned) + CAST(REPLACE(REPLACE(SUBSTRING_INDEX(hlstats_PlayerUniqueIds.uniqueId, ':', -1), ']', ''), '[', '') AS unsigned)
-                                        WHEN hlstats_PlayerUniqueIds.uniqueId LIKE 'STEAM\_%'
+                                        WHEN LEFT(hlstats_PlayerUniqueIds.uniqueId, 6) = 'STEAM_'
                                             THEN CAST('76561197960265728' AS unsigned) + CAST(SUBSTRING_INDEX(hlstats_PlayerUniqueIds.uniqueId, ':', -1) AS unsigned) * 2 + CAST(SUBSTRING_INDEX(SUBSTRING_INDEX(hlstats_PlayerUniqueIds.uniqueId, ':', 2), ':', -1) AS unsigned)
                                         WHEN hlstats_PlayerUniqueIds.uniqueId LIKE '%:%' AND hlstats_PlayerUniqueIds.uniqueId NOT LIKE '-%'
                                             THEN CAST(LEFT(hlstats_PlayerUniqueIds.uniqueId, 1) AS unsigned) + CAST('76561197960265728' AS unsigned) + CAST(MID(hlstats_PlayerUniqueIds.uniqueId, 3, 10) * 2 AS unsigned)
@@ -71,46 +70,140 @@ For support and installation notes visit http://www.hlxcommunity.com
                                     hlstats_PlayerUniqueIds
                                 WHERE
                                     hlstats_PlayerUniqueIds.playerId = '$player'
+                                LIMIT 1
                             ");
 
-                            // PHP 8 Fix: Replace list()
                             $row = $db->fetch_row();
-                            $uqid = ($row) ? $row[0] : '';
-                            $coid = ($row) ? $row[1] : '';
+                            $uqid = ($row) ? trim((string)$row[0]) : '';
+                            $coid = ($row) ? trim((string)$row[1]) : '';
 
                             $status = 'Unknown';
-                            $avatar_full = IMAGE_PATH."/unknown.jpg";
-                            $xml = false;
+                            $avatar_full = IMAGE_PATH . "/unknown.jpg";
 
-                            if ($coid !== '76561197960265728' && $coid != '') {
+                            // Strict bot and non-human identifier filter
+                            $is_game_bot = (bool)preg_match('/^(BOT|STEAM_ID_LAN|STEAM_ID_PENDING|UNKNOWN)/i', $uqid)
+                                || ($coid === '76561197960265728')
+                                || !preg_match('/^7656119[0-9]{10}$/', $coid);
 
-                                $profileUrl = "https://steamcommunity.com/profiles/" . urlencode((string)$coid) . "?xml=1";
-
-                                $curl = curl_init();
-                                curl_setopt($curl, CURLOPT_RETURNTRANSFER, 1);
-                                curl_setopt($curl, CURLOPT_URL, $profileUrl);
-                                curl_setopt($curl, CURLOPT_ENCODING, "");
-                                curl_setopt($curl, CURLOPT_USERAGENT, "Mozilla/5.0");
-                                curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, false);
-                                // Optional: Set timeout to prevent page hang
-                                curl_setopt($curl, CURLOPT_TIMEOUT, 3);
-
-                                $xml = curl_exec($curl);
-                                curl_close($curl);
+                            if ($is_game_bot) {
+                                $status = 'Bot';
                             }
 
-                            $xmlDoc = null;
-                            if ($xml) {
-                                // PHP 8 Fix: Suppress warnings for invalid XML & protect against XXE
-                                $xmlDoc = @simplexml_load_string($xml, 'SimpleXMLElement', LIBXML_NONET);
+                            $is_avatar_blocked = !empty($playerdata['blockavatar']);
+
+                            if (!$is_game_bot && !$is_avatar_blocked) {
+                                $now = time();
+                                $coid_esc = $db->escape($coid);
+                                $p_cached = false;
+
+                                // Safe table existence verification to avoid crashing HLstats database wrapper on Error 1146
+                                static $s_table_verified = false;
+                                if (!$s_table_verified) {
+                                    $chk = $db->query("SHOW TABLES LIKE 'hlstats_SteamCache'");
+                                    if ($db->num_rows($chk) == 0) {
+                                        $db->query("
+                                            CREATE TABLE IF NOT EXISTS `hlstats_SteamCache` (
+                                                `communityId` varchar(32) NOT NULL DEFAULT '',
+                                                `status` varchar(64) NOT NULL DEFAULT 'Unknown',
+                                                `avatar` varchar(255) NOT NULL DEFAULT '',
+                                                `updated` int(10) unsigned NOT NULL DEFAULT 0,
+                                                PRIMARY KEY (`communityId`),
+                                                KEY `idx_updated` (`updated`)
+                                            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+                                        ");
+                                    }
+                                    $s_table_verified = true;
+                                }
+
+                                // Fetch record from cache
+                                $res = $db->query("SELECT `status`, `avatar`, `updated` FROM `hlstats_SteamCache` WHERE `communityId` = '$coid_esc' LIMIT 1");
+                                if ($res && ($row = $db->fetch_array($res))) {
+                                    if (!empty($row['status'])) {
+                                        $status = (string)$row['status'];
+                                    }
+                                    if (!empty($row['avatar']) && preg_match('/^https:\/\//i', (string)$row['avatar'])) {
+                                        $avatar_full = (string)$row['avatar'];
+                                    }
+                                    // 15-minute validity window
+                                    if (($now - (int)$row['updated']) < 900) {
+                                        $p_cached = true;
+                                    }
+                                }
+
+                                // Ignore search engine indexers and crawlers
+                                $ua = $_SERVER['HTTP_USER_AGENT'] ?? '';
+                                $is_bot = ($ua === '') || (bool)preg_match('/bot|crawl|slurp|spider|mediapartners|semrush|ahrefs/i', $ua);
+
+                                // Check persistent circuit breaker cooldown
+                                $cooldown_until = 0;
+                                $c_res = $db->query("SELECT `value` FROM `hlstats_Options` WHERE `keyname` = 'steam_api_cooldown' LIMIT 1");
+                                if ($c_res && ($c_row = $db->fetch_row($c_res))) {
+                                    $cooldown_until = (int)$c_row[0];
+                                }
+                                $is_valve_available = ($now >= $cooldown_until);
+
+                                if (!$p_cached && !$is_bot && $is_valve_available) {
+                                    // Outbound HTTPS request with strict TLS certificate verification
+                                    $curl = curl_init();
+                                    curl_setopt_array($curl, [
+                                        CURLOPT_URL => "https://steamcommunity.com/profiles/" . $coid . "?xml=1",
+                                        CURLOPT_RETURNTRANSFER => true,
+                                        CURLOPT_ENCODING => "",
+                                        CURLOPT_USERAGENT => "Mozilla/5.0 (compatible; HLstatsX-SteamEngine/2.0)",
+                                        CURLOPT_CONNECTTIMEOUT => 2,
+                                        CURLOPT_TIMEOUT => 3,
+                                        CURLOPT_FOLLOWLOCATION => false,
+                                        CURLOPT_PROTOCOLS => CURLPROTO_HTTPS,
+                                        CURLOPT_SSL_VERIFYPEER => true,
+                                        CURLOPT_SSL_VERIFYHOST => 2
+                                    ]);
+
+                                    $xml = curl_exec($curl);
+                                    $http_code = (int)curl_getinfo($curl, CURLINFO_HTTP_CODE);
+                                    curl_close($curl);
+
+                                    // If Steam fails, activate 3-minute persistent circuit breaker and retry later without storing broken data
+                                    if ($http_code >= 500 || $http_code === 429 || $http_code === 0 || $xml === false) {
+                                        $pause = $now + 180;
+                                        $db->query("INSERT INTO `hlstats_Options` (`keyname`, `value`, `opttype`) VALUES ('steam_api_cooldown', '$pause', 0) ON DUPLICATE KEY UPDATE `value` = '$pause'");
+                                    } elseif ($http_code === 200 && is_string($xml) && $xml !== '') {
+                                        // XXE Protection: disable external entities and inline DTD expansions
+                                        $xmlDoc = @simplexml_load_string($xml, 'SimpleXMLElement', LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING);
+                                        if ($xmlDoc) {
+                                            if (isset($xmlDoc->onlineState)) {
+                                                $state = trim((string)$xmlDoc->onlineState);
+                                                if ($state !== '') {
+                                                    $status = ucwords($state);
+                                                }
+                                            }
+                                            if (!empty($xmlDoc->avatarFull)) {
+                                                $raw_avatar = trim((string)$xmlDoc->avatarFull);
+                                                // Validate URL and enforce trusted Steam CDN hostnames
+                                                if (filter_var($raw_avatar, FILTER_VALIDATE_URL) && preg_match('/^https:\/\/[a-z0-9\.\-_]*\.(steamstatic\.com|steampowered\.com|steamcommunity\.com)\//i', $raw_avatar)) {
+                                                    $avatar_full = $raw_avatar;
+                                                }
+                                            }
+
+                                            // Atomically insert or update valid profile data
+                                            $status_esc = $db->escape($status);
+                                            $avatar_esc = $db->escape($avatar_full);
+                                            $db->query("
+                                                INSERT INTO `hlstats_SteamCache` (`communityId`, `status`, `avatar`, `updated`)
+                                                VALUES ('$coid_esc', '$status_esc', '$avatar_esc', $now)
+                                                ON DUPLICATE KEY UPDATE `status` = '$status_esc', `avatar` = '$avatar_esc', `updated` = $now
+                                            ");
+                                        }
+                                    }
+                                }
+
+                                // Opportunistic cleanup: delete profiles inactive for over 30 days (1% chance)
+                                if (!$is_bot && mt_rand(1, 100) === 1) {
+                                    $expire_cutoff = $now - 2592000;
+                                    $db->query("DELETE FROM `hlstats_SteamCache` WHERE `updated` < $expire_cutoff ORDER BY `updated` ASC LIMIT 200");
+                                }
                             }
 
-                            if ($xmlDoc) {
-                                $status = ucwords((string)$xmlDoc->onlineState);
-                                $avatar_full = (string)$xmlDoc->avatarFull;
-                            }
-
-                            echo('<img src="' . htmlspecialchars((string)$avatar_full, ENT_QUOTES, 'UTF-8') . '" style="height:158px;width:158px;" alt="Steam Community Avatar" />');
+                            echo '<img src="' . htmlspecialchars((string)$avatar_full, ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5, 'UTF-8') . '" style="height:158px;width:158px;" alt="Steam Community Avatar" />';
                         ?>
                     </td>
                 </tr>
@@ -143,8 +236,12 @@ For support and installation notes visit http://www.hlxcommunity.com
                 <tr class="bg2">
                     <td>
                         <?php
-                            $prefix = ((!preg_match('/^BOT/i',$uqid)) && ($g_options['Mode'] ?? '') == 'Normal') ? 'STEAM_0:' : '';
-                            echo "Steam: <a href=\"https://steamcommunity.com/profiles/" . htmlspecialchars((string)$coid, ENT_QUOTES, 'UTF-8') . "\" target=\"_blank\" rel=\"noopener noreferrer\">$prefix" . htmlspecialchars((string)$uqid, ENT_QUOTES, 'UTF-8') . "</a>";
+                            if (!$is_game_bot && !empty($coid) && $coid !== '76561197960265728') {
+                                $prefix = (($g_options['Mode'] ?? '') === 'Normal' && !preg_match('/^STEAM_/i', $uqid)) ? 'STEAM_0:' : '';
+                                echo "Steam: <a href=\"https://steamcommunity.com/profiles/" . htmlspecialchars((string)$coid, ENT_QUOTES, 'UTF-8') . "\" target=\"_blank\" rel=\"noopener noreferrer\">" . htmlspecialchars($prefix . $uqid, ENT_QUOTES, 'UTF-8') . "</a>";
+                            } else {
+                                echo "Steam: <em>" . htmlspecialchars((string)$uqid, ENT_QUOTES, 'UTF-8') . " (Bot / Non-Steam)</em>";
+                            }
                         ?>
                     </td>
                 </tr>
@@ -153,7 +250,11 @@ For support and installation notes visit http://www.hlxcommunity.com
                 </tr>
                 <tr class="bg2">
                     <td>
-                        <a href="steam://friends/add/<?php echo htmlspecialchars((string)$coid, ENT_QUOTES, 'UTF-8'); ?>" target="_blank" rel="noopener noreferrer">Click here to add as friend</a>
+                        <?php if (!$is_game_bot): ?>
+                            <a href="steam://friends/add/<?php echo htmlspecialchars((string)$coid, ENT_QUOTES, 'UTF-8'); ?>" target="_blank" rel="noopener noreferrer">Click here to add as friend</a>
+                        <?php else: ?>
+                            <em>Not applicable for Bots</em>
+                        <?php endif; ?>
                     </td>
                 </tr>
                 <tr class="bg1">
@@ -380,58 +481,54 @@ For support and installation notes visit http://www.hlxcommunity.com
                     </td>
                 </tr>
                 <tr class="bg1">
-                    <td>Favorite Weapon:*</td>
-                        <?php
-                            $result = $db->query("
-                                SELECT
-                                    hlstats_Events_Frags.weapon,
-                                    hlstats_Weapons.name,
-                                    COUNT(hlstats_Events_Frags.weapon) AS kills,
-                                    SUM(hlstats_Events_Frags.headshot=1) as headshots
-                                FROM
-                                    hlstats_Events_Frags
-                                LEFT JOIN
-                                    hlstats_Weapons
-                                ON
-                                    hlstats_Weapons.code = hlstats_Events_Frags.weapon
-                                    AND hlstats_Weapons.game = '$game_esc'
-                                WHERE
-                                    hlstats_Events_Frags.killerId=$player
-                                GROUP BY
-                                    hlstats_Events_Frags.weapon,
-                                    hlstats_Weapons.name
-                                ORDER BY
-                                    kills desc, headshots desc
-                                LIMIT
-                                    1
-                            ");
+                    <td style="width:50%;">Favorite Weapon:*</td>
+                    <?php
+                        $result = $db->query("
+                            SELECT
+                                hlstats_Events_Frags.weapon,
+                                hlstats_Weapons.name,
+                                COUNT(hlstats_Events_Frags.weapon) AS kills,
+                                SUM(hlstats_Events_Frags.headshot=1) as headshots
+                            FROM
+                                hlstats_Events_Frags
+                            LEFT JOIN
+                                hlstats_Weapons
+                            ON
+                                hlstats_Weapons.code = hlstats_Events_Frags.weapon
+                                AND hlstats_Weapons.game = '$game_esc'
+                            WHERE
+                                hlstats_Events_Frags.killerId = $player
+                            GROUP BY
+                                hlstats_Events_Frags.weapon,
+                                hlstats_Weapons.name
+                            ORDER BY
+                                kills desc, headshots desc
+                            LIMIT
+                                1
+                        ");
 
-                            $fav_weapon = '';
-                            $weap_name = '';
+                        $fav_weapon = 'Unknown';
+                        $weap_name = 'Unknown';
 
-                            while ($rowdata = $db->fetch_row($result)) {
-                                $fav_weapon = $rowdata[0];
-                                $weap_name = htmlspecialchars((string)$rowdata[1], ENT_QUOTES, 'UTF-8');
-                            }
+                        // Process single record directly on LIMIT 1
+                        if ($rowdata = $db->fetch_row($result)) {
+                            $fav_weapon = !empty($rowdata[0]) ? (string)$rowdata[0] : 'Unknown';
+                            $weap_name = !empty($rowdata[1]) ? (string)$rowdata[1] : $fav_weapon;
+                        }
 
-                            if ($fav_weapon == '') {
-                                $fav_weapon = 'Unknown';
-                            }
-
-                            $image = getImage("/games/$game/weapons/$fav_weapon");
-                        // Check if image exists
-                            $weaponlink = "<a href=\"hlstats.php?mode=weaponinfo&amp;weapon=" . urlencode((string)$fav_weapon) . "&amp;game=" . htmlspecialchars($game, ENT_QUOTES, 'UTF-8') . "\">";
-                            if ($image)
-                            {
-                                $cellbody = "<td style=\"text-align: center;\">$weaponlink<img src=\"" . htmlspecialchars((string)$image['url'], ENT_QUOTES, 'UTF-8') . "\" alt=\"$weap_name\" title=\"$weap_name\" /></a></td>";
-                            }
-                            else
-                            {
-                                $cellbody = "<td>$weaponlink<strong>$weap_name</strong></a></td>";
-                            }
-                        //    $cellbody .= "</a>";
-                            echo $cellbody;
-                        ?>
+                        $image = getImage("/games/$game/weapons/$fav_weapon");
+                        $weapon_url = "hlstats.php?mode=weaponinfo&amp;weapon=" . urlencode($fav_weapon) . "&amp;game=" . htmlspecialchars($game, ENT_QUOTES, 'UTF-8');
+                        $has_image = (is_array($image) && !empty($image['url']));
+                    ?>
+                    <td style="<?php echo $has_image ? 'text-align:center;' : ''; ?>width:50%;">
+                        <a href="<?php echo $weapon_url; ?>">
+                            <?php if ($has_image): ?>
+                                <img src="<?php echo htmlspecialchars((string)$image['url'], ENT_QUOTES, 'UTF-8'); ?>" alt="<?php echo htmlspecialchars($weap_name, ENT_QUOTES, 'UTF-8'); ?>" title="<?php echo htmlspecialchars($weap_name, ENT_QUOTES, 'UTF-8'); ?>" />
+                            <?php else: ?>
+                                <strong><?php echo htmlspecialchars($weap_name, ENT_QUOTES, 'UTF-8'); ?></strong>
+                            <?php endif; ?>
+                        </a>
+                    </td>
                 </tr>
             </table><br />
         </div>
@@ -734,8 +831,24 @@ For support and installation notes visit http://www.hlxcommunity.com
                     <td style="text-align:center;">
                         <br /><br />
                         <?php
-                            $protocol = (isset($_SERVER['SSL']) || (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on')) ? 'https://' : 'http://';
-                            $script_path = $protocol . ($_SERVER['HTTP_HOST'] ?? 'localhost') . rtrim(str_replace('\\', '/', dirname($_SERVER['PHP_SELF'] ?? '')), '/');
+                            // Universal Protocol & Proxy Resolver (Direct SSL, Cloudflare, Traefik, Nginx, AWS ALB)
+                            $is_https = (
+                                (!empty($_SERVER['HTTPS']) && strtolower($_SERVER['HTTPS']) !== 'off')
+                                || (isset($_SERVER['SERVER_PORT']) && (int)$_SERVER['SERVER_PORT'] === 443)
+                                || (!empty($_SERVER['HTTP_X_FORWARDED_PROTO']) && strtolower($_SERVER['HTTP_X_FORWARDED_PROTO']) === 'https')
+                                || (!empty($_SERVER['HTTP_X_FORWARDED_SSL']) && strtolower($_SERVER['HTTP_X_FORWARDED_SSL']) === 'on')
+                                || (!empty($_SERVER['HTTP_CF_VISITOR']) && strpos($_SERVER['HTTP_CF_VISITOR'], '"scheme":"https"') !== false)
+                            );
+
+                            // Priority: Use configured siteurl if available, otherwise compute dynamically across any proxy setup
+                            if (!empty($g_options['scripturl']) && preg_match('~^https?://~i', (string)$g_options['scripturl'])) {
+                                $script_path = rtrim((string)$g_options['scripturl'], '/');
+                            } else {
+                                $protocol = $is_https ? 'https://' : 'http://';
+                                $raw_host = $_SERVER['HTTP_X_FORWARDED_HOST'] ?? $_SERVER['HTTP_HOST'] ?? 'localhost';
+                                $host = trim(explode(',', $raw_host)[0]);
+                                $script_path = $protocol . $host . rtrim(str_replace('\\', '/', dirname($_SERVER['PHP_SELF'] ?? '')), '/');
+                            }
 
                             if (($g_options['modrewrite'] ?? 0) == 0)
                             {
@@ -803,6 +916,7 @@ For support and installation notes visit http://www.hlxcommunity.com
     ");
     $result = $db->fetch_array();
     $rankimage = getImage('/ranks/' . ($result['image'] ?? ''));
+    $rankImageUrl = (is_array($rankimage) && !empty($rankimage['url'])) ? $rankimage['url'] : (IMAGE_PATH . '/award.png');
     $rankName = (string)($result['rankName'] ?? '');
     $rankCurMinKills = (int)($result['minKills'] ?? 0);
     $db->query
@@ -870,7 +984,7 @@ For support and installation notes visit http://www.hlxcommunity.com
                 </tr>
                 <tr class="bg1">
                     <td style="text-align:center;" colspan="2">
-                        <?php echo '<img src="' . htmlspecialchars((string)($rankimage['url'] ?? ''), ENT_QUOTES, 'UTF-8') . "\" alt=\"".htmlspecialchars((string)$rankName, ENT_QUOTES, 'UTF-8')."\" title=\"".htmlspecialchars((string)$rankName, ENT_QUOTES, 'UTF-8')."\" />"; ?>
+                        <?php echo '<img src="' . htmlspecialchars((string)$rankImageUrl, ENT_QUOTES, 'UTF-8') . '" alt="' . htmlspecialchars((string)$rankName, ENT_QUOTES, 'UTF-8') . '" title="' . htmlspecialchars((string)$rankName, ENT_QUOTES, 'UTF-8') . '" />'; ?>
                     </td>
                 </tr>
                 <tr class="data-table-head">

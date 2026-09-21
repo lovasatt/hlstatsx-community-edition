@@ -68,6 +68,24 @@ For support and installation notes visit http://www.hlxcommunity.com
         }
     }
 
+    require_once(PAGE_PATH . '/steamstatus.php');
+
+    if (!defined('STEAMGROUP')) define('STEAMGROUP', 3);
+
+    if (!function_exists('hlx_fetch_steam_name')) {
+        function hlx_fetch_steam_name($group_ident) {
+            $group_ident = trim((string)$group_ident);
+            if ($group_ident === '') return 'Steam Group';
+            if (class_exists('CSteamGroupStatus')) {
+                $sg = new CSteamGroupStatus();
+                if ($sg->Request($group_ident) && !empty($sg->m_name)) {
+                    return trim($sg->m_name);
+                }
+            }
+            return 'Steam Group';
+        }
+    }
+
     $edlist = new EditList('serverId', 'hlstats_Servers_VoiceComm', '', true);
     $edlist->columns[] = new EditListColumn('name', 'Server Name', 25, false, 'text', '', 128);
     $edlist->columns[] = new EditListColumn('addr', 'IP / Hostname (or Discord Guild ID)', 22, true, 'text', '', 128);
@@ -75,7 +93,7 @@ For support and installation notes visit http://www.hlxcommunity.com
     $edlist->columns[] = new EditListColumn('UDPPort', 'UDP Port (TS)', 6, false, 'text', '', 5);
     $edlist->columns[] = new EditListColumn('queryPort', 'Query Port (TS/Vent)', 6, false, 'text', '', 5);
     $edlist->columns[] = new EditListColumn('descr', 'Notes', 20, false, 'text', '', 255);
-    $edlist->columns[] = new EditListColumn('serverType', 'Server Type', 16, true, 'select', '' . '/-- select --;0/TeamSpeak;1/Ventrilo;2/Discord');
+    $edlist->columns[] = new EditListColumn('serverType', 'Server Type', 18, true, 'select', '' . '/-- select --;0/TeamSpeak;1/Ventrilo;2/Discord;3/Steam Group');
 
 if (!empty($_POST)) {
     $custom_error = false;
@@ -154,22 +172,34 @@ if (!empty($_POST)) {
         } else {
             $stype_int = (int)$new_stype;
 
-            if ($stype_int === 2) {
-                // Discord: 17-25 numeric Guild ID
-                if (!preg_match('/^[0-9]{17,25}$/', $new_addr)) {
-                    message('warning', 'Error: Discord Server ID must be a numeric ID (17-25 digits). Do not paste invite links into IP / Hostname!');
-                    $custom_error = true;
-                }
+            if ($stype_int === 2 || $stype_int === 3) {
                 $new_udp   = 0;
                 $new_query = 0;
                 $_POST['new_UDPPort']   = '0';
                 $_POST['new_queryPort'] = '0';
 
-                // Normalize Discord invite URL
-                if (!empty($_POST['new_password'])) {
-                    $pass_trimmed = trim((string)$_POST['new_password']);
-                    if (!preg_match('~^https?://~i', $pass_trimmed)) {
-                        $_POST['new_password'] = 'https://' . $pass_trimmed;
+                if ($stype_int === 2) {
+                    if (!preg_match('/^[0-9]{17,25}$/', $new_addr)) {
+                        message('warning', 'Error: Discord Server ID must be a numeric ID (17-25 digits). Do not paste invite links into IP / Hostname!');
+                        $custom_error = true;
+                    }
+                    if (!empty($_POST['new_password'])) {
+                        $pass_trimmed = trim((string)$_POST['new_password']);
+                        if (!preg_match('~^https?://~i', $pass_trimmed)) {
+                            $_POST['new_password'] = 'https://' . $pass_trimmed;
+                        }
+                    }
+                } else {
+                    // Steam Group: Strip full URL prefix if pasted
+                    if (preg_match('~steamcommunity\.com/(?:groups|gid)/([A-Za-z0-9_.-]+)~i', $new_addr, $sm)) {
+                        $new_addr = rtrim($sm[1], '/');
+                    }
+                    $new_addr = trim($new_addr, '/');
+                    $_POST['new_addr'] = $new_addr;
+
+                    if (!preg_match('/^[A-Za-z0-9_.-]{2,64}$/', $new_addr)) {
+                        message('warning', 'Error: Steam Group identifier must be a valid group custom URL name or numeric 64-bit ID.');
+                        $custom_error = true;
                     }
                 }
             } else {
@@ -211,7 +241,7 @@ if (!empty($_POST)) {
 
             // Duplicate check with final ports and cleaned address
             if (!$custom_error && $check_duplicate($stype_int, $new_addr, $new_udp, $new_query)) {
-                $type_name = ($stype_int === 2) ? 'Discord' : (($stype_int === 1) ? 'Ventrilo' : 'Teamspeak');
+                $type_name = ($stype_int === 3) ? 'Steam Group' : (($stype_int === 2) ? 'Discord' : (($stype_int === 1) ? 'Ventrilo' : 'Teamspeak'));
                 message('warning', "Error: Duplicate server! A {$type_name} server with address/ID '{$new_addr}' and ports ({$new_udp}/{$new_query}) already exists in the database.");
                 $custom_error = true;
             }
@@ -220,6 +250,8 @@ if (!empty($_POST)) {
             if (!$custom_error && empty(trim((string)($_POST['new_name'] ?? '')))) {
                 if ($stype_int === 2) {
                     $_POST['new_name'] = hlx_fetch_discord_name($new_addr, $_POST['new_password'] ?? '');
+                } elseif ($stype_int === 3) {
+                    $_POST['new_name'] = hlx_fetch_steam_name($new_addr);
                 } else {
                     $_POST['new_name'] = $new_addr;
                 }
@@ -236,23 +268,35 @@ if (!empty($_POST)) {
             $addr_val  = trim((string)($_POST[$id . '_addr'] ?? ''));
             $stype_int = (int)($_POST[$id . '_serverType'] ?? 0);
 
-            if ($stype_int === 2) {
+            if ($stype_int === 2 || $stype_int === 3) {
                 $_POST[$id . '_UDPPort']   = '0';
                 $_POST[$id . '_queryPort'] = '0';
                 $udp   = 0;
                 $query = 0;
 
-                if (!preg_match('/^[0-9]{17,25}$/', $addr_val)) {
-                    message('warning', "Error on row #{$id}: Discord Server ID must be a numeric ID (17-25 digits).");
-                    $custom_error = true;
-                    break;
-                }
+                if ($stype_int === 2) {
+                    if (!preg_match('/^[0-9]{17,25}$/', $addr_val)) {
+                        message('warning', "Error on row #{$id}: Discord Server ID must be a numeric ID (17-25 digits).");
+                        $custom_error = true;
+                        break;
+                    }
+                    if (!empty($_POST[$id . '_password'])) {
+                        $pass_trimmed = trim((string)$_POST[$id . '_password']);
+                        if (!preg_match('~^https?://~i', $pass_trimmed)) {
+                            $_POST[$id . '_password'] = 'https://' . $pass_trimmed;
+                        }
+                    }
+                } else {
+                    if (preg_match('~steamcommunity\.com/(?:groups|gid)/([A-Za-z0-9_.-]+)~i', $addr_val, $sm)) {
+                        $addr_val = rtrim($sm[1], '/');
+                    }
+                    $addr_val = trim($addr_val, '/');
+                    $_POST[$id . '_addr'] = $addr_val;
 
-                // Normalize Discord invite URL
-                if (!empty($_POST[$id . '_password'])) {
-                    $pass_trimmed = trim((string)$_POST[$id . '_password']);
-                    if (!preg_match('~^https?://~i', $pass_trimmed)) {
-                        $_POST[$id . '_password'] = 'https://' . $pass_trimmed;
+                    if (!preg_match('/^[A-Za-z0-9_.-]{2,64}$/', $addr_val)) {
+                        message('warning', "Error on row #{$id}: Steam Group identifier must be a valid group custom URL name or numeric ID.");
+                        $custom_error = true;
+                        break;
                     }
                 }
             } else {
@@ -270,7 +314,7 @@ if (!empty($_POST)) {
             }
 
             if ($check_duplicate($stype_int, $addr_val, $udp, $query, $id)) {
-                $type_name = ($stype_int === 2) ? 'Discord' : (($stype_int === 1) ? 'Ventrilo' : 'Teamspeak');
+                $type_name = ($stype_int === 3) ? 'Steam Group' : (($stype_int === 2) ? 'Discord' : (($stype_int === 1) ? 'Ventrilo' : 'Teamspeak'));
                 message('warning', "Error on row #{$id}: Duplicate server! A {$type_name} server with address / ID '" . htmlspecialchars($addr_val, ENT_QUOTES, 'UTF-8') . "' already exists.");
                 $custom_error = true;
                 break;
@@ -281,6 +325,8 @@ if (!empty($_POST)) {
                 $inv = (string)($_POST[$id . '_password'] ?? '');
                 if ($stype_int === 2) {
                     $_POST[$id . '_name'] = hlx_fetch_discord_name($addr_val, $inv);
+                } elseif ($stype_int === 3) {
+                    $_POST[$id . '_name'] = hlx_fetch_steam_name($addr_val);
                 } else {
                     $_POST[$id . '_name'] = $addr_val;
                 }
@@ -369,6 +415,17 @@ echo '
             <code>quit</code><br /><br />
             &bull; <strong>Permissions:</strong> No Telnet Guest permissions are needed because the API key authenticates directly via the <code>x-api-key</code> HTTP header.<br />
             &bull; <strong>Firewall &amp; Whitelist:</strong> Ensure UDP <code>9987</code> and TCP <code>10080</code> are open in your firewall. Keep your web server\'s IP in the allowlist if flood protection is enabled.
+        </div>
+    </details>
+
+    <details style="margin-bottom: 12px; cursor: pointer;">
+        <summary style="font-weight: bold; color: inherit;">Steam Community Group</summary>
+        <div style="padding: 8px 0 4px 15px; font-size: 11px; line-height: 1.6; cursor: default;">
+            &bull; <strong>HLX Fields:</strong> Enter your Steam Group custom URL name (e.g. <code>clan-rmg</code>) or 64-bit Group ID into <em>IP / Hostname</em>.<br />
+            &bull; <strong>Server Name:</strong> Leave blank to automatically retrieve your group\'s official name via the Steam XML API.<br />
+            &bull; <strong>Ports:</strong> Leave <em>UDP Port</em> and <em>Query Port</em> empty (or set to 0).<br />
+            &bull; <strong>Password:</strong> Leave empty (not required).<br />
+            &bull; <strong>Requirements:</strong> Your Steam Group must be set to <strong>Public</strong> in Steam Community permissions for XML and RSS data to be accessible.
         </div>
     </details>
 
