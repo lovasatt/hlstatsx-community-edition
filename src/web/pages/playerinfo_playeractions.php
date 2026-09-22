@@ -125,7 +125,7 @@ For support and installation notes visit http://www.hlxcommunity.com
     if ($numitems > 0)
     {
 ?>
-        <div style="clear:both;padding-top:20px;"></div>
+
 <?php
         printSectionTitle('Player Actions *');
         $tblPlayerActions->draw($result, $numitems, 95);
@@ -195,7 +195,7 @@ For support and installation notes visit http://www.hlxcommunity.com
         if ($numitems == 0)
         {
 ?>
-        <div style="clear:both;padding-top:20px;"></div>
+
 <?php
         }
 

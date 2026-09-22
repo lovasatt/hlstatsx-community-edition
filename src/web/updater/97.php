@@ -366,6 +366,7 @@ function dropIndexIfExists($table, $indexName) {
 $res_pk = $db->query("SHOW INDEX FROM `hlstats_Players_Ribbons` WHERE `Key_name` = 'PRIMARY'");
 if (!$res_pk || $db->num_rows($res_pk) == 0) {
     // Safe deduplication and PRIMARY KEY creation for MySQL 5.7 / 8.0+ (ALTER IGNORE is obsolete)
+    $db->query("DROP TABLE IF EXISTS `hlstats_Players_Ribbons_tmp`");
     $db->query("CREATE TABLE `hlstats_Players_Ribbons_tmp` LIKE `hlstats_Players_Ribbons`");
     $db->query("ALTER TABLE `hlstats_Players_Ribbons_tmp` ADD PRIMARY KEY (`playerId`, `ribbonId`, `game`)");
     $db->query("INSERT IGNORE INTO `hlstats_Players_Ribbons_tmp` SELECT * FROM `hlstats_Players_Ribbons`");

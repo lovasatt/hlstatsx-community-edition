@@ -96,9 +96,8 @@ For support and installation notes visit http://www.hlxcommunity.com
                                 $coid_esc = $db->escape($coid);
                                 $p_cached = false;
 
-                                // Safe table existence verification to avoid crashing HLstats database wrapper on Error 1146
-                                static $s_table_verified = false;
-                                if (!$s_table_verified) {
+                                // Backward compatibility: ensure table exists once, flag stored in hlstats_Options
+                                if (empty($g_options['steamcache_installed'])) {
                                     $chk = $db->query("SHOW TABLES LIKE 'hlstats_SteamCache'");
                                     if ($db->num_rows($chk) == 0) {
                                         $db->query("
@@ -112,7 +111,11 @@ For support and installation notes visit http://www.hlxcommunity.com
                                             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
                                         ");
                                     }
-                                    $s_table_verified = true;
+                                    // opttype = 2: internal system option loaded by getOptions() into $g_options
+                                    $db->query("INSERT INTO `hlstats_Options` (`keyname`, `value`, `opttype`) 
+                                                VALUES ('steamcache_installed', '1', 2) 
+                                                ON DUPLICATE KEY UPDATE `value` = '1'");
+                                    $g_options['steamcache_installed'] = '1';
                                 }
 
                                 // Fetch record from cache
@@ -162,10 +165,17 @@ For support and installation notes visit http://www.hlxcommunity.com
                                     $http_code = (int)curl_getinfo($curl, CURLINFO_HTTP_CODE);
                                     curl_close($curl);
 
-                                    // If Steam fails, activate 3-minute persistent circuit breaker and retry later without storing broken data
+                                    // If Steam fails, activate cooldown and cache failure to prevent repeated page lag
                                     if ($http_code >= 500 || $http_code === 429 || $http_code === 0 || $xml === false) {
                                         $pause = $now + 180;
                                         $db->query("INSERT INTO `hlstats_Options` (`keyname`, `value`, `opttype`) VALUES ('steam_api_cooldown', '$pause', 0) ON DUPLICATE KEY UPDATE `value` = '$pause'");
+
+                                        // Negative caching: mark player as updated to prevent repeated 2s timeouts for 15 minutes
+                                        $db->query("
+                                            INSERT INTO `hlstats_SteamCache` (`communityId`, `status`, `avatar`, `updated`)
+                                            VALUES ('$coid_esc', 'Unknown', '', $now)
+                                            ON DUPLICATE KEY UPDATE `updated` = $now
+                                        ");
                                     } elseif ($http_code === 200 && is_string($xml) && $xml !== '') {
                                         // XXE Protection: disable external entities and inline DTD expansions
                                         $xmlDoc = @simplexml_load_string($xml, 'SimpleXMLElement', LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING);

@@ -561,6 +561,11 @@ For support and installation notes visit http://www.hlxcommunity.com
                 'hlstats_Players'
             );
 
+            // Clear steam cache only on full global database reset (no game filter)
+            if ($gamefilter == '') {
+                $dbtables[] = 'hlstats_SteamCache';
+            }
+
             foreach ($dbtables as $dbt)
             {
                 echo "<li>Clearing $dbt ... ";

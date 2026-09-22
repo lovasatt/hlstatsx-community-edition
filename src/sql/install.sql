@@ -5,8 +5,8 @@
 SET NAMES utf8mb4;
 SET CHARACTER SET utf8mb4;
 
-SET @DBVERSION="97";
-SET @VERSION="1.12.5";
+SET @DBVERSION="98";
+SET @VERSION="1.12.6";
 
 -- --------------------------------------------------------
 
@@ -4296,7 +4296,8 @@ INSERT INTO `hlstats_Options` (`keyname`, `value`, `opttype`) VALUES
 ('sourcebans_address', '', 2),
 ('forum_address', '', 2),
 ('display_gamelist', '1', 2),
-('display_style_selector', '0', 2);
+('display_style_selector', '0', 2),
+('steamcache_installed', '1', 2);
 
 
 CREATE TABLE IF NOT EXISTS `hlstats_Options_Choices` (
@@ -7322,12 +7323,26 @@ CREATE TABLE IF NOT EXISTS `hlstats_server_load` (
   `map` varchar(64) default NULL,
   `uptime` varchar(10) NOT NULL default '0',
   `fps` varchar(10) NOT NULL default '0',
-  KEY `idx_server_timestamp` (`server_id`, `timestamp`),
+  PRIMARY KEY (`server_id`, `timestamp`),
   KEY `timestamp` (`timestamp`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 
+--
+-- Table structure for table `hlstats_SteamCache`
+--
+
+CREATE TABLE IF NOT EXISTS `hlstats_SteamCache` (
+  `communityId` varchar(32) NOT NULL DEFAULT '',
+  `status` varchar(64) NOT NULL DEFAULT 'Unknown',
+  `avatar` varchar(255) NOT NULL DEFAULT '',
+  `updated` int(10) unsigned NOT NULL DEFAULT 0,
+  PRIMARY KEY (`communityId`),
+  KEY `idx_updated` (`updated`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
 --
 -- Table structure for table `hlstats_Teams`
 --
@@ -7434,7 +7449,7 @@ CREATE TABLE IF NOT EXISTS `hlstats_Trend` (
   `servers` int(11) NOT NULL default '0',
   `act_slots` int(11) NOT NULL default '0',
   `max_slots` int(11) NOT NULL default '0',
-  KEY `idx_game_timestamp` (`game`, `timestamp`),
+  PRIMARY KEY (`game`, `timestamp`),
   KEY `timestamp` (`timestamp`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

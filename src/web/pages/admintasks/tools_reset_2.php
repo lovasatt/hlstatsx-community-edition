@@ -97,6 +97,14 @@ For support and installation notes visit http://www.hlxcommunity.com
         $SQL = "DELETE FROM hlstats_Livestats USING hlstats_Livestats LEFT JOIN hlstats_Players ON (hlstats_Livestats.player_id=hlstats_Players.playerId) WHERE isnull(hlstats_Players.playerId);";
         if ($db->query($SQL)) echo "OK</li>\n"; else echo "ERROR</li>\n";
 
+        // Delete steam cache entries older than 30 days for inactive players
+        if (!empty($g_options['steamcache_installed'])) {
+            $dbt = "Deleting Steam Cache older than 30 days";
+        echo "<li>$dbt ... ";
+        $SQL = "DELETE FROM hlstats_SteamCache WHERE updated < $minTimestamp;";
+        if ($db->query($SQL)) echo "OK</li>\n"; else echo "ERROR</li>\n";
+        }
+
         echo "</ul>\n";
 
         echo "Done.<br /><br />";
