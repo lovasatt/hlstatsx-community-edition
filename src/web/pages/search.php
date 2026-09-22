@@ -66,6 +66,11 @@ For support and installation notes visit http://www.hlxcommunity.com
     $search->drawForm(array('mode' => 'search'));
 
     if ($sr_query !== '') {
-        $search->drawResults();
+        $clean_query = trim($sr_query, "%_* ");
+        if (mb_strlen($clean_query) < 2) {
+            echo '<div class="subblock" style="text-align:center; padding:15px; color:#e74c3c; font-weight:bold;">Search query must contain at least 2 valid characters.</div>';
+        } else {
+            $search->drawResults();
+        }
     }
 ?>

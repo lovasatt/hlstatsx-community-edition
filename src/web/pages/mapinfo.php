@@ -197,13 +197,31 @@ For support and installation notes visit http://www.hlxcommunity.com
                 echo "<img src=\"" . htmlspecialchars($mapimg, ENT_QUOTES, 'UTF-8') . "\" alt=\"" . htmlspecialchars($map, ENT_QUOTES, 'UTF-8') . "\" style=\"max-width:100%; height:auto;\" />";
             }
 
-            if ($map_dlurl_setting !== '')
+            if ($map_dlurl_setting !== '' && stripos($map_dlurl_setting, 'yoursite.com') === false)
             {
-                $map_dlurl = str_replace(array("%MAP%", "%GAME%"), array($map, $game), $map_dlurl_setting);
-                $mapdlheader = @get_headers($map_dlurl);
+                $map_lower = strtolower((string)$map);
 
-                if ($mapdlheader && isset($mapdlheader[0]) && preg_match("|200|", $mapdlheader[0])) {
-                    echo "<p style=\"margin-top:10px;\"><a href=\"" . htmlspecialchars($map_dlurl, ENT_QUOTES, 'UTF-8') . "\">Download this map...</a></p>";
+                // Registry of built-in official stock maps per game (games with workshop integration)
+                $stock_maps = [
+                    'cs2' => [
+                        'de_dust2', 'de_mirage', 'de_inferno', 'de_nuke', 'de_overpass',
+                        'de_ancient', 'de_ancient_night', 'de_anubis', 'de_vertigo', 'de_train',
+                        'de_cache', 'de_boulder', 'de_debris', 'de_eldorado', 'de_fachwerk', 'de_poseidon',
+                        'cs_office', 'cs_italy', 'cs_shelter',
+                        'ar_baggage', 'ar_pool_day', 'ar_shoots', 'ar_shoots_night'
+                    ]
+                    // Future Source 2 games/mods can be cleanly registered here:
+                    // 'newmod' => ['map_a', 'map_b']
+                ];
+
+                $is_stock_map = (isset($stock_maps[$game]) && in_array($map_lower, $stock_maps[$game], true));
+
+                if (!$is_stock_map) {
+                    $map_dlurl = str_replace(array("%MAP%", "%GAME%"), array($map, $game), $map_dlurl_setting);
+                    $is_workshop = (stripos($map_dlurl, 'steamcommunity.com') !== false);
+                    $link_text = $is_workshop ? "Subscribe on Steam Workshop..." : "Download this map...";
+
+                    echo "<p style=\"margin-top:10px;\"><a href=\"" . htmlspecialchars($map_dlurl, ENT_QUOTES, 'UTF-8') . "\" target=\"_blank\" rel=\"noopener noreferrer\" style=\"font-weight:bold;\">" . htmlspecialchars($link_text, ENT_QUOTES, 'UTF-8') . "</a></p>";
                 }
             }
 

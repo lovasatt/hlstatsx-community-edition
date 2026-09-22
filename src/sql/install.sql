@@ -2454,7 +2454,7 @@ CREATE TABLE IF NOT EXISTS `hlstats_Events_Frags` (
   `pos_victim_z` MEDIUMINT default NULL,
   PRIMARY KEY  (`id`),
   KEY `victimId` (`victimId`),
-  KEY `map` (`map`(5)),
+  KEY `map` (`map`(32)),
   KEY `weapon16` (`weapon`(16)),
   KEY `killerRole` (`killerRole`(8)),
   KEY `idx_eventTime` (`eventTime`),

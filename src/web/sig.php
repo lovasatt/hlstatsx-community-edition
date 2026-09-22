@@ -262,6 +262,12 @@ if (!empty($_GET['link_color']) && is_string($_GET['link_color'])) {
     }
 }
 
+if ($player_id <= 0) {
+    if (ob_get_length()) { ob_clean(); }
+    header("HTTP/1.0 404 Not Found");
+    exit();
+}
+
 if ($player_id > 0) {
     $player_id_esc = $db->escape($player_id);
     $db->query("

@@ -12,7 +12,7 @@ if ( !defined('IN_UPDATER') )
 $dbversion = 98;
 $version = "1.12.6";
 
-echo "Executing update script 98 (Steam Cache Integration & Primary Key Hardening)...<br />";
+echo "Executing update script 98 (Steam Cache Integration, Primary Key Hardening & Map Index Optimization)...<br />";
 flush();
 
 // 1. Create and integrate hlstats_SteamCache table
@@ -79,12 +79,32 @@ if (!$res_pk_trend || $db->num_rows($res_pk_trend) == 0) {
 }
 flush();
 
-// 4. Update system version
+// 4. Optimize map index prefix length on hlstats_Events_Frags (prefix 5 -> 32 characters)
+$res_map_idx = $db->query("SHOW INDEX FROM `hlstats_Events_Frags` WHERE `Key_name` = 'map'");
+if ($res_map_idx && $row = $db->fetch_array($res_map_idx)) {
+    if ((int)($row['Sub_part'] ?? 0) < 32) {
+        echo "Optimizing 'map' index on hlstats_Events_Frags (prefix 5 to 32)... ";
+        flush();
+        $db->query("ALTER TABLE `hlstats_Events_Frags` DROP INDEX `map`, ADD INDEX `map` (`map`(32))");
+        echo "OK.<br />";
+    } else {
+        echo "'map' index on hlstats_Events_Frags is already 32 characters, skipping...<br />";
+    }
+} else {
+    echo "Creating 'map' index on hlstats_Events_Frags (prefix 32)... ";
+    flush();
+    $db->query("ALTER TABLE `hlstats_Events_Frags` ADD INDEX `map` (`map`(32))");
+    echo "OK.<br />";
+}
+flush();
+
+// 5. Update system version
 $db->query("UPDATE `hlstats_Options` SET `value` = '$version' WHERE `keyname` = 'version'");
 $db->query("UPDATE `hlstats_Options` SET `value` = '$dbversion' WHERE `keyname` = 'dbversion'");
 
 echo "<br /><b>Update 98 Technical Summary:</b><br />";
 echo "- <b>Steam Cache Integration:</b> Created high-performance `hlstats_SteamCache` InnoDB table and registered `steamcache_installed` flag in `hlstats_Options` for zero-overhead player profile loading.<br />";
 echo "- <b>InnoDB Primary Key Hardening:</b> Added composite PRIMARY KEYs to `hlstats_server_load` (`server_id`, `timestamp`) and `hlstats_Trend` (`game`, `timestamp`) with automatic deduplication, eliminating hidden row locks.<br />";
+echo "- <b>Map Performance Optimization:</b> Upgraded `map` index prefix on `hlstats_Events_Frags` from 5 to 32 characters for instant map statistics filtering on large tables.<br />";
 echo "<br />Update completed successfully.<br />";
 ?>

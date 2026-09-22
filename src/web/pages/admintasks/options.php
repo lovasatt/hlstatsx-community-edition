@@ -93,7 +93,7 @@ For support and installation notes visit http://www.hlxcommunity.com
 
                 $raw_val = (string)$_POST[$opt->name];
 
-                if (($this->title == 'Fonts') || ($this->title == 'General') || ($this->title == 'Site Settings')) {
+                if (($this->title == 'Fonts') || ($this->title == 'General') || ($this->title == 'Site Settings') || ($this->title == 'Paths')) {
                     $optval = $raw_val;
                     $search_pattern  = array('/script/i', '/;/', '/%/');
                     $replace_pattern = array('', '', '');
@@ -259,7 +259,7 @@ RewriteRule sig-(.*)-(.*).png$ sig.php?player_id=$1&background=$2 [L]</textarea>
     $optiongroups[3]->options[] = new Option('counter_hits', 'Current Page Hits', 'text');
 
     $optiongroups[20] = new OptionGroup('Paths');
-    $optiongroups[20]->options[] = new Option('map_dlurl', 'Map Download URL<br /><span class="fSmall">(%MAP% = map, %GAME% = gamecode)</span>. Leave blank to suppress download link.', 'text');
+    $optiongroups[20]->options[] = new Option('map_dlurl', 'Map Download / Workshop Collection URL<br /><span class="fSmall"><strong>Source 1 (FastDL):</strong> e.g. http://yourfastdl.com/%GAME%/%MAP%.bsp.bz2<br /><strong> Workshop Collection:</strong> Steam Collection URL (e.g. https://steamcommunity.com/sharedfiles/filedetails/?id=...)<br />Leave blank to suppress download links on custom maps. Built-in Valve maps are hidden automatically.</span>', 'text');
 
     $optiongroups[30] = new OptionGroup('Visual style settings');
     $optiongroups[30]->options[] = new Option('graphbg_load', 'Server Load graph: background color hex# (RRGGBB)', 'text');

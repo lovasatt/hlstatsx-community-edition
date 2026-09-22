@@ -93,7 +93,7 @@ function getFlag($flag, $type='url')
  */
 function valid_request($str, $numeric = false)
 {
-    $search_pattern = array("/[^A-Za-z0-9\[\]*.,=()!\"$%&^`ґ':;ЯІі#+~_\-|<>\/\\\\@{}дцьДЦЬ ]/");
+    $search_pattern = array("/[^A-Za-z0-9\[\]*.,=()!\"$%&^`ґ':;?ЯІі#+~_\-|<>\/\\\\@{}дцьДЦЬ ]/");
     $replace_pattern = array('');
     // PHP 8 Fix: Ensure string type for preg_replace
     $str = preg_replace($search_pattern, $replace_pattern, (string)$str);
