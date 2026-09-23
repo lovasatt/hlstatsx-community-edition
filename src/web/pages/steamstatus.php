@@ -148,7 +148,7 @@ class CSteamGroupStatus
         $this->m_members_count     = (int)($gd->memberCount ?? 0);
         $this->m_members_in_game   = (int)($gd->membersInGame ?? 0);
         $this->m_members_online    = (int)($gd->membersOnline ?? 0);
-        $this->m_members_chatting  = (int)($gd->membersChatting ?? 0);
+        $this->m_members_chatting  = (int)($gd->membersInChat ?? $gd->membersChatting ?? 0);
 
         // Parse RSS Announcements safely (fetch up to 30 items for pagination)
         $announcements = [];

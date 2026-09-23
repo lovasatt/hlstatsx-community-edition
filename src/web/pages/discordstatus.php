@@ -129,8 +129,6 @@ class CDiscordStatus
                 CURLOPT_FOLLOWLOCATION => true,
                 CURLOPT_MAXREDIRS      => 3,
                 CURLOPT_ENCODING       => "",
-                CURLOPT_PROTOCOLS      => CURLPROTO_HTTPS,
-                CURLOPT_REDIR_PROTOCOLS => CURLPROTO_HTTPS,
                 CURLOPT_USERAGENT      => 'Mozilla/5.0 (compatible; HLstatsX-SteamEngine/2.0)',
                 CURLOPT_SSL_VERIFYPEER => true,
                 CURLOPT_SSL_VERIFYHOST => 2
