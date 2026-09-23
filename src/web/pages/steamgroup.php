@@ -301,7 +301,7 @@ if ($in_game_pct >= 8.0) {
             <tr class="<?php echo ($info_idx++ % 2 == 0) ? 'bg1' : 'bg2'; ?>">
                 <td style="width:22%; font-weight:bold;">Community:</td>
                 <td>
-                    <img src="<?php echo $group_avatar; ?>" onerror="this.src='<?php echo $default_avatar; ?>';" alt="" width="28" height="28" style="vertical-align:middle; margin-right:8px; border-radius:4px; border:1px solid rgba(255,255,255,0.15);" />
+                    <img src="<?php echo $group_avatar; ?>" onerror="this.src='<?php echo $default_avatar; ?>';" alt="" width="28" height="28" style="vertical-align:middle; margin-right:8px; border-radius:3px; border:1px solid rgba(255,255,255,0.15);" />
                     <strong style="font-size:13px; vertical-align:middle;"><?php echo $safe_name; ?></strong>
                     <?php echo $activity_badge; ?>
                 </td>

@@ -15,6 +15,7 @@ class CDiscordStatus
 {
     public $m_name = '';
     public $m_online = 0;
+    public $m_icon = '';
     public $m_channels = 0;
     public $m_invite = '';
     public $m_error = '';
@@ -41,9 +42,44 @@ class CDiscordStatus
         return '';
     }
 
+    private function fetchGuildIcon($invite_url, $guild_id)
+    {
+        if (!preg_match('~(?:discord\.gg/|discord\.com/invite/)([A-Za-z0-9_.-]+)~i', $invite_url, $m)) {
+            return '';
+        }
+
+        $invite_code = $m[1];
+        $inv_ch = curl_init("https://discord.com/api/v10/invites/" . urlencode($invite_code));
+        curl_setopt_array($inv_ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT        => 3,
+            CURLOPT_CONNECTTIMEOUT => 2,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_MAXREDIRS      => 2,
+            CURLOPT_ENCODING       => "",
+            CURLOPT_USERAGENT      => 'Mozilla/5.0 (compatible; HLstatsX-CommunityEdition/2.0)',
+            CURLOPT_SSL_VERIFYPEER => true,
+            CURLOPT_SSL_VERIFYHOST => 2
+        ]);
+        $inv_raw = curl_exec($inv_ch);
+        $inv_http = curl_getinfo($inv_ch, CURLINFO_HTTP_CODE);
+        curl_close($inv_ch);
+
+        if ($inv_http === 200 && !empty($inv_raw)) {
+            $inv_json = json_decode($inv_raw, true);
+            if (!empty($inv_json['guild']['icon'])) {
+                $icon_hash = (string)$inv_json['guild']['icon'];
+                $ext = (strpos($icon_hash, 'a_') === 0) ? 'gif' : 'png';
+                return "https://cdn.discordapp.com/icons/" . urlencode($guild_id) . "/{$icon_hash}.{$ext}";
+            }
+        }
+        return '';
+    }
+
     public function Request($guild_id, $fallback_invite = '')
     {
         $this->m_name = '';
+        $this->m_icon = '';
         $this->m_online = 0;
         $this->m_channels = 0;
         $this->m_invite = $this->sanitizeInviteUrl($fallback_invite);
@@ -161,6 +197,17 @@ class CDiscordStatus
             $this->m_invite = $api_invite;
         } else {
             $this->m_invite = '';
+        }
+
+        // Resolve guild server icon with disk cache to prevent API rate limits
+        $cached_icon = (string)($data['__hlx_server_icon'] ?? '');
+        if ($cached_icon !== '') {
+            $this->m_icon = ($cached_icon !== 'none') ? $cached_icon : '';
+        } elseif (!empty($this->m_invite)) {
+            $resolved_icon = $this->fetchGuildIcon($this->m_invite, $guild_id);
+            $data['__hlx_server_icon'] = !empty($resolved_icon) ? $resolved_icon : 'none';
+            $this->m_icon = $resolved_icon;
+            @file_put_contents($cache_file, json_encode($data), LOCK_EX);
         }
 
         // Build channel index sorted by position

@@ -246,7 +246,11 @@
 ?>
             <tr class="<?php echo $row_class; ?>">
                 <td class="fHeading">
-                    <img src="<?php echo IMAGE_PATH; ?>/discord/discord.png" alt="discord" width="16" height="16" style="vertical-align:middle;" />
+                    <?php if (!empty($dc_info->m_icon)): ?>
+                        <img src="<?php echo htmlspecialchars($dc_info->m_icon, ENT_QUOTES, 'UTF-8'); ?>" alt="dcicon" width="16" height="16" style="vertical-align:middle; border-radius:3px; object-fit:cover;" />
+                    <?php else: ?>
+                        <img src="<?php echo IMAGE_PATH; ?>/discord/discord.png" alt="discord" width="16" height="16" style="vertical-align:middle;" />
+                    <?php endif; ?>
                     &nbsp;<a href="<?php echo $scripturl; ?>?mode=discord&amp;game=<?php echo $url_game; ?>&amp;dcId=<?php echo $dc_server_id; ?>"><?php echo $safe_name; ?></a>
                 </td>
                 <td>
@@ -300,7 +304,11 @@
 ?>
             <tr class="<?php echo $row_class; ?>">
                 <td class="fHeading">
-                    <img src="<?php echo IMAGE_PATH; ?>/steamgroup/steam.png" alt="steam" width="16" height="16" style="vertical-align:middle;" />
+                    <?php if (!empty($sg_info->m_avatar_icon)): ?>
+                        <img src="<?php echo htmlspecialchars($sg_info->m_avatar_icon, ENT_QUOTES, 'UTF-8'); ?>" alt="steamicon" width="16" height="16" style="vertical-align:middle; border-radius:3px; object-fit:cover;" />
+                    <?php else: ?>
+                        <img src="<?php echo IMAGE_PATH; ?>/steamgroup/steam.png" alt="steam" width="16" height="16" style="vertical-align:middle;" />
+                    <?php endif; ?>
                     &nbsp;<a href="<?php echo $scripturl; ?>?mode=steamgroup&amp;game=<?php echo $url_game; ?>&amp;stId=<?php echo $sg_server_id; ?>"><?php echo $safe_name; ?></a>
                 </td>
                 <td>

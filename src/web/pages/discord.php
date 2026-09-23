@@ -192,7 +192,17 @@ if (!function_exists('getGameBadgeHtml')) {
           <?php $info_idx = 0; ?>
           <tr class="<?php echo ($info_idx++ % 2 == 0) ? 'bg1' : 'bg2'; ?>">
               <td style="width:20%; font-weight:bold;">Community:</td>
-              <td><?php echo $safe_name; ?> <?php if (!empty($dc->m_name) && strcasecmp($safe_name, $dc->m_name) !== 0): ?>&mdash; <em><?php echo htmlspecialchars($dc->m_name, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?></em><?php endif; ?></td>
+              <td style="vertical-align:middle;">
+                  <?php if (!empty($dc->m_icon)): ?>
+                      <img src="<?php echo htmlspecialchars($dc->m_icon, ENT_QUOTES, 'UTF-8'); ?>" alt="" width="28" height="28" loading="lazy" style="border-radius:3px; vertical-align:middle; margin-right:8px; box-shadow:0 1px 3px rgba(0,0,0,0.3); object-fit:cover;" />
+                  <?php else: ?>
+                      <img src="<?php echo IMAGE_PATH; ?>/discord/discord.png" alt="" width="28" height="28" style="vertical-align:middle; margin-right:8px;" />
+                  <?php endif; ?>
+                  <span style="vertical-align:middle; font-weight:bold; font-size:13px;"><?php echo $safe_name; ?></span>
+                  <?php if (!empty($dc->m_name) && strcasecmp($safe_name, $dc->m_name) !== 0): ?>
+                      &mdash; <em style="vertical-align:middle;"><?php echo htmlspecialchars($dc->m_name, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?></em>
+                  <?php endif; ?>
+              </td>
           </tr>
           <?php if (!empty($safe_descr)): ?>
           <tr class="<?php echo ($info_idx++ % 2 == 0) ? 'bg1' : 'bg2'; ?>">
