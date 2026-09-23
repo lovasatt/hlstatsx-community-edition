@@ -95,7 +95,7 @@ For support and installation notes visit http://www.hlxcommunity.com
 
                 if (($this->title == 'Fonts') || ($this->title == 'General') || ($this->title == 'Site Settings') || ($this->title == 'Paths')) {
                     $optval = $raw_val;
-                    $search_pattern  = array('/script/i', '/;/', '/%/');
+                    $search_pattern  = array('/<script\b[^>]*>(.*?)<\/script>/is', '/<script/i', '/;/');
                     $replace_pattern = array('', '', '');
                     $optval = preg_replace($search_pattern, $replace_pattern, $optval);
                 } else {
@@ -244,7 +244,7 @@ RewriteRule sig-(.*)-(.*).png$ sig.php?player_id=$1&background=$2 [L]</textarea>
     $optiongroups[1]->options[] = new Option('show_google_map', 'Show Google worldmap', 'select');
     $optiongroups[1]->options[] = new Option('google_map_region', 'Google Maps Region', 'select');
     $optiongroups[1]->options[] = new Option('google_map_type', 'Google Maps Type', 'select');
-    $optiongroups[1]->options[] = new Option('UseGeoIPBinary', '*Choose whether to use GeoCityLite data loaded into mysql database or from binary file. (If binary, GeoLiteCity.dat goes in perl/GeoLiteCity and Geo::IP::PurePerl module is required', 'select');
+    $optiongroups[1]->options[] = new Option('UseGeoIPBinary', '*Choose whether to use GeoCityLite data loaded into mysql database or from binary file. (If binary, GeoLiteCity.dat goes in perl/GeoLiteCity and Geo::IP::PurePerl module is required)', 'select');
 
     $optiongroups[2] = new OptionGroup('Awards settings');
     $optiongroups[2]->options[] = new Option('gamehome_show_awards', 'Show daily award winners on Game Frontpage', 'select');
@@ -291,7 +291,7 @@ RewriteRule sig-(.*)-(.*).png$ sig.php?player_id=$1&background=$2 [L]</textarea>
     $optiongroups[40]->options[] = new Option('GlobalBanning', '*Make player bans available on all participating servers. Players who were banned permanently are automatic hidden from rankings', 'select');
     $optiongroups[40]->options[] = new Option('LogChat', '*Log player chat to database', 'select');
     $optiongroups[40]->options[] = new Option('LogChatAdmins', '*Log admin chat to database', 'select');
-    $optiongroups[40]->options[] = new Option('GlobalChat', '*Broadcast chat messages through all particapting servers. To all, none, or admins only', 'select');
+    $optiongroups[40]->options[] = new Option('GlobalChat', '*Broadcast chat messages through all participating servers. To all, none, or admins only', 'select');
 
     $optiongroups[50] = new OptionGroup('Point calculation settings');
     $optiongroups[50]->options[] = new Option('SkillMaxChange', '*Maximum number of skill points a player will gain from each frag. Default 25', 'text');

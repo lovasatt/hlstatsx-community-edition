@@ -206,8 +206,7 @@ For support and installation notes visit http://www.hlxcommunity.com
                     'cs2' => [
                         'de_dust2', 'de_mirage', 'de_inferno', 'de_nuke', 'de_overpass',
                         'de_ancient', 'de_ancient_night', 'de_anubis', 'de_vertigo', 'de_train',
-                        'de_cache', 'de_boulder', 'de_debris', 'de_eldorado', 'de_fachwerk', 'de_poseidon',
-                        'cs_office', 'cs_italy', 'cs_shelter',
+                        'de_cache', 'de_debris', 'cs_office', 'cs_italy',
                         'ar_baggage', 'ar_pool_day', 'ar_shoots', 'ar_shoots_night'
                     ]
                     // Future Source 2 games/mods can be cleanly registered here:
@@ -217,7 +216,7 @@ For support and installation notes visit http://www.hlxcommunity.com
                 $is_stock_map = (isset($stock_maps[$game]) && in_array($map_lower, $stock_maps[$game], true));
 
                 if (!$is_stock_map) {
-                    $map_dlurl = str_replace(array("%MAP%", "%GAME%"), array($map, $game), $map_dlurl_setting);
+                    $map_dlurl = str_ireplace(array("%MAP%", "%GAME%"), array($map, $game), $map_dlurl_setting);
                     $is_workshop = (stripos($map_dlurl, 'steamcommunity.com') !== false);
                     $link_text = $is_workshop ? "Subscribe on Steam Workshop..." : "Download this map...";
 
