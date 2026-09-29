@@ -46,7 +46,7 @@ For support and installation notes visit http://www.hlxcommunity.com
     $game = isset($game) ? (string)$game : '';
     $game_esc = $db->escape($game);
     $game_url = urlencode($game);
-    $scripturl = htmlspecialchars((string)($g_options['scripturl'] ?? ''), ENT_QUOTES, 'UTF-8');
+    $scripturl = htmlspecialchars((string)($g_options['scripturl'] ?? 'hlstats.php'), ENT_QUOTES, 'UTF-8');
 
 // Country Clan Rankings
     $db->query
@@ -81,7 +81,7 @@ For support and installation notes visit http://www.hlxcommunity.com
     pageHeader
     (
         array ($gamename, 'Country Rankings'),
-        array ($gamename => "%s?game=$game_url", 'Country Rankings' => '')
+        array ($gamename => ($g_options['scripturl'] ?? 'hlstats.php') . "?game=$game_url", 'Country Rankings' => '')
     );
 
     $table = new Table(
@@ -89,7 +89,7 @@ For support and installation notes visit http://www.hlxcommunity.com
             new TableColumn(
                 'name',
                 'Country',
-                'width=36&flag=1&link=' . urlencode('mode=countryclansinfo&amp;flag=%k&amp;game=' . $game_url)
+                'width=36&flag=1&link=' . urlencode('mode=countryclansinfo&flag=%k&game=' . $game_url)
             ),
             new TableColumn(
                 'skill',
@@ -147,7 +147,7 @@ For support and installation notes visit http://www.hlxcommunity.com
             SUM(hlstats_Players.connection_time) AS connection_time,
             ROUND(AVG(hlstats_Players.skill)) AS skill,
             ROUND(AVG(hlstats_Players.last_skill_change)) AS last_skill_change,
-            ROUND(SUM(hlstats_Players.kills) / IF(SUM(hlstats_Players.deaths) = 0, 1, SUM(hlstats_Players.deaths)), 2) AS kpd,
+            IFNULL(ROUND(SUM(hlstats_Players.kills) / NULLIF(SUM(hlstats_Players.deaths), 0), 2), '-') AS kpd,
             TRUNCATE(AVG(hlstats_Players.activity), 2) AS activity
         FROM
             hlstats_Countries
@@ -192,14 +192,20 @@ For support and installation notes visit http://www.hlxcommunity.com
             COUNT(hlstats_Players.playerId) >= $minmembers
     ");
 
-    // PHP 8 Fix: Use object method for num_rows
-    $num_rows = $db->num_rows($resultCount);
+    // PHP 8 Fix: Safe num_rows check on valid result
+    $num_rows = ($resultCount) ? $db->num_rows($resultCount) : 0;
+    if ($resultCount) {
+        $db->free_result($resultCount);
+    }
 ?>
 
 <div class="block">
 <?php
     printSectionTitle('Country Rankings');
     $table->draw($result, $num_rows, 95);
+    if ($result) {
+        $db->free_result($result);
+    }
 ?><br /><br />
     <div class="subblock">
         <div style="float:left;">
@@ -220,6 +226,7 @@ For support and installation notes visit http://www.hlxcommunity.com
     // PHP 8 Fix: Replace list()
     $row = $db->fetch_row();
     $total_countrys = ($row) ? (int)$row[0] : 0;
+    $db->free_result();
 
     foreach ($_GET as $k => $v)
     {
@@ -233,8 +240,8 @@ For support and installation notes visit http://www.hlxcommunity.com
         }
     }
 ?>
-                <strong>&#8226;</strong> Show only clans with
-                    <input type="text" name="minmembers" size="4" maxlength="4" value="<?php echo $minmembers; ?>" class="textbox" /> or more members from a total of <b><?php echo number_format($total_countrys); ?></b> countrys
+                <strong>&#8226;</strong> Show only countries with
+                    <input type="text" name="minmembers" size="4" maxlength="4" value="<?php echo $minmembers; ?>" class="textbox" /> or more players from a total of <b><?php echo number_format($total_countrys); ?></b> countries
                     <input type="submit" value="Apply" class="smallsubmit" />
             </form>
         </div>

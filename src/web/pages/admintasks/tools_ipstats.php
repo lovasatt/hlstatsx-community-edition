@@ -125,6 +125,7 @@ For support and installation notes visit http://www.hlxcommunity.com
 
         // PHP 8 Fix: Replace list()
         $row = $db->fetch_row($result);
+        if ($result) { $db->free_result($result); }
         $totalconnects = ($row) ? (int)$row[0] : 0;
         $numitems = ($row) ? (int)$row[1] : 0;
 
@@ -150,6 +151,7 @@ For support and installation notes visit http://www.hlxcommunity.com
         ");
 
         $table->draw($result, $numitems, 95, "center");
+        if ($result) { $db->free_result($result); }
     }
     else
     {
@@ -193,6 +195,7 @@ For support and installation notes visit http://www.hlxcommunity.com
 
         // PHP 8 Fix: Replace list()
         $row = $db->fetch_row($result);
+        if ($result) { $db->free_result($result); }
         $totalconnects = ($row) ? (int)$row[0] : 0;
         $numitems = ($row) ? (int)$row[1] : 0;
 
@@ -216,5 +219,6 @@ For support and installation notes visit http://www.hlxcommunity.com
         ");
 
         $table->draw($result, $numitems, 95, "center");
+        if ($result) { $db->free_result($result); }
     }
 ?>

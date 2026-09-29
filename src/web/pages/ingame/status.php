@@ -65,6 +65,9 @@ For support and installation notes visit http://www.hlxcommunity.com
     // PHP 8 Fix: Replace list()
     $row = $db->fetch_row($result);
     $total_players = ($row) ? (int)$row[0] : 0;
+    if ($result) {
+        $db->free_result($result);
+    }
 
     $query= "
             SELECT
@@ -83,6 +86,9 @@ For support and installation notes visit http://www.hlxcommunity.com
     $total_kills = ($row) ? (int)$row[0] : 0;
     $total_headshots = ($row) ? (int)$row[1] : 0;
     $total_servers = ($row) ? (int)$row[2] : 0;
+    if ($result) {
+        $db->free_result($result);
+    }
 
     // Security: Escape server_id
     $server_id_esc = $db->escape((string)$server_id);
@@ -117,12 +123,14 @@ For support and installation notes visit http://www.hlxcommunity.com
         while ($rowdata = $db->fetch_array()) {
             $servers[] = $rowdata;
         }
+        $db->free_result();
 
-        for ($i = 0; $i < count($servers); $i++) {
+        $server_count = count($servers);
+        for ($i = 0; $i < $server_count; $i++) {
             $rowdata = $servers[$i];
-            $server_id = (int)$rowdata['serverId'];
+            $current_srv_id = (int)$rowdata['serverId'];
             $c = ($i % 2) + 1;
-            $addr = $rowdata["addr"];
+            $addr = (string)($rowdata['addr'] ?? '');
             $kills     = (int)($rowdata['kills'] ?? 0);
             $headshots = (int)($rowdata['headshots'] ?? 0);
             $player_string = ((int)($rowdata['act_players'] ?? 0)) . "/" . ((int)($rowdata['max_players'] ?? 0));
@@ -146,14 +154,15 @@ For support and installation notes visit http://www.hlxcommunity.com
                 echo '<strong>' . htmlspecialchars((string)($rowdata['name'] ?? ''), ENT_QUOTES, 'UTF-8') . '</strong>';
             ?></td>
             <td class="fSmall"><?php
-                echo htmlspecialchars((string)($addr ?? ''), ENT_QUOTES, 'UTF-8');
+                echo htmlspecialchars($addr, ENT_QUOTES, 'UTF-8');
             ?></td>
             <td style="text-align:center;" class="fSmall"><?php
                 echo htmlspecialchars((string)($rowdata['act_map'] ?? ''), ENT_QUOTES, 'UTF-8');
             ?></td>
             <td style="text-align:center;" class="fSmall"><?php
                 $map_started = (int)($rowdata['map_started'] ?? 0);
-                $stamp = ($map_started > 0) ? (time() - $map_started) : 0;
+                // Prevent negative timer on clock skew
+                $stamp = ($map_started > 0) ? max(0, time() - $map_started) : 0;
                 $hours = sprintf('%02d', floor($stamp / 3600));
                 $min   = sprintf('%02d', floor(($stamp % 3600) / 60));
                 $sec   = sprintf('%02d', floor($stamp % 60));
@@ -178,7 +187,7 @@ For support and installation notes visit http://www.hlxcommunity.com
     </table>
 
 <?php
-    printserverstats($server_id);
+    printserverstats($current_srv_id);
 
     }  // for servers
 ?>

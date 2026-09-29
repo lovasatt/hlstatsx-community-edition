@@ -108,6 +108,11 @@ For support and installation notes visit http://www.hlxcommunity.com
     }
     $colwidth = round(100 / $cols);
 
+    if (!$result || $db->num_rows($result) == 0)
+    {
+        echo '<tr class="bg1"><td colspan="' . $cols . '" class="fSmall" style="text-align:center;padding:15px;">No ribbons configured for this game yet.</td></tr>';
+    }
+
     while ($r = $db->fetch_array($result))
     {
         if ($cnt !== $r['awardCount'])

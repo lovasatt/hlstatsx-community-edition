@@ -38,27 +38,34 @@ For support and installation notes visit http://www.hlxcommunity.com
 
 define('IN_HLSTATS', true);
 require('config.php');
-$historical_cache=0;
-if(defined('HISTORICAL_CACHE'))
+$historical_cache = 0;
+if (defined('HISTORICAL_CACHE'))
 {
-    $historical_cache=constant('HISTORICAL_CACHE');
+    $historical_cache = constant('HISTORICAL_CACHE');
 }
 
-if($historical_cache==1)
+// Only serve cache on GET requests to prevent caching form submissions
+if ($historical_cache == 1 && ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET'
+    && !empty($_GET['game']) && (($_GET['mode'] ?? '') !== 'admin'))
 {
-    $rawmd5=md5(http_build_query($_REQUEST));
-    $dir1=substr($rawmd5,0,1);
-    $dir2=substr($rawmd5,1,1);
-    $cachetarget=sprintf("cache/%s/%s/%s", $dir1, $dir2, $rawmd5);
+    // Use sorted GET parameters instead of $_REQUEST to prevent cookie pollution
+    $cache_params = $_GET;
+    ksort($cache_params);
+    $rawmd5 = md5(http_build_query($cache_params));
+    $dir1 = substr($rawmd5, 0, 1);
+    $dir2 = substr($rawmd5, 1, 1);
+    $cachetarget = sprintf("cache/%s/%s/%s", $dir1, $dir2, $rawmd5);
 
-    if (!is_dir("cache/$dir1")) @mkdir("cache/$dir1");
-    if (!is_dir("cache/$dir1/$dir2")) @mkdir("cache/$dir1/$dir2");
+    if (!is_dir("cache/$dir1")) @mkdir("cache/$dir1", 0755, true);
+    if (!is_dir("cache/$dir1/$dir2")) @mkdir("cache/$dir1/$dir2", 0755, true);
 
-    if(file_exists($cachetarget))
+    $cache_ttl = 300;
+
+    if (is_file($cachetarget) && (time() - (int)@filemtime($cachetarget)) < $cache_ttl)
     {
-	file_put_contents("cache/cachehit",$cachetarget . "\n", FILE_APPEND);
-	echo file_get_contents($cachetarget);
-	die;
+        header('Content-Type: text/html; charset=utf-8');
+        readfile($cachetarget);
+        exit;
     }
 }
 
@@ -69,6 +76,7 @@ $is_https = (!empty($_SERVER['HTTPS']) && strtolower($_SERVER['HTTPS']) !== 'off
 $protocol = $is_https ? 'https://' : 'http://';
 
 if (session_status() === PHP_SESSION_NONE) {
+    ini_set('session.use_strict_mode', '1');
     session_set_cookie_params([
         'lifetime' => 0,
         'path'     => '/',
@@ -82,7 +90,8 @@ if (session_status() === PHP_SESSION_NONE) {
 
 if (!empty($_GET['logout']) && $_GET['logout'] == '1') {
     unset($_SESSION['loggedin'], $_SESSION['username'], $_SESSION['authsessionStart']);
-    header("Location: " . $protocol . ($_SERVER['HTTP_HOST'] ?? 'localhost') . ($_SERVER['SCRIPT_NAME'] ?? '/hlstats.php'));
+    $safe_host = preg_replace('/[^a-zA-Z0-9.:-]/', '', (string)($_SERVER['HTTP_HOST'] ?? 'localhost'));
+    header("Location: " . $protocol . $safe_host . ($_SERVER['SCRIPT_NAME'] ?? '/hlstats.php'));
     die;
 }
 
@@ -91,24 +100,26 @@ global $scripttime, $siteurlneo;
 $scripttime = microtime(true);
 
 // PHP 8 Fix: Safer URL construction
-$script_name = $_SERVER['PHP_SELF'] ?? '';
+$script_name = preg_replace('/[^A-Za-z0-9.\-\/_~]/', '', (string)($_SERVER['PHP_SELF'] ?? ''));
 $last_slash_pos = strrpos($script_name, '/');
 if ($last_slash_pos !== false) {
     $path_part = substr($script_name, 0, $last_slash_pos + 1);
 } else {
     $path_part = '/';
 }
-$siteurlneo = $protocol . ($_SERVER['HTTP_HOST'] ?? 'localhost') . $path_part;
-$siteurlneo = str_replace('\\','/',$siteurlneo);
+$safe_http_host = preg_replace('/[^a-zA-Z0-9.:\[\]-]/', '', (string)($_SERVER['HTTP_HOST'] ?? 'localhost'));
+if ($safe_http_host === '') {
+    $safe_http_host = 'localhost';
+}
+$siteurlneo = $protocol . $safe_http_host . $path_part;
 
 // Several Stuff end
 
 foreach ($_SERVER as $key => $entry) {
-    // PHP 8 Fix: Only process strings
     if ($key !== 'HTTP_COOKIE' && is_string($entry)) {
-	$search_pattern  = array('/<script>/', '/<\/script>/', '/[^A-Za-z0-9.\-\/=:;_?#&~]/');
-	$replace_pattern = array('', '', '');
-	$entry = preg_replace($search_pattern, $replace_pattern, $entry);
+        $search_pattern  = array('/<script>/i', '/<\/script>/i', '/[^A-Za-z0-9.\-\/=:;_?#&~]/');
+        $replace_pattern = array('', '', '');
+        $entry = preg_replace($search_pattern, $replace_pattern, $entry);
 
 	if ($key == "PHP_SELF") {
             // PHP 8 Fix: Ensure not false/null before checking
@@ -134,11 +145,14 @@ foreach ($_SERVER as $key => $entry) {
     }
 }
 
-@header('Content-Type: text/html; charset=utf-8');
+header('Content-Type: text/html; charset=utf-8');
+header('X-Content-Type-Options: nosniff');
+header('Referrer-Policy: strict-origin-when-cross-origin');
+header('X-Frame-Options: SAMEORIGIN');
 
-// do not report NOTICE warnings or DEPRECATED (legacy codebase compatibility)
-@error_reporting(E_ALL ^ E_NOTICE ^ E_DEPRECATED);
-
+error_reporting(E_ALL);
+ini_set('display_errors', (defined('DB_DEBUG') && DB_DEBUG) ? '1' : '0');
+ini_set('log_errors', '1');
 ////
 //// Initialisation
 ////
@@ -176,7 +190,7 @@ if (!isset($g_options['scripturl'])) {
 
 // PHP 8 Fix: Null coalescing
 $game_input = $_GET['game'] ?? '';
-$game = valid_request((string)$game_input, false);
+$game = valid_game($game_input);
 
 if ($game !== '')
 {
@@ -186,8 +200,8 @@ if ($game !== '')
 }
 else
 {
-    $game = isset($_SESSION['game']) ? (string)$_SESSION['game'] : '';
-    $realgame = isset($_SESSION['realgame']) ? (string)$_SESSION['realgame'] : ($game !== '' ? getRealGame($game) : '');
+    $game = isset($_SESSION['game']) ? valid_game($_SESSION['game']) : '';
+    $realgame = isset($_SESSION['realgame']) ? valid_game($_SESSION['realgame']) : ($game !== '' ? getRealGame($game) : '');
 }
 
 $mode = isset($_GET['mode']) ? $_GET['mode'] : '';
@@ -252,9 +266,14 @@ if ( !in_array($mode, $valid_modes) )
     $mode = 'contents';
 }
 
+if ($mode !== 'admin')
+{
+    session_write_close();
+}
+
 if ( file_exists(PAGE_PATH . "/$mode.php") )
 {
-    @include(PAGE_PATH . "/$mode.php");
+    include(PAGE_PATH . "/$mode.php");
     pageFooter();
 }
 else
@@ -263,5 +282,4 @@ else
     error('Unable to find ' . PAGE_PATH . "/$mode.php");
     pageFooter();
 }
-
 ?>

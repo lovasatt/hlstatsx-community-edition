@@ -102,6 +102,7 @@ For support and installation notes visit http://www.hlxcommunity.com
         WHERE
             hlstats_Actions.game = '$game_esc'
             AND hlstats_Players.clan = $clan
+            AND hlstats_Players.hideranking = 0
         GROUP BY
             hlstats_Actions.id,
             hlstats_Actions.code,
@@ -125,6 +126,7 @@ For support and installation notes visit http://www.hlxcommunity.com
         WHERE
             hlstats_Actions.game = '$game_esc'
             AND hlstats_Players.clan = $clan
+            AND hlstats_Players.hideranking = 0
         GROUP BY
             hlstats_Actions.id,
             hlstats_Actions.code,
@@ -134,7 +136,7 @@ For support and installation notes visit http://www.hlxcommunity.com
             $tblPlayerActions->sort2 $tblPlayerActions->sortorder
     ");
 
-    $numitems = $db->num_rows($result);
+    $numitems = ($result) ? $db->num_rows($result) : 0;
 
     if ($numitems > 0)
     {
@@ -143,6 +145,10 @@ For support and installation notes visit http://www.hlxcommunity.com
 ?>
         <br /><br />
 <?php
+    }
+    // Always free first query result memory
+    if ($result) {
+        $db->free_result($result);
     }
 
     $tblPlayerPlayerActionsV = new Table(
@@ -191,6 +197,7 @@ For support and installation notes visit http://www.hlxcommunity.com
         WHERE
             hlstats_Actions.game = '$game_esc'
             AND hlstats_Players.clan = $clan
+            AND hlstats_Players.hideranking = 0
         GROUP BY
             hlstats_Actions.id,
             hlstats_Actions.code,
@@ -200,14 +207,17 @@ For support and installation notes visit http://www.hlxcommunity.com
             $tblPlayerPlayerActionsV->sort2 $tblPlayerPlayerActionsV->sortorder
     ");
 
-    $numitems = $db->num_rows($result);
+    $numitemsv = ($result) ? $db->num_rows($result) : 0;
 
-    if ($numitems > 0)
+    if ($numitemsv > 0)
     {
         printSectionTitle('Victims of Player-Player Actions *');
-        $tblPlayerPlayerActionsV->draw($result, $numitems, 95);
+        $tblPlayerPlayerActionsV->draw($result, $numitemsv, 95);
 ?>
     <br /><br />
 <?php
+    }
+    if ($result) {
+        $db->free_result($result);
     }
 ?>

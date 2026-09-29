@@ -37,10 +37,18 @@ $tables_to_innodb = array(
 foreach ($tables_to_innodb as $tbl) {
     $res = $db->query("SHOW TABLE STATUS WHERE Name = '$tbl'");
     if ($res && $row = $db->fetch_array($res)) {
-        if (strtoupper((string)$row['Engine']) !== 'INNODB') {
-            $db->query("ALTER TABLE `$tbl` ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
-            echo "Converted table '$tbl' to InnoDB.<br />";
+        $is_innodb = (strtoupper((string)$row['Engine']) === 'INNODB');
+        $collation = (string)($row['Collation'] ?? '');
+        $needs_convert = (!$is_innodb || $collation !== 'utf8mb4_unicode_ci');
+
+        if ($needs_convert) {
+            $db->query("ALTER TABLE `$tbl` ENGINE=InnoDB CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+            echo "Converted table '$tbl' to InnoDB and utf8mb4_unicode_ci.<br />";
+            if (function_exists('flush')) { @flush(); }
         }
+    }
+    if ($res) {
+        $db->free_result($res);
     }
 }
 
@@ -289,15 +297,20 @@ $db->query("
 echo "Synchronized CS2 and CS:GO weapon awards (M4A1-S, USP-S, Revolver, MP5-SD, Molotov, Bayonet, Cz75a) in hlstats_Awards.<br />";
 
 // 3.8 Align integer column types, display widths and apply Y2038 timestamp protection (UNSIGNED INT)
-function ensureColumnUnsigned($table, $column, $columnDefinition) {
-    global $db;
-    $res = $db->query("SHOW COLUMNS FROM `$table` LIKE '$column'");
-    if ($res && $row = $db->fetch_array($res)) {
-        if (stripos($row['Type'], 'unsigned') === false) {
-            $db->query("ALTER TABLE `$table` MODIFY `$column` $columnDefinition");
-            echo "Upgraded column '$column' in table '$table' to UNSIGNED (Y2038 protection applied).<br />";
-        } else {
-            echo "Column '$column' in table '$table' is already UNSIGNED, skipping...<br />";
+if (!function_exists('ensureColumnUnsigned')) {
+    function ensureColumnUnsigned($table, $column, $columnDefinition) {
+        global $db;
+        $res = $db->query("SHOW COLUMNS FROM `$table` LIKE '$column'");
+        if ($res && $row = $db->fetch_array($res)) {
+            if (stripos($row['Type'], 'unsigned') === false) {
+                $db->query("ALTER TABLE `$table` MODIFY `$column` $columnDefinition");
+                echo "Upgraded column '$column' in table '$table' to UNSIGNED (Y2038 protection applied).<br />";
+            } else {
+                echo "Column '$column' in table '$table' is already UNSIGNED, skipping...<br />";
+            }
+        }
+        if ($res) {
+            $db->free_result($res);
         }
     }
 }
@@ -342,37 +355,51 @@ if (!$has_neck && !$has_gen) {
 flush();
 
 // 4. Performance Indexes Optimization & 28-day Cleanup Support
-function addIndexIfNotExists($table, $indexName, $columnsSql) {
-    global $db;
-    $check = $db->query("SHOW INDEX FROM `$table` WHERE `Key_name` = '$indexName'");
-    if ($check && $db->num_rows($check) == 0) {
-        $db->query("ALTER TABLE `$table` ADD INDEX `$indexName` ($columnsSql)");
-        echo "Created performance index '$indexName' on table '$table'.<br />";
-        flush();
+if (!function_exists('addIndexIfNotExists')) {
+    function addIndexIfNotExists($table, $indexName, $columnsSql) {
+        global $db;
+        $check = $db->query("SHOW INDEX FROM `$table` WHERE `Key_name` = '$indexName'");
+        if ($check && $db->num_rows($check) == 0) {
+            $db->query("ALTER TABLE `$table` ADD INDEX `$indexName` ($columnsSql)");
+            echo "Created performance index '$indexName' on table '$table'.<br />";
+            flush();
+        }
+        if ($check) {
+            $db->free_result($check);
+        }
     }
 }
 
-function dropIndexIfExists($table, $indexName) {
-    global $db;
-    $check = $db->query("SHOW INDEX FROM `$table` WHERE `Key_name` = '$indexName'");
-    if ($check && $db->num_rows($check) > 0) {
-        $db->query("ALTER TABLE `$table` DROP INDEX `$indexName`");
-        echo "Dropped redundant index '$indexName' from table '$table'.<br />";
-        flush();
+if (!function_exists('dropIndexIfExists')) {
+    function dropIndexIfExists($table, $indexName) {
+        global $db;
+        $check = $db->query("SHOW INDEX FROM `$table` WHERE `Key_name` = '$indexName'");
+        if ($check && $db->num_rows($check) > 0) {
+            $db->query("ALTER TABLE `$table` DROP INDEX `$indexName`");
+            echo "Dropped redundant index '$indexName' from table '$table'.<br />";
+            flush();
+        }
+        if ($check) {
+            $db->free_result($check);
+        }
     }
 }
 
 // 4.1 Fix hlstats_Players_Ribbons primary key and index
 $res_pk = $db->query("SHOW INDEX FROM `hlstats_Players_Ribbons` WHERE `Key_name` = 'PRIMARY'");
 if (!$res_pk || $db->num_rows($res_pk) == 0) {
-    // Safe deduplication and PRIMARY KEY creation for MySQL 5.7 / 8.0+ (ALTER IGNORE is obsolete)
+    // Atomic deduplication and PRIMARY KEY creation without data-loss window
     $db->query("DROP TABLE IF EXISTS `hlstats_Players_Ribbons_tmp`");
+    $db->query("DROP TABLE IF EXISTS `hlstats_Players_Ribbons_old`");
     $db->query("CREATE TABLE `hlstats_Players_Ribbons_tmp` LIKE `hlstats_Players_Ribbons`");
     $db->query("ALTER TABLE `hlstats_Players_Ribbons_tmp` ADD PRIMARY KEY (`playerId`, `ribbonId`, `game`)");
     $db->query("INSERT IGNORE INTO `hlstats_Players_Ribbons_tmp` SELECT * FROM `hlstats_Players_Ribbons`");
-    $db->query("DROP TABLE `hlstats_Players_Ribbons`");
-    $db->query("RENAME TABLE `hlstats_Players_Ribbons_tmp` TO `hlstats_Players_Ribbons`");
+    $db->query("RENAME TABLE `hlstats_Players_Ribbons` TO `hlstats_Players_Ribbons_old`, `hlstats_Players_Ribbons_tmp` TO `hlstats_Players_Ribbons`");
+    $db->query("DROP TABLE IF EXISTS `hlstats_Players_Ribbons_old`");
     echo "Added PRIMARY KEY to hlstats_Players_Ribbons.<br />";
+}
+if ($res_pk) {
+    $db->free_result($res_pk);
 }
 addIndexIfNotExists('hlstats_Players_Ribbons', 'idx_ribbon', '`ribbonId`, `game`');
 

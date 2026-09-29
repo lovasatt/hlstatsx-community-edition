@@ -14,19 +14,25 @@ if (class_exists($db_classname)) {
 }
 
 header('Content-Type: text/html; charset=utf-8');
+header('X-Content-Type-Options: nosniff');
 
-// PHP 8.4 Fix: Safe input handling (supports both POST and GET)
-$game_input = $_REQUEST['game'] ?? '';
+// Never print PHP errors into the suggestion list
+ini_set('display_errors', '0');
+
+// Cookies must not be used as input, so read GET/POST explicitly
+$game_input = $_POST['game'] ?? $_GET['game'] ?? '';
 $search_input = $_POST['value'] ?? $_GET['value'] ?? $_POST['q'] ?? $_GET['q'] ?? '';
 
-$game = function_exists('valid_request') ? valid_request((string)$game_input, false) : (string)$game_input;
-$search = trim((string)$search_input);
+$game = valid_game($game_input);
+$search = is_array($search_input) ? '' : trim((string)$search_input);
 
+// Escape LIKE wildcards first, then the SQL string escape doubles the backslashes correctly
 $game_escaped = $db->escape($game);
-$search_escaped = $db->escape($search);
+$search_escaped = $db->escape(addcslashes($search, '%_\\'));
  
-// Check length
-if (strlen($search) >= 3 && strlen($search) < 64) {
+// Check length in characters, not bytes (accented names)
+$search_length = mb_strlen($search, 'UTF-8');
+if ($search_length >= 3 && $search_length < 64) {
     $game_clause = ($game !== '') ? "hlstats_Players.game = '$game_escaped' AND " : "";
 
     $sql = "
@@ -44,12 +50,15 @@ if (strlen($search) >= 3 && strlen($search) < 64) {
             LENGTH(hlstats_PlayerNames.name), hlstats_PlayerNames.name
         LIMIT 15
     ";
-    
+
     $result = $db->query($sql);
 
-    while($row = $db->fetch_row($result)) {
-        // Security Fix: XSS Protection for output
-	print "<li class=\"playersearch\">" . htmlspecialchars((string)$row[0], ENT_QUOTES, 'UTF-8') . "</li>\n";
+    if ($result) {
+        while ($row = $db->fetch_row($result)) {
+            // Security Fix: XSS Protection for output
+            print "<li class=\"playersearch\">" . htmlspecialchars((string)$row[0], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "</li>\n";
+        }
+        $db->free_result($result);
     }
 }
 ?>

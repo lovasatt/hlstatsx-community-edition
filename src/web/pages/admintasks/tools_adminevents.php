@@ -104,26 +104,34 @@ For support and installation notes visit http://www.hlxcommunity.com
 
     $db->query($sql_create_temp_table);
 
-    function insertEvents ($table, $select)
-    {
-        global $db, $g_options;
+    if (!function_exists('insertEvents')) {
+        function insertEvents ($table, $select)
+        {
+            global $db, $g_options;
 
-        $select = str_replace("<table>", "hlstats_Events_$table", $select);
-        $db->query("
-            INSERT INTO
-                hlstats_AdminEventHistory
-                (
-                    eventType,
-                    eventTime,
-                    eventDesc,
-                    serverName,
-                    map
-                )
-            $select
-        ");
+            $select = str_replace("<table>", "hlstats_Events_$table", $select);
+            $db->query("
+                INSERT INTO
+                    hlstats_AdminEventHistory
+                    (
+                        eventType,
+                        eventTime,
+                        eventDesc,
+                        serverName,
+                        map
+                    )
+                $select
+            ");
+        }
     }
 
-    $scripturl_safe = $g_options['scripturl'] ?? '';
+    $base_script = (string)($g_options['scripturl'] ?? 'hlstats.php');
+    if (!preg_match('~^https?://~i', $base_script)) {
+        $proto = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https://' : 'http://';
+        $host = preg_replace('/[^a-zA-Z0-9.:\[\]-]/', '', (string)($_SERVER['HTTP_HOST'] ?? 'localhost'));
+        $base_script = $proto . $host . '/' . ltrim($base_script, '/');
+    }
+    $scripturl_safe = $db->escape($base_script);
 
     insertEvents("Rcon", "
         SELECT
@@ -189,6 +197,7 @@ For support and installation notes visit http://www.hlxcommunity.com
 
     // PHP 8 Fix: Replace list()
     $row = $db->fetch_row($resultCount);
+    if ($resultCount) { $db->free_result($resultCount); }
     $numitems = ($row) ? (int)$row[0] : 0;
 
     // PHP 8 Fix: Safe variable access for form
@@ -218,6 +227,7 @@ For support and installation notes visit http://www.hlxcommunity.com
         $k = (string)$row[0];
         $types[$k] = $k;
     }
+    if ($resultTypes) { $db->free_result($resultTypes); }
 
     echo getSelect("type", $types, $select_type);
 ?>
@@ -225,4 +235,5 @@ For support and installation notes visit http://www.hlxcommunity.com
 </form>
 <?php
     $table->draw($result, $numitems, 95, "center");
+    if ($result) { $db->free_result($result); }
 ?>

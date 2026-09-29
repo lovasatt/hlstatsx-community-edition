@@ -51,124 +51,142 @@ For support and installation notes visit http://www.hlxcommunity.com
 &nbsp;&nbsp;&nbsp;&nbsp;<img src="<?php echo IMAGE_PATH; ?>/downarrow.gif" width="9" height="6" class="imageformat" alt="" /><b>&nbsp;<?php echo htmlspecialchars($task->title ?? '', ENT_QUOTES, 'UTF-8'); ?></b><br /><br />
 
 <?php
+if (!function_exists('check_writable')) {
+    function check_writable() {
 
-function check_writable() {
+        $ok = '';
+        $f = IMAGE_PATH . "/games/";
+        if (!is_writable($f))
+            $ok .= "<li>I have no permission to write to '$f'";
 
-    $ok = '';
-    $f = IMAGE_PATH . "/games/";
-    if (!is_writable($f))
-        $ok .= "<li>I have no permission to write to '$f'";
-
-    if ($ok != '') {
-        echo 'FATAL:<br /><ul>';
-        echo $ok;
-        echo '</ul><br />Correct this before continuing';
-        die();
-    }
-    return true;
-}
-
-function getTableFields($table, $auto_increment) {
-   // get a field array of specified table
-   global $db;
-
-   $table_esc = $db->escape($table);
-   $res_cols = $db->query("SHOW COLUMNS FROM `$table_esc`;");
-   $res = array();
-   while ($r = $db->fetch_array($res_cols))
-   {
-      if ((!$auto_increment) && ($r['Extra'] == 'auto_increment'))
-      {
-         continue;
-      }
-      else
-      {
-         $res[] = $r['Field'];
-      }
-   }
-   return $res;
-}
-
-function copySettings($table, $game1, $game2) {
-    global $db;
-
-    $game1_esc = $db->escape($game1);
-    $game2_esc = $db->escape($game2);
-
-    $res_chk = $db->query("SELECT game FROM `$table` WHERE game='$game2_esc' LIMIT 1;");
-    if ($db->num_rows($res_chk) != 0) {
-        $ret = 'Target gametype exists, nothing done!';
-    } else {
-        $res_cnt = $db->query("SELECT COUNT(game) AS cnt FROM `$table` WHERE game='$game1_esc';");
-        $r = $db->fetch_array($res_cnt);
-        $cnt = (int)($r['cnt'] ?? 0);
-        if ($cnt == 0) {
-            $ret = 'No data existent for source gametype.';
-        } else {
-            $ret = $cnt . ' entries copied!';
-            $fields = '';
-            $ignoreFields = array('game','id','d_winner_id','d_winner_count','g_winner_id','g_winner_count','count','picked','kills','deaths','headshots');
-            foreach (getTableFields($table, 0) as $field) {
-                if (!in_array($field, $ignoreFields)) {
-                    if ($fields != '') {
-                        $fields .= ', ';
-                    }
-                    $fields .= "`$field`";
-                }
-            }
-            $SQL = "INSERT INTO `$table` ($fields, `game`) SELECT $fields, '$game2_esc' FROM `$table` WHERE game='$game1_esc';";
-            $db->query($SQL);
+        if ($ok != '') {
+            echo 'FATAL:<br /><ul>';
+            echo $ok;
+            echo '</ul><br />Correct this before continuing';
+            die();
         }
+        return true;
     }
-    return $ret . "</li>\n";
 }
 
-function mkdir_recursive($pathname) {
-    is_dir(dirname($pathname)) || mkdir_recursive(dirname($pathname));
-    return is_dir($pathname) || @mkdir($pathname);
+if (!function_exists('getTableFields')) {
+    function getTableFields($table, $auto_increment) {
+       global $db;
+
+       $table_esc = $db->escape($table);
+       $res_cols = $db->query("SHOW COLUMNS FROM `$table_esc`;");
+       $res = array();
+       if ($res_cols) {
+           while ($r = $db->fetch_array($res_cols))
+           {
+              if ((!$auto_increment) && ($r['Extra'] == 'auto_increment'))
+              {
+                 continue;
+              }
+              else
+              {
+                 $res[] = $r['Field'];
+              }
+           }
+           $db->free_result($res_cols);
+       }
+       return $res;
+    }
 }
 
-function copyFile($source, $dest) {
-    if ($source != '') {
-        $source_path = IMAGE_PATH . "/games/$source";
-        $dest_path = IMAGE_PATH . "/games/$dest";
+if (!function_exists('copySettings')) {
+    function copySettings($table, $game1, $game2) {
+        global $db;
 
-        if (!is_file($source_path)) {
-            $ret = "File not found $source_path (dest: $dest_path)";
+        $game1_esc = $db->escape($game1);
+        $game2_esc = $db->escape($game2);
+
+        $res_chk = $db->query("SELECT game FROM `$table` WHERE game='$game2_esc' LIMIT 1;");
+        $target_exists = ($res_chk && $db->num_rows($res_chk) != 0);
+        if ($res_chk) { $db->free_result($res_chk); }
+
+        if ($target_exists) {
+            $ret = 'Target gametype exists, nothing done!';
         } else {
-            mkdir_recursive(dirname($dest_path));
-            if (!@copy($source_path, $dest_path)) {
-                $ret = 'FAILED';
+            $res_cnt = $db->query("SELECT COUNT(game) AS cnt FROM `$table` WHERE game='$game1_esc';");
+            $r = ($res_cnt) ? $db->fetch_array($res_cnt) : null;
+            $cnt = (int)($r['cnt'] ?? 0);
+            if ($res_cnt) { $db->free_result($res_cnt); }
+
+            if ($cnt == 0) {
+                $ret = 'No data existent for source gametype.';
             } else {
-                $ret = 'OK';
+                $ret = $cnt . ' entries copied!';
+                $fields = '';
+                $ignoreFields = array('game','id','d_winner_id','d_winner_count','g_winner_id','g_winner_count','count','picked','kills','deaths','headshots');
+                foreach (getTableFields($table, 0) as $field) {
+                    if (!in_array($field, $ignoreFields)) {
+                        if ($fields != '') {
+                            $fields .= ', ';
+                        }
+                        $fields .= "`$field`";
+                    }
+                }
+                $SQL = "INSERT INTO `$table` ($fields, `game`) SELECT $fields, '$game2_esc' FROM `$table` WHERE game='$game1_esc';";
+                $db->query($SQL);
             }
         }
-        return "Copying '$source_path' to '$dest_path': $ret</li>\n";
+        return $ret . "</li>\n";
     }
-    return '';
 }
 
-function scanCopyFiles($source, $dest) {
-    global $files;
-    if (!isset($files) || !is_array($files)) {
-        $files = array();
+if (!function_exists('mkdir_recursive')) {
+    function mkdir_recursive($pathname) {
+        is_dir(dirname($pathname)) || mkdir_recursive(dirname($pathname));
+        return is_dir($pathname) || @mkdir($pathname);
     }
+}
 
-    $path = IMAGE_PATH . '/games/' . $source;
-    if (is_dir($path)) {
-        $d = dir($path);
-        if ($d !== false) {
-            while (($entry = $d->read()) !== false) {
-                if ($entry == '.' || $entry == '..') {
-                    continue;
-                }
-                if (is_file($path . '/' . $entry)) {
-                    $files[] = array($source . '/' . $entry, $dest . '/' . $entry);
-                } elseif (is_dir($path . '/' . $entry)) {
-                    scanCopyFiles($source . '/' . $entry, $dest . '/' . $entry);
+if (!function_exists('copyFile')) {
+    function copyFile($source, $dest) {
+        if ($source != '') {
+            $source_path = IMAGE_PATH . "/games/$source";
+            $dest_path = IMAGE_PATH . "/games/$dest";
+
+            if (!is_file($source_path)) {
+                $ret = "File not found $source_path (dest: $dest_path)";
+            } else {
+                mkdir_recursive(dirname($dest_path));
+                if (!@copy($source_path, $dest_path)) {
+                    $ret = 'FAILED';
+                } else {
+                    $ret = 'OK';
                 }
             }
-            $d->close();
+            return "Copying '$source_path' to '$dest_path': $ret</li>\n";
+        }
+        return '';
+    }
+}
+
+if (!function_exists('scanCopyFiles')) {
+    function scanCopyFiles($source, $dest) {
+        global $files;
+        if (!isset($files) || !is_array($files)) {
+            $files = array();
+        }
+
+        $path = IMAGE_PATH . '/games/' . $source;
+        if (is_dir($path)) {
+            $d = dir($path);
+            if ($d !== false) {
+                while (($entry = $d->read()) !== false) {
+                    if ($entry == '.' || $entry == '..') {
+                        continue;
+                    }
+                    if (is_file($path . '/' . $entry)) {
+                        $files[] = array($source . '/' . $entry, $dest . '/' . $entry);
+                    } elseif (is_dir($path . '/' . $entry)) {
+                        scanCopyFiles($source . '/' . $entry, $dest . '/' . $entry);
+                    }
+                }
+                $d->close();
+            }
         }
     }
 }
@@ -192,7 +210,10 @@ function scanCopyFiles($source, $dest) {
 
         echo '<li>hlstats_Games ... ';
         $res_game = $db->query("SELECT code FROM hlstats_Games WHERE code='$game2_esc' LIMIT 1;");
-        if ($db->num_rows($res_game) != 0) {
+        $game_exists = ($res_game && $db->num_rows($res_game) != 0);
+        if ($res_game) { $db->free_result($res_game); }
+
+        if ($game_exists) {
             echo 'FAILED (Target game code exists)</li></ul><br /><br />';
             echo '<b>Target gametype exists, nothing done!</b><br /><br />';
         } else {
@@ -245,6 +266,7 @@ function scanCopyFiles($source, $dest) {
             $name = (string)$rowdata[1];
             $games[] = '<option value="' . htmlspecialchars($code, ENT_QUOTES, 'UTF-8') . '">' . htmlspecialchars($code, ENT_QUOTES, 'UTF-8') . ' - ' . htmlspecialchars($name, ENT_QUOTES, 'UTF-8') . '</option>';
         }
+        if ($result) { $db->free_result($result); }
 
 ?>
 

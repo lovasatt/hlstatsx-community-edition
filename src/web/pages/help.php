@@ -42,7 +42,7 @@ For support and installation notes visit http://www.hlxcommunity.com
 
     global $db, $g_options, $game;
 
-    $scripturl = htmlspecialchars((string)($g_options['scripturl'] ?? ''), ENT_QUOTES, 'UTF-8');
+    $scripturl = htmlspecialchars((string)($g_options['scripturl'] ?? 'hlstats.php'), ENT_QUOTES, 'UTF-8');
 
     if (!isset($game) || empty($game)) {
         $resultGames = $db->query("
@@ -59,7 +59,9 @@ For support and installation notes visit http://www.hlxcommunity.com
 
         $row = $db->fetch_row($resultGames);
         $game = ($row) ? (string)$row[0] : '';
-        $db->free_result();
+        if ($resultGames) {
+            $db->free_result($resultGames);
+        }
     }
 
 // Help
@@ -233,8 +235,11 @@ For support and installation notes visit http://www.hlxcommunity.com
                         $tblActions->sort $tblActions->sortorder,
                         $tblActions->sort2 $tblActions->sortorder
                 ");
-                $numitems = $db->num_rows($result);
+                $numitems = ($result) ? $db->num_rows($result) : 0;
                 $tblActions->draw($result, $numitems, 90, 'center');
+                if ($result) {
+                    $db->free_result($result);
+                }
             ?><br /><br />
             <strong>Note:</strong> The player who triggers an action may receive both the player reward and the team reward.<br /><br />
             <h1 class="fTitle" style="padding-top:10px;"><a id="weaponmods">3. What are all the weapon points modifiers?</a></h1><br /><br />
@@ -300,8 +305,11 @@ For support and installation notes visit http://www.hlxcommunity.com
                         $tblWeapons->sort $tblWeapons->sortorder,
                         $tblWeapons->sort2 $tblWeapons->sortorder
                 ");
-                $numitems = $db->num_rows($result);
-                $tblWeapons->draw($result, $numitems, 90, "center");
+                $numitems = ($result) ? $db->num_rows($result) : 0;
+                $tblWeapons->draw($result, $numitems, 90, 'center');
+                if ($result) {
+                    $db->free_result($result);
+                }
             ?><br /><br />
             <h1 class="fTitle" style="padding-top:10px;"><a id="set">4. How can I set my real name, e-mail address, and homepage?</a></h1><br /><br />
             Player profile options can be configured by saying the appropriate <strong>HLX_SET</strong> command while you are playing on a participating game server. To say commands, push your chat key and type the command text.<br /><br />

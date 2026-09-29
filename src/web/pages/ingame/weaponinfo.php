@@ -70,6 +70,7 @@ For support and installation notes visit http://www.hlxcommunity.com
 
     if ($db->num_rows() != 1) {
         $wep_name = ucfirst($weapon);
+        $db->free_result();
     } else {
         $weapondata = $db->fetch_array();
         $db->free_result();
@@ -127,6 +128,7 @@ For support and installation notes visit http://www.hlxcommunity.com
     );
 
     // Logic Fix: Count total items for pagination (missing in original code)
+// Logic Fix: Count total items for pagination (missing in original code)
     $db->query("
         SELECT
             COUNT(DISTINCT hlstats_Events_Frags.killerId)
@@ -141,16 +143,17 @@ For support and installation notes visit http://www.hlxcommunity.com
     ");
     $row = $db->fetch_row();
     $numitems = ($row) ? (int)($row[0] ?? 0) : 0;
+    $db->free_result();
 
     $result = $db->query("
         SELECT
             hlstats_Events_Frags.killerId,
             hlstats_Players.country,
             hlstats_Players.flag,
-            hlstats_Players.lastName AS killerName,
+            unhex(replace(hex(hlstats_Players.lastName), 'E280AE', '')) AS killerName,
             COUNT(hlstats_Events_Frags.weapon) AS frags,
             SUM(hlstats_Events_Frags.headshot=1) as headshots,
-            IFNULL(SUM(hlstats_Events_Frags.headshot=1) / Count(hlstats_Events_Frags.weapon), '-') AS hpk
+            IFNULL(ROUND(SUM(hlstats_Events_Frags.headshot=1) / NULLIF(COUNT(hlstats_Events_Frags.weapon), 0), 2), '-') AS hpk
         FROM
             hlstats_Events_Frags,
             hlstats_Players
@@ -160,7 +163,10 @@ For support and installation notes visit http://www.hlxcommunity.com
             AND hlstats_Players.game='$game_esc'
             AND hlstats_Players.hideranking<>'1'
         GROUP BY
-            hlstats_Events_Frags.killerId
+            hlstats_Events_Frags.killerId,
+            hlstats_Players.lastName,
+            hlstats_Players.flag,
+            hlstats_Players.country
         ORDER BY
             $table->sort $table->sortorder,
             $table->sort2 $table->sortorder
@@ -169,4 +175,7 @@ For support and installation notes visit http://www.hlxcommunity.com
 
     // Fix: Use actual count for pagination
     $table->draw($result, $numitems, 100);
+    if ($result) {
+        $db->free_result($result);
+    }
 ?>

@@ -51,7 +51,7 @@ For support and installation notes visit http://www.hlxcommunity.com
   $game = isset($game) ? (string)$game : '';
   $game_esc = $db->escape($game);
   $game_url = urlencode($game);
-  $scripturl = htmlspecialchars((string)($g_options['scripturl'] ?? ''), ENT_QUOTES, 'UTF-8');
+  $scripturl = htmlspecialchars((string)($g_options['scripturl'] ?? 'hlstats.php'), ENT_QUOTES, 'UTF-8');
 
   $db->query("
       SELECT
@@ -71,6 +71,7 @@ For support and installation notes visit http://www.hlxcommunity.com
 
   $rankrow = $db->fetch_array();
   $act_name = (string)($rankrow['rankName'] ?? '');
+  $db->free_result();
 
   $db->query("SELECT name FROM hlstats_Games WHERE code = '$game_esc'");
   if ($db->num_rows() != 1) {
@@ -79,6 +80,8 @@ For support and installation notes visit http://www.hlxcommunity.com
 
   $row = $db->fetch_row();
   $gamename = ($row) ? (string)$row[0] : '';
+  $db->free_result();
+
     pageHeader(
       array($gamename, 'Rank Details', $act_name),
       array(
@@ -91,11 +94,11 @@ For support and installation notes visit http://www.hlxcommunity.com
     
     $table = new Table(
 	array(
-	    new TableColumn(
-		'playerName',
-		'Player',
-		'width=45&align=left&flag=1&link=' . urlencode('mode=playerinfo&amp;player=%k') 
-	    ),
+            new TableColumn(
+                'playerName',
+                'Player',
+                'width=45&align=left&flag=1&link=' . urlencode('mode=playerinfo&player=%k')
+            ),
 	    new TableColumn(
 		'kills',
 		'Kills',
@@ -152,6 +155,9 @@ For support and installation notes visit http://www.hlxcommunity.com
     // PHP 8 Fix: Replace list()
     $row = $db->fetch_row($resultCount);
     $numitems = ($row) ? (int)$row[0] : 0;
+    if ($resultCount) {
+        $db->free_result($resultCount);
+    }
 ?>
 
 <div class="block">
@@ -176,5 +182,8 @@ For support and installation notes visit http://www.hlxcommunity.com
     </div>
 <?php
     $table->draw($result, $numitems, 95, 'center');
+    if ($result) {
+        $db->free_result($result);
+    }
 ?>
 </div>

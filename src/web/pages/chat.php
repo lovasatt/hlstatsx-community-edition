@@ -53,7 +53,7 @@ For support and installation notes visit http://www.hlxcommunity.com
     $game = isset($game) ? (string)$game : '';
     $game_esc = $db->escape($game);
     $game_url = urlencode($game);
-    $scripturl = htmlspecialchars((string)($g_options['scripturl'] ?? ''), ENT_QUOTES, 'UTF-8');
+    $scripturl = htmlspecialchars((string)($g_options['scripturl'] ?? 'hlstats.php'), ENT_QUOTES, 'UTF-8');
     $deletedays = (int)($g_options['DeleteDays'] ?? 28);
     $showserver_esc = (int)$showserver;
 
@@ -84,7 +84,7 @@ For support and installation notes visit http://www.hlxcommunity.com
 
     pageHeader(
         array ($gamename, 'Server Chat Statistics'),
-        array ($gamename => "%s?game=$game_url", 'Server Chat Statistics' => '')
+        array ($gamename => ($g_options['scripturl'] ?? 'hlstats.php') . "?game=$game_url", 'Server Chat Statistics' => '')
     );
 
     flush();
@@ -158,7 +158,7 @@ For support and installation notes visit http://www.hlxcommunity.com
                     // PHP 8 Fix: Null coalescing
                     $filter = (isset($_REQUEST['filter']) && !is_array($_REQUEST['filter'])) ? trim((string)$_REQUEST['filter']) : "";
                 ?>
-                Filter: <input type="text" name="filter" value="<?php echo htmlspecialchars($filter, ENT_QUOTES, 'UTF-8'); ?>" />
+                Filter: <input type="text" name="filter" value="<?php echo hlx_h($filter); ?>" />
                 <input type="submit" value="View" class="smallsubmit" />
             </form>
             </span>
@@ -255,7 +255,10 @@ For support and installation notes visit http://www.hlxcommunity.com
             $whereclause2='';
             if(!empty($filter))
             {
-                $whereclause2="AND MATCH (hlstats_Events_Chat.message) AGAINST ('" . $db->escape($filter) . "' in BOOLEAN MODE)";
+                $clean_filter = trim(preg_replace('/[()<>~"@]/', ' ', $filter));
+                if ($clean_filter !== '') {
+                    $whereclause2="AND MATCH (hlstats_Events_Chat.message) AGAINST ('" . $db->escape($clean_filter) . "' in BOOLEAN MODE)";
+                }
             }
             $surl = $scripturl;
 
@@ -285,7 +288,7 @@ For support and installation notes visit http://www.hlxcommunity.com
                     hlstats_Events_Chat.id $table->sortorder
                 LIMIT
                     $table->startitem,
-                    $table->numperpage;
+                    $table->numperpage
             ", true, false);
 
             $res_count = $db->query
@@ -315,6 +318,9 @@ For support and installation notes visit http://www.hlxcommunity.com
             $db->free_result($res_count);
 
             $table->draw($result, $numitems, 95);
+            if ($result) {
+                $db->free_result($result);
+            }
         ?><br /><br />
     <div class="subblock">
         <div style="float:right;">

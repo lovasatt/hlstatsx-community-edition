@@ -56,7 +56,8 @@ For support and installation notes visit http://www.hlxcommunity.com
     $game = isset($game) ? (string)$game : '';
     $game_esc = $db->escape($game);
     $game_url = urlencode($game);
-    $scripturl = htmlspecialchars((string)($g_options['scripturl'] ?? ''), ENT_QUOTES, 'UTF-8');
+    $realgame = function_exists('getRealGame') ? getRealGame($game) : '';
+    $scripturl = htmlspecialchars((string)($g_options['scripturl'] ?? 'hlstats.php'), ENT_QUOTES, 'UTF-8');
 
     $db->query("
         SELECT
@@ -114,7 +115,7 @@ For support and installation notes visit http://www.hlxcommunity.com
             new TableColumn(
                 'lastName',
                 'Player',
-                'width=40&align=left&flag=1&link=' . urlencode('mode=playerinfo&amp;player=%k')
+                'width=40&align=left&flag=1&link=' . urlencode('mode=playerinfo&player=%k')
             ),
             new TableColumn(
                 'count',
@@ -163,7 +164,9 @@ For support and installation notes visit http://www.hlxcommunity.com
 
     $row = $db->fetch_row($resultCount);
     $numitems = ($row) ? (int)$row[0] : 0;
-    $db->free_result();
+    if ($resultCount) {
+        $db->free_result($resultCount);
+    }
 
 ?>
 
@@ -177,13 +180,20 @@ For support and installation notes visit http://www.hlxcommunity.com
     </div>
     <br /><br />
     <?php
-    // PHP 8 Fix: Cast to string for strtolower
-    $img_name = strtolower((string)$awardtype) . '_' . strtolower((string)$awardcode) . '.png';
-    $img = IMAGE_PATH . "/games/$game_url/dawards/" . $img_name;
+    // Resolve award image dynamically with realgame and fallback support
+    $img_name = strtolower((string)$awardtype) . '_' . strtolower((string)$awardcode);
 
-    if (!is_file($img))
+    if ($image = getImage("/games/$game/dawards/" . $img_name))
     {
-        $img = IMAGE_PATH . '/award.png';
+        $img = $image['url'];
+    }
+    elseif ($realgame && $image = getImage("/games/$realgame/dawards/" . $img_name))
+    {
+        $img = $image['url'];
+    }
+    else
+    {
+        $img = (defined('IMAGE_PATH') ? IMAGE_PATH : ($g_options['imgpath'] ?? 'hlstatsimg')) . '/award.png';
     }
 
     // PHP 8 Fix: XSS Protection
@@ -192,5 +202,8 @@ For support and installation notes visit http://www.hlxcommunity.com
 
     echo "<img src=\"$img\" alt=\"$safe_code\" style=\"vertical-align:middle; margin-right:4px;\" /> <strong>$safe_name</strong>";
     $table->draw($result, $numitems, 95, 'center');
+    if ($result) {
+        $db->free_result($result);
+    }
 ?>
 </div>

@@ -30,19 +30,28 @@ class CSteamGroupStatus
     private function fetchUrl($url)
     {
         $ch = curl_init($url);
-        curl_setopt_array($ch, [
+        $curl_opts = [
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_TIMEOUT        => 4,
             CURLOPT_CONNECTTIMEOUT => 3,
             CURLOPT_FOLLOWLOCATION => true,
             CURLOPT_MAXREDIRS      => 3,
             CURLOPT_ENCODING       => "",
-            CURLOPT_PROTOCOLS      => CURLPROTO_HTTPS,
-            CURLOPT_REDIR_PROTOCOLS => CURLPROTO_HTTPS,
             CURLOPT_USERAGENT      => 'Mozilla/5.0 (compatible; HLstatsX-SteamEngine/2.0)',
             CURLOPT_SSL_VERIFYPEER => true,
             CURLOPT_SSL_VERIFYHOST => 2
-        ]);
+        ];
+
+        // PHP 8.2+ compatibility: use string protocols to avoid deprecation notices
+        if (defined('CURLOPT_PROTOCOLS_STR')) {
+            $curl_opts[CURLOPT_PROTOCOLS_STR] = 'https';
+            $curl_opts[CURLOPT_REDIR_PROTOCOLS_STR] = 'https';
+        } else {
+            $curl_opts[CURLOPT_PROTOCOLS] = CURLPROTO_HTTPS;
+            $curl_opts[CURLOPT_REDIR_PROTOCOLS] = CURLPROTO_HTTPS;
+        }
+
+        curl_setopt_array($ch, $curl_opts);
         $res = curl_exec($ch);
         $code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
 

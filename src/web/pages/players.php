@@ -44,7 +44,7 @@ For support and installation notes visit http://www.hlxcommunity.com
     $game = isset($game) ? (string)$game : '';
     $game_esc = $db->escape($game);
     $game_url = urlencode($game);
-    $scripturl = htmlspecialchars((string)($g_options['scripturl'] ?? ''), ENT_QUOTES, 'UTF-8');
+    $scripturl = htmlspecialchars((string)($g_options['scripturl'] ?? 'hlstats.php'), ENT_QUOTES, 'UTF-8');
 
     // Player Rankings
     $db->query("
@@ -72,7 +72,7 @@ For support and installation notes visit http://www.hlxcommunity.com
     pageHeader
     (
         array ($gamename, 'Player Rankings'),
-        array ($gamename=>"%s?game=$game_url", 'Player Rankings'=>'')
+        array ($gamename => ($g_options['scripturl'] ?? 'hlstats.php') . "?game=$game_url", 'Player Rankings' => '')
     );
 
     $rank_type = 0;
@@ -319,10 +319,10 @@ For support and installation notes visit http://www.hlxcommunity.com
                     hlstats_Players.kills,
                     hlstats_Players.deaths,
                     hlstats_Players.last_skill_change,
-                    ROUND(hlstats_Players.kills/(IF(hlstats_Players.deaths=0, 1, hlstats_Players.deaths)), 2) AS kpd,
+                    IFNULL(ROUND(hlstats_Players.kills / NULLIF(hlstats_Players.deaths, 0), 2), '-') AS kpd,
                     hlstats_Players.headshots,
-                    ROUND(hlstats_Players.headshots/(IF(hlstats_Players.kills=0, 1, hlstats_Players.kills)), 2) AS hpk,
-                    IFNULL(ROUND((hlstats_Players.hits / IF(hlstats_Players.shots = 0, 1, hlstats_Players.shots) * 100), 1), 0) AS acc,
+                    IFNULL(ROUND(hlstats_Players.headshots / NULLIF(hlstats_Players.kills, 0), 2), '-') AS hpk,
+                    IFNULL(ROUND((hlstats_Players.hits / NULLIF(hlstats_Players.shots, 0) * 100), 1), 0.0) AS acc,
                     activity
                 FROM
                     hlstats_Players
@@ -375,8 +375,8 @@ For support and installation notes visit http://www.hlxcommunity.com
                 }
             }
 
-            $minEvent = (int)$minEvent;
-            $maxEvent = (int)$maxEvent;
+            $minDate = $db->escape(date('Y-m-d', (int)$minEvent));
+            $maxDate = $db->escape(date('Y-m-d', (int)$maxEvent));
 
             $result = $db->query
             ("
@@ -393,10 +393,10 @@ For support and installation notes visit http://www.hlxcommunity.com
                     SUM(hlstats_Players_History.skill_change) AS last_skill_change,
                     SUM(hlstats_Players_History.kills) AS kills,
                     SUM(hlstats_Players_History.deaths) AS deaths,
-                    ROUND(SUM(hlstats_Players_History.kills) / IF(SUM(hlstats_Players_History.deaths) = 0, 1, SUM(hlstats_Players_History.deaths)), 2) AS kpd,
+                    IFNULL(ROUND(SUM(hlstats_Players_History.kills) / NULLIF(SUM(hlstats_Players_History.deaths), 0), 2), '-') AS kpd,
                     SUM(hlstats_Players_History.headshots) AS headshots,
-                    ROUND(SUM(hlstats_Players_History.headshots) / IF(SUM(hlstats_Players_History.kills) = 0, 1, SUM(hlstats_Players_History.kills)), 2) AS hpk,
-                    IFNULL(ROUND((SUM(hlstats_Players_History.hits) / IF(SUM(hlstats_Players_History.shots) = 0, 1, SUM(hlstats_Players_History.shots)) * 100), 1), 0) AS acc,
+                    IFNULL(ROUND(SUM(hlstats_Players_History.headshots) / NULLIF(SUM(hlstats_Players_History.kills), 0), 2), '-') AS hpk,
+                    IFNULL(ROUND((SUM(hlstats_Players_History.hits) / NULLIF(SUM(hlstats_Players_History.shots), 0) * 100), 1), 0.0) AS acc,
                     activity
                 FROM
                     hlstats_Players_History
@@ -408,8 +408,8 @@ For support and installation notes visit http://www.hlxcommunity.com
                     hlstats_Players_History.game = '$game_esc'
                     AND hlstats_Players.hideranking = 0
                     AND activity > 0
-                    AND UNIX_TIMESTAMP(hlstats_Players_History.eventTime) >= $minEvent
-                    AND UNIX_TIMESTAMP(hlstats_Players_History.eventTime) <= $maxEvent
+                    AND hlstats_Players_History.eventTime >= '$minDate'
+                    AND hlstats_Players_History.eventTime <= '$maxDate'
                 GROUP BY
                     hlstats_Players_History.playerId,
                     hlstats_Players.lastName,
@@ -428,12 +428,14 @@ For support and installation notes visit http://www.hlxcommunity.com
                     $table->numperpage
             ");
             $resultCount = $db->query("SELECT FOUND_ROWS()");
-            // PHP 8 Fix: Replace list()
             $row = $db->fetch_row($resultCount);
             $db->free_result($resultCount);
             $numitems = ($row) ? (int)$row[0] : 0;
         }
         $table->draw($result, $numitems, 95);
+        if ($result) {
+            $db->free_result($result);
+        }
     ?><br /><br />
     <div class="subblock">
         <div style="float:left;">

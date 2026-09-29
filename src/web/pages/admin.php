@@ -68,6 +68,9 @@ if (!headers_sent()) {
     // PHP 8 Fix: Replace list()
     $row = $db->fetch_row($resultGames);
     $game = ($row) ? $row[0] : '';
+    if ($resultGames) {
+        $db->free_result($resultGames);
+    }
 }
 
 function hlstats_password_algo()
@@ -88,30 +91,39 @@ function hlstats_csrf_token(): string
 
 function hlstats_get_client_ip(): string
 {
-    if (!empty($_SERVER['HTTP_CF_CONNECTING_IP'])) {
-        $ip = trim($_SERVER['HTTP_CF_CONNECTING_IP']);
-        if (filter_var($ip, FILTER_VALIDATE_IP)) {
-            return $ip;
+    $remote_ip = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+
+    $trust_proxy = defined('TRUST_PROXY_HEADERS') ? (bool)TRUST_PROXY_HEADERS : false;
+
+    if (!defined('TRUST_PROXY_HEADERS') && !filter_var($remote_ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE)) {
+        $trust_proxy = true;
+    }
+
+    if ($trust_proxy) {
+        if (!empty($_SERVER['HTTP_CF_CONNECTING_IP'])) {
+            $ip = trim($_SERVER['HTTP_CF_CONNECTING_IP']);
+            if (filter_var($ip, FILTER_VALIDATE_IP)) {
+                return $ip;
+            }
+        }
+
+        if (!empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
+            $ip_list = explode(',', $_SERVER['HTTP_X_FORWARDED_FOR']);
+            $candidate = trim($ip_list[0]);
+            if (filter_var($candidate, FILTER_VALIDATE_IP)) {
+                return $candidate;
+            }
+        }
+
+        if (!empty($_SERVER['HTTP_X_REAL_IP'])) {
+            $ip = trim($_SERVER['HTTP_X_REAL_IP']);
+            if (filter_var($ip, FILTER_VALIDATE_IP)) {
+                return $ip;
+            }
         }
     }
 
-    if (!empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
-        $ip_list = explode(',', $_SERVER['HTTP_X_FORWARDED_FOR']);
-        $ip = trim($ip_list[0]);
-        if (filter_var($ip, FILTER_VALIDATE_IP)) {
-            return $ip;
-        }
-    }
-
-    if (!empty($_SERVER['HTTP_X_REAL_IP'])) {
-        $ip = trim($_SERVER['HTTP_X_REAL_IP']);
-        if (filter_var($ip, FILTER_VALIDATE_IP)) {
-            return $ip;
-        }
-    }
-
-    $ip = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
-    return filter_var($ip, FILTER_VALIDATE_IP) ? $ip : '0.0.0.0';
+    return filter_var($remote_ip, FILTER_VALIDATE_IP) ? $remote_ip : '0.0.0.0';
 }
 
 function hlstats_ip_rate_limit(bool $record_failure = false, bool $reset = false): bool
@@ -124,26 +136,44 @@ function hlstats_ip_rate_limit(bool $record_failure = false, bool $reset = false
         return true;
     }
 
+    $handle = @fopen($file, 'c+');
+    if ($handle === false) {
+        return true;
+    }
+
+    if (!flock($handle, LOCK_EX)) {
+        fclose($handle);
+        return true;
+    }
+
+    $contents = stream_get_contents($handle);
     $data = ['attempts' => 0, 'time' => time()];
-    if (file_exists($file)) {
-        $decoded = json_decode((string)@file_get_contents($file), true);
-        if (is_array($decoded)) {
+    if ($contents !== false && $contents !== '') {
+        $decoded = json_decode($contents, true);
+        if (is_array($decoded) && isset($decoded['attempts'], $decoded['time'])) {
             $data = $decoded;
         }
     }
 
-    if (time() - $data['time'] > 900) {
+    if (time() - (int)$data['time'] > 900) {
         $data['attempts'] = 0;
     }
 
+    $allowed = ((int)$data['attempts'] < 5);
+
     if ($record_failure) {
-        $data['attempts']++;
+        $data['attempts'] = (int)$data['attempts'] + 1;
         $data['time'] = time();
-        @file_put_contents($file, json_encode($data), LOCK_EX);
-        return true;
+        ftruncate($handle, 0);
+        rewind($handle);
+        fwrite($handle, json_encode($data));
+        fflush($handle);
     }
 
-    return ($data['attempts'] < 5);
+    flock($handle, LOCK_UN);
+    fclose($handle);
+
+    return $record_failure ? true : $allowed;
 }
 
 function hlstats_verify_csrf(): bool
@@ -193,6 +223,14 @@ class Auth
 
         if (isset($_POST['authusername']) && valid_request($_POST['authusername'], false))
         {
+            $submitted_token = (string)($_POST['csrf_token'] ?? '');
+            if (empty($_SESSION['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $submitted_token)) {
+                $this->ok = false;
+                $this->error = 'Your session expired before you logged in. Please try again.';
+                $this->printAuth();
+                return;
+            }
+
             if (!hlstats_ip_rate_limit(false)) {
                 http_response_code(429);
                 $this->ok = false;
@@ -236,11 +274,13 @@ class Auth
                 if (!empty($this->username) && isset($db)) {
                     $username_esc = $db->escape($this->username);
                     $res = $db->query("SELECT * FROM hlstats_Users WHERE username='$username_esc' LIMIT 1");
-                    if ($res && $db->num_rows() == 1) {
-                        $this->userdata = $db->fetch_array();
+                    if ($res) {
+                        if ($db->num_rows() == 1) {
+                            $this->userdata = $db->fetch_array();
+                            $_SESSION['acclevel'] = (int)($this->userdata['acclevel'] ?? 0);
+                            $user_found = true;
+                        }
                         $db->free_result();
-                        $_SESSION['acclevel'] = (int)($this->userdata['acclevel'] ?? 0);
-                        $user_found = true;
                     }
                 }
 
@@ -315,7 +355,10 @@ class Auth
                 if ($rehash_needed) {
                     // Check if the database column is too short for Argon2id/Bcrypt (< 255 chars) and self-heal it
                     $check_sql = $db->query("SHOW COLUMNS FROM `hlstats_Users` LIKE 'password'");
-                    $col_info = $db->fetch_array($check_sql);
+                    $col_info = ($check_sql) ? $db->fetch_array($check_sql) : null;
+                    if ($check_sql) {
+                        $db->free_result($check_sql);
+                    }
                     $col_type = (string)($col_info['Type'] ?? $col_info['type'] ?? '');
                     if ($col_info && preg_match('/varchar\((\d+)\)/i', $col_type, $matches) && (int)$matches[1] < 255) {
                         $db->query("ALTER TABLE `hlstats_Users` MODIFY `password` varchar(255) NOT NULL default ''");
@@ -347,6 +390,7 @@ class Auth
         }
         else
         {
+            $db->free_result();
             // Equalize response latency against timing attacks when username does not exist
             password_verify((string)$this->password, '$argon2id$v=19$m=65536,t=4,p=1$dummyhashdummyhash$dummyhashdummyhashdummyhashdummyhashdummyhash');
             $this->ok = false;
@@ -476,98 +520,113 @@ class EditList
 
     function update()
     {
-    global $db;
+        global $db;
 
-    $okcols = 0;
-        // Initialize variables
+        $okcols = 0;
         $qcols = '';
         $qvals = '';
 
-        // Columns that must be integers
+        // Universal integer columns across all HLstatsX tables (MySQL Strict Mode Fix)
         $int_columns = array(
-            'reward_player', 'reward_team', 'awardCount', 'minKills', 
-            'maxKills', 'weight', 'acclevel', 'kills', 'headshots', 'count'
+            'reward_player', 'reward_team', 'awardCount', 'minKills',
+            'maxKills', 'weight', 'acclevel', 'kills', 'headshots', 'count', 'special'
         );
 
-    foreach ($this->columns as $col) {
-        $post_key = "new_$col->name";
-        // PHP 8 Fix: Correctly handle '0' string. !empty() returns false for '0'.
-        $raw_value = $_POST[$post_key] ?? null;
-        $value = ($raw_value !== null && $raw_value !== '') ? trim($raw_value) : '';
-
-        // MySQL Strict Mode Fix
-        if ($value === '' && in_array($col->name, $int_columns)) {
-            $value = '0';
+        // Check whether the user genuinely intended to insert a new row
+        // Hidden fields and select dropdowns are ignored so default selections do not trigger false inserts
+        $has_new_input = false;
+        foreach ($this->columns as $col) {
+            if ($col->type == 'hidden' || $col->type == 'select') {
+                continue;
+            }
+            $post_key = "new_$col->name";
+            $val = trim((string)($_POST[$post_key] ?? ''));
+            // If any text/number field has user input differing from default datasource, a new row is intended
+            if ($val !== '' && $val !== (string)$col->datasource) {
+                $has_new_input = true;
+                break;
+            }
         }
 
-        if ($value != '')
-        {
-    if ($col->type == 'ipaddress' && filter_var($value, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) === false)
-    {
-        $this->errors[] = "Column '$col->title' requires a valid IP address for new row";
-        $this->newerror = true;
-        $okcols++;
-    }
-    else
-    {
-        if ($qcols)
-        {
-        $qcols .= ', ';
-        }
-        $qcols .= $col->name;
+        // Only validate and insert a new row if explicit input was provided
+        if ($has_new_input) {
+            foreach ($this->columns as $col) {
+                $post_key = "new_$col->name";
+                $raw_value = $_POST[$post_key] ?? null;
+                $value = ($raw_value !== null && $raw_value !== '') ? trim($raw_value) : '';
 
-        if ($qvals)
-        {
-        $qvals .= ', ';
-        }
-        if ($col->type == 'password' && $this->table == 'hlstats_Users')
-        {
-            $value = password_hash(
-                (string)$value,
-                hlstats_password_algo()
-            );
-        }
-        $qvals .= "'" . $db->escape($value) . "'";
+                // MySQL Strict Mode Fix: default empty numeric columns to '0'
+                if ($value === '' && in_array($col->name, $int_columns)) {
+                    $value = '0';
+                }
 
-        if ($col->type != 'select' && $col->type != 'hidden' && $value != $col->datasource)
-        {
-        $okcols++;
-        }
-    }
-        }
-        elseif ($col->required)
-        {
-    $this->errors[] = "Required column '$col->title' must have a value for new row";
-    $this->newerror = true;
-        }
-    }
+                if ($value !== '')
+                {
+                    if ($col->type == 'ipaddress' && filter_var($value, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) === false)
+                    {
+                        $this->errors[] = "Column '$col->title' requires a valid IP address for new row";
+                        $this->newerror = true;
+                        $okcols++;
+                    }
+                    else
+                    {
+                        if ($qcols) { $qcols .= ', '; }
+                        $qcols .= $col->name;
 
-    if ($okcols > 0 && !$this->errors)
-    {
-        $db->query("
-        INSERT INTO
-        $this->table
-        (
-            $qcols
-        )
-        VALUES
-        (
-        $qvals
-        )");
-    }
-    elseif ($okcols == 0)
-    {
-        $this->errors = array();
-        $this->newerror = false;
-    }
+                        if ($qvals) { $qvals .= ', '; }
+                        if ($col->type == 'password' && $this->table == 'hlstats_Users')
+                        {
+                            $value = password_hash((string)$value, hlstats_password_algo());
+                        }
+                        $qvals .= "'" . $db->escape($value) . "'";
+
+                        if ($col->type != 'select' && $col->type != 'hidden' && $value !== $col->datasource)
+                        {
+                            $okcols++;
+                        }
+                    }
+                }
+                elseif ($col->required)
+                {
+                    $this->errors[] = "Required column '$col->title' must have a value for new row";
+                    $this->newerror = true;
+                }
+            }
+
+            if ($okcols > 0 && !$this->errors)
+            {
+                $db->query("
+                    INSERT INTO $this->table ( $qcols ) VALUES ( $qvals )
+                ");
+            }
+        } else {
+            // User did not intend to add a new row; clear any accidental validation errors
+            $this->errors = array();
+            $this->newerror = false;
+        }
 
     if (!isset($_POST['rows']) || !is_array($_POST['rows']))
     {
         return true;
     }
 
+    $scope_conditions = array();
+    foreach ($this->columns as $scope_col)
+    {
+        if ($scope_col->type == 'hidden' && $scope_col->datasource !== '')
+        {
+            $scope_conditions[] = $scope_col->name . "='" . $db->escape($scope_col->datasource) . "'";
+        }
+    }
+    $scope_sql = !empty($scope_conditions) ? ' AND ' . implode(' AND ', $scope_conditions) : '';
+
     foreach ($_POST['rows'] as $row)
     {
+        if (!is_string($row) && !is_int($row)) {
+            continue;
+        }
+        $row = (string)$row;
+
         if (!empty($_POST[$row . '_delete'])) {
     if (!empty($this->deleteCallback) && is_callable($this->deleteCallback)) {
         call_user_func($this->deleteCallback, $row);
@@ -577,7 +636,7 @@ class EditList
         DELETE FROM
         $this->table
         WHERE
-        $this->keycol='" . $db->escape($row) . "'
+        $this->keycol='" . $db->escape($row) . "'" . $scope_sql . "
     ");
         }
         else
@@ -592,7 +651,6 @@ class EditList
         {
         continue;
         }
-
             $post_key = $row . "_" . $col->name;
             $raw_value = $_POST[$post_key] ?? null;
 
@@ -652,7 +710,7 @@ class EditList
         }
         $i++;
     }
-    $query .= " WHERE $this->keycol='" . $db->escape($row) . "'";
+    $query .= " WHERE $this->keycol='" . $db->escape($row) . "'" . $scope_sql;
 
     if (!$rowerror && $i > 0)
     {
@@ -724,7 +782,7 @@ class EditList
 
         if ($this->showid)
         {
-            echo '<td align="right" class="fSmall">' . $rowdata[$this->keycol] . "</td>\n";
+            echo '<td align="right" class="fSmall">' . hlx_h((string)($rowdata[$this->keycol] ?? '')) . "</td>\n";
         }
 
         $this->drawfields($rowdata, false, false);
@@ -734,13 +792,13 @@ class EditList
             global $gamecode;
 ?>
         <td align="center" class="fSmall"><?php
-            echo "<a href='" . $g_options["scripturl"] . "?mode=admin&amp;game=$gamecode&amp;task=" . $this->DetailsLink . "&amp;key=" . $rowdata[$this->keycol] . "'><b>CONFIGURE</b></a>";
+            echo "<a href='" . hlx_h((string)$g_options["scripturl"]) . "?mode=admin&amp;game=" . urlencode((string)$gamecode) . "&amp;task=" . urlencode((string)$this->DetailsLink) . "&amp;key=" . urlencode((string)($rowdata[$this->keycol] ?? '')) . "'><b>CONFIGURE</b></a>";
         ?></td>
 <?php
         }
 
 ?>
-<td align="center"><input type="checkbox" name="<?php echo $rowdata[$this->keycol]; ?>_delete" value="1" /></td>
+<td align="center"><input type="checkbox" name="<?php echo hlx_h((string)($rowdata[$this->keycol] ?? '')); ?>_delete" value="1" /></td>
 <?php echo "</tr>\n\n";
         $row_idx++;
     }
@@ -816,7 +874,7 @@ class EditList
 
         foreach (explode(';', (string)$col->datasource) as $v)
         {
-            $sections = preg_match_all('/\//', $v, $dsaljfdsaf);
+            $sections = preg_match_all('/\//', $v);
             if ($sections == 2)
             {
                 $parts = explode('.', $v, 2);
@@ -832,9 +890,12 @@ class EditList
                     $col_where = "WHERE $col_where";
                 }
                 $col_result = $db->query("SELECT $col_key, $col_col FROM $col_table $col_where ORDER BY $col_col");
-                while ($row_res = $db->fetch_row($col_result))
-                {
-                    $coldata[$row_res[0]] = $row_res[1];
+                if ($col_result) {
+                    while ($row_res = $db->fetch_row($col_result))
+                    {
+                        $coldata[$row_res[0]] = $row_res[1];
+                    }
+                    $db->free_result($col_result);
                 }
             }
             else if ($sections > 0)
@@ -939,7 +1000,8 @@ class EditList
         }
         $onClick = '';
         if (!empty($this->helpKey) && !empty($rowdata[$this->helpKey])) {
-        $onClick = "onmouseover=\"javascript:showHelp('" . strtolower($rowdata[$this->helpKey]) . "')\" onmouseout=\"javascript:hideHelp()\"";
+        $help_js = json_encode(strtolower((string)$rowdata[$this->helpKey]), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP);
+        $onClick = 'onmouseover="showHelp(' . $help_js . ')" onmouseout="hideHelp()"';
         }
 
         $input_value = (!empty($value) || $value === '0') ? htmlspecialchars(html_entity_decode((string)$value, ENT_QUOTES, 'UTF-8'), ENT_QUOTES, 'UTF-8') : "";
@@ -974,14 +1036,14 @@ class EditList
 
     function error()
     {
-    if (is_array($this->errors))
-    {
-        return implode("<br /><br />\n\n", $this->errors);
-    }
-    else
-    {
-        return false;
-    }
+        if (is_array($this->errors))
+        {
+            return implode("<br /><br />\n\n", $this->errors);
+        }
+        else
+        {
+            return false;
+        }
     }
 }
 
@@ -1047,8 +1109,12 @@ class PropertyPage
                     if ($raw_pwd === '') {
                         continue;
                     }
-                    $hashed_pwd = password_hash($raw_pwd, hlstats_password_algo());
-                    $setstrings[] = $prop->name . "='" . $db->escape($hashed_pwd) . "'";
+                    if ($this->table == 'hlstats_Users') {
+                        $pwd_val = password_hash($raw_pwd, hlstats_password_algo());
+                    } else {
+                        $pwd_val = $raw_pwd;
+                    }
+                    $setstrings[] = $prop->name . "='" . $db->escape($pwd_val) . "'";
                 }
                 elseif ($prop->name == 'name')
                 {
@@ -1266,7 +1332,7 @@ $admintasks['tools_editdetails'] = new AdminTask('Edit Player or Clan Details', 
 $admintasks['tools_adminevents'] = new AdminTask('Admin-Event History', 80, 'tool', 'View event history of logged Rcon commands and Admin Mod messages.');
 $admintasks['tools_ipstats'] = new AdminTask('Host Statistics', 80, 'tool', 'See which ISPs your players are using.');
 $admintasks['tools_optimize'] = new AdminTask('Optimize Database', 100, 'tool', 'This operation tells the MySQL server to clean up the database tables, optimizing them for better performance. It is recommended that you run this at least once a month.');
-$admintasks['tools_resetdbcollations'] = new AdminTask('Reset All DB Collations to UTF8', 100, 'tool', 'Reset DB Collations to UTF-8 if you receive collation errors after an upgrade from another HLstats(X)-based system.');
+$admintasks['tools_resetdbcollations'] = new AdminTask('Reset All DB Collations to UTF8', 100, 'tool', 'Reset DB Collations to UTF8MB4 if you receive collation errors after an upgrade from another HLstats(X)-based system.');
 
 // Sub-Tools
 $admintasks['tools_editdetails_player'] = new AdminTask('Edit Player Details', 80, 'subtool', 'Edit a player\'s profile information.');
@@ -1312,7 +1378,7 @@ if (!empty($selTask) && !empty($admintasks[$selTask]) && ($admintasks[$selTask]-
     $task = $admintasks[$selTask];
     $code = $selTask;
 ?>
-&nbsp;<img src="<?php echo IMAGE_PATH; ?>/downarrow.gif" width="9" height="6" alt="" /><b>&nbsp;<a href="<?php echo $g_options['scripturl']; ?>?mode=admin">Tools</a></b><br />
+&nbsp;<img src="<?php echo IMAGE_PATH; ?>/downarrow.gif" width="9" height="6" alt="" /><b>&nbsp;<a href="<?php echo htmlspecialchars((string)$g_options['scripturl'], ENT_QUOTES, 'UTF-8'); ?>?mode=admin">Tools</a></b><br />
 <img src="<?php echo IMAGE_PATH; ?>/spacer.gif" width="1" height="8" border="0" alt="" /><br />
 
 <?php
@@ -1340,9 +1406,9 @@ else
         if ($selTask == $code)
         {
 ?>
-&nbsp;&nbsp;&nbsp;&nbsp;<img src="<?php echo IMAGE_PATH; ?>/downarrow.gif" width="9" height="6" alt="" /><b>&nbsp;<a href="<?php echo $g_options['scripturl']; ?>?mode=admin" name="<?php echo $code; ?>"><?php echo $task->title; ?></a></b><br /><br />
+&nbsp;&nbsp;&nbsp;&nbsp;<img src="<?php echo IMAGE_PATH; ?>/downarrow.gif" width="9" height="6" alt="" /><b>&nbsp;<a href="<?php echo htmlspecialchars((string)$g_options['scripturl'], ENT_QUOTES, 'UTF-8'); ?>?mode=admin" name="<?php echo htmlspecialchars((string)$code, ENT_QUOTES, 'UTF-8'); ?>"><?php echo htmlspecialchars($task->title, ENT_QUOTES, 'UTF-8'); ?></a></b><br /><br />
 
-<form method="post" action="<?php echo $g_options['scripturl']; ?>?mode=admin&amp;task=<?php echo $code; ?>#<?php echo $code; ?>">
+<form method="post" action="<?php echo htmlspecialchars((string)$g_options['scripturl'], ENT_QUOTES, 'UTF-8'); ?>?mode=admin&amp;task=<?php echo htmlspecialchars((string)$code, ENT_QUOTES, 'UTF-8'); ?>#<?php echo htmlspecialchars((string)$code, ENT_QUOTES, 'UTF-8'); ?>">
 <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(hlstats_csrf_token(), ENT_QUOTES, 'UTF-8'); ?>" />
 
 <table width="100%" border="0" cellspacing="0" cellpadding="0">
@@ -1361,8 +1427,8 @@ else
         else
         {
 ?>
-&nbsp;&nbsp;&nbsp;&nbsp;<img src="<?php echo IMAGE_PATH; ?>/rightarrow.gif" width="6" height="9" alt="" /><b>&nbsp;<a href="<?php echo $g_options['scripturl']; ?>?mode=admin&amp;task=<?php echo $code; ?>#<?php echo $code;
-?>"><?php echo $task->title; ?></a></b><br /><br /> <?php
+&nbsp;&nbsp;&nbsp;&nbsp;<img src="<?php echo IMAGE_PATH; ?>/rightarrow.gif" width="6" height="9" alt="" /><b>&nbsp;<a href="<?php echo htmlspecialchars((string)$g_options['scripturl'], ENT_QUOTES, 'UTF-8'); ?>?mode=admin&amp;task=<?php echo htmlspecialchars((string)$code, ENT_QUOTES, 'UTF-8'); ?>#<?php echo htmlspecialchars((string)$code, ENT_QUOTES, 'UTF-8'); ?>"><?php echo htmlspecialchars($task->title, ENT_QUOTES, 'UTF-8'); ?></a></b><br /><br />
+<?php
         }
     }
     }
@@ -1399,9 +1465,9 @@ else
         if ($selTask == $code)
         {
 ?>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<img src="<?php echo IMAGE_PATH; ?>/downarrow.gif" width="9" height="6" alt="" /><b>&nbsp;<a href="<?php echo $g_options['scripturl']; ?>?mode=admin&amp;game=<?php echo $gamecode; ?>" name="<?php echo $code; ?>"><?php echo $task->title; ?></a></b><br /><br />
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<img src="<?php echo IMAGE_PATH; ?>/downarrow.gif" width="9" height="6" alt="" /><b>&nbsp;<a href="<?php echo htmlspecialchars((string)$g_options['scripturl'], ENT_QUOTES, 'UTF-8'); ?>?mode=admin&amp;game=<?php echo htmlspecialchars((string)$gamecode, ENT_QUOTES, 'UTF-8'); ?>" name="<?php echo htmlspecialchars((string)$code, ENT_QUOTES, 'UTF-8'); ?>"><?php echo htmlspecialchars($task->title, ENT_QUOTES, 'UTF-8'); ?></a></b><br /><br />
 
-<form method="post" name="<?php echo $code; ?>form" action="<?php echo $g_options['scripturl']; ?>?mode=admin&amp;game=<?php echo $gamecode; ?>&amp;task=<?php echo $code; ?>#<?php echo $code; ?>">
+<form method="post" name="<?php echo htmlspecialchars((string)$code, ENT_QUOTES, 'UTF-8'); ?>form" action="<?php echo htmlspecialchars((string)$g_options['scripturl'], ENT_QUOTES, 'UTF-8'); ?>?mode=admin&amp;game=<?php echo htmlspecialchars((string)$gamecode, ENT_QUOTES, 'UTF-8'); ?>&amp;task=<?php echo htmlspecialchars((string)$code, ENT_QUOTES, 'UTF-8'); ?>#<?php echo htmlspecialchars((string)$code, ENT_QUOTES, 'UTF-8'); ?>">
 <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(hlstats_csrf_token(), ENT_QUOTES, 'UTF-8'); ?>" />
 
 <table width="100%" border="0" cellspacing="0" cellpadding="0">
@@ -1420,7 +1486,8 @@ else
         elseif ($code != 'serversettings')
         {
     ?>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<img src="<?php echo IMAGE_PATH; ?>/rightarrow.gif" width="6" height="9" alt="" /><b>&nbsp;<a href="<?php echo $g_options['scripturl']; ?>?mode=admin&amp;game=<?php echo $gamecode; ?>&amp;task=<?php echo $code; ?>#<?php echo $code; ?>"><?php echo $task->title; ?></a></b><br /><br /> <?php
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<img src="<?php echo IMAGE_PATH; ?>/rightarrow.gif" width="6" height="9" alt="" /><b>&nbsp;<a href="<?php echo htmlspecialchars((string)$g_options['scripturl'], ENT_QUOTES, 'UTF-8'); ?>?mode=admin&amp;game=<?php echo htmlspecialchars((string)$gamecode, ENT_QUOTES, 'UTF-8'); ?>&amp;task=<?php echo htmlspecialchars((string)$code, ENT_QUOTES, 'UTF-8'); ?>#<?php echo htmlspecialchars((string)$code, ENT_QUOTES, 'UTF-8'); ?>"><?php echo htmlspecialchars($task->title, ENT_QUOTES, 'UTF-8'); ?></a></b><br /><br />
+<?php
         }
     }
         }
@@ -1428,8 +1495,12 @@ else
     else
     {
 ?>
-&nbsp;&nbsp;&nbsp;&nbsp;<img src="<?php echo IMAGE_PATH; ?>/rightarrow.gif" width="6" height="9" alt="" /><b>&nbsp;<a href="<?php echo $g_options['scripturl']; ?>?mode=admin&amp;game=<?php echo $gamecode; ?>#game_<?php echo $gamecode; ?>"><?php echo $gamename; ?></a></b> (<?php echo $gamecode; ?>)<br /><br /> <?php
+&nbsp;&nbsp;&nbsp;&nbsp;<img src="<?php echo IMAGE_PATH; ?>/rightarrow.gif" width="6" height="9" alt="" /><b>&nbsp;<a href="<?php echo htmlspecialchars((string)$g_options['scripturl'], ENT_QUOTES, 'UTF-8'); ?>?mode=admin&amp;game=<?php echo htmlspecialchars((string)$gamecode, ENT_QUOTES, 'UTF-8'); ?>#game_<?php echo htmlspecialchars((string)$gamecode, ENT_QUOTES, 'UTF-8'); ?>"><?php echo htmlspecialchars((string)$gamename, ENT_QUOTES, 'UTF-8'); ?></a></b> (<?php echo htmlspecialchars((string)$gamecode, ENT_QUOTES, 'UTF-8'); ?>)<br /><br />
+<?php
+        }
     }
+    if ($gamesresult) {
+        $db->free_result($gamesresult);
     }
 }
 echo "</td>\n";
@@ -1469,3 +1540,4 @@ if (isset($footerscript))
 {
     echo $footerscript;
 }
+?>

@@ -51,7 +51,7 @@ For support and installation notes visit http://www.hlxcommunity.com
 
     $db->query("
         SELECT
-            hlstats_Players.lastName,
+            unhex(replace(hex(hlstats_Players.lastName), 'E280AE', '')) AS lastName,
             hlstats_Players.game
         FROM
             hlstats_Players
@@ -65,16 +65,17 @@ For support and installation notes visit http://www.hlxcommunity.com
 
     $playerdata = $db->fetch_array();
     $db->free_result();
-    $pl_name = (string)($playerdata['lastName'] ?? '');
+    $raw_name = (string)($playerdata['lastName'] ?? '');
 
-    if (strlen($pl_name) > 10) {
-        $pl_shortname = substr($pl_name, 0, 8) . "...";
+    // Multi-byte (UTF-8) safe truncation
+    if (mb_strlen($raw_name, 'UTF-8') > 10) {
+        $pl_shortname = mb_substr($raw_name, 0, 8, 'UTF-8') . '...';
     } else {
-        $pl_shortname = $pl_name;
+        $pl_shortname = $raw_name;
     }
 
-    $pl_name = htmlspecialchars($pl_name, ENT_QUOTES, 'UTF-8');
-    $pl_shortname = htmlspecialchars($pl_shortname, ENT_QUOTES, 'UTF-8');
+    $pl_name = htmlspecialchars($raw_name, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    $pl_shortname = htmlspecialchars($pl_shortname, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
     $game = (string)($playerdata['game'] ?? '');
     $game_esc = $db->escape($game);
 
@@ -89,6 +90,7 @@ For support and installation notes visit http://www.hlxcommunity.com
 
     if ($db->num_rows() != 1) {
         $gamename = ucfirst($game);
+        $db->free_result();
     } else {
         // PHP 8 Fix: Replace list()
         $row = $db->fetch_row();
@@ -96,17 +98,19 @@ For support and installation notes visit http://www.hlxcommunity.com
         $db->free_result();
     }
 
+    $scripturl = htmlspecialchars((string)($g_options['scripturl'] ?? 'hlstats.php'), ENT_QUOTES, 'UTF-8');
+
     pageHeader
     (
         array ($gamename, 'Awards History', $pl_name),
         array
         (
-            $gamename=>($g_options['scripturl'] ?? '') . "?game=" . urlencode($game),
-            'Player Rankings'=>($g_options['scripturl'] ?? '') . "?mode=players&game=" . urlencode($game),
-            'Player Details'=>($g_options['scripturl'] ?? '') . "?mode=playerinfo&player=$player",
-            'Awards History'=>''
+            $gamename => $scripturl . "?game=" . urlencode($game),
+            'Player Rankings' => $scripturl . "?mode=players&amp;game=" . urlencode($game),
+            'Player Details' => $scripturl . "?mode=playerinfo&amp;player=$player",
+            'Awards History' => ''
         ),
-        $playername = ""
+        ""
     );
 
     flush();
@@ -248,10 +252,13 @@ For support and installation notes visit http://www.hlxcommunity.com
     {
         $table->draw($result, $numitems, 95);
     }
+    if ($result) {
+        $db->free_result($result);
+    }
 ?><br /><br />
     <div class="subblock">
         <div style="float:right;">
-            Go to: <a href="<?php echo htmlspecialchars((string)($g_options['scripturl'] ?? ''), ENT_QUOTES, 'UTF-8') . "?mode=playerinfo&amp;player=$player"; ?>"><?php echo $pl_name; ?>'s Statistics</a>
+            Go to: <a href="<?php echo htmlspecialchars((string)($g_options['scripturl'] ?? 'hlstats.php'), ENT_QUOTES, 'UTF-8') . "?mode=playerinfo&amp;player=$player"; ?>"><?php echo $pl_name; ?>'s Statistics</a>
         </div>
     </div>
 </div>

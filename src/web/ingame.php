@@ -57,7 +57,7 @@ foreach ($_SERVER as $key => $entry) {
 		($last_segment !== "/config.php") &&
 		($last_segment !== "/") &&
 		($entry !== "")) {
-		$host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+		$host = preg_replace('/[^a-zA-Z0-9.:\[\]-]/', '', (string)($_SERVER['HTTP_HOST'] ?? 'localhost'));
                 $proto = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
                 header("Location: " . $proto . "://" . $host . "/hlstats.php");
                 exit;
@@ -68,10 +68,13 @@ foreach ($_SERVER as $key => $entry) {
 }
 
 // Several Stuff end
-@header("Content-Type: text/html; charset=utf-8");
+header("Content-Type: text/html; charset=utf-8");
+header("X-Content-Type-Options: nosniff");
+header("Referrer-Policy: strict-origin-when-cross-origin");
 
 // do not report NOTICE warnings or DEPRECATED errors
-@error_reporting(E_ALL ^ E_NOTICE ^ E_DEPRECATED);
+error_reporting(E_ALL);
+ini_set('log_errors', '1');
 
 ////
 //// Initialisation
@@ -86,6 +89,7 @@ define('PAGE', 'INGAME');
 
 // Load required files
 require("config.php");
+ini_set('display_errors', (defined('DB_DEBUG') && DB_DEBUG) ? '1' : '0');
 require(INCLUDE_PATH . "/class_db.php");
 require(INCLUDE_PATH . "/class_table.php");
 require(INCLUDE_PATH . "/functions.php");
@@ -114,7 +118,7 @@ if (!isset($g_options['scripturl'])) {
 
 $game = '';
 if (isset($_GET["game"])) {
-    $game = valid_request((string)$_GET["game"], false);
+    $game = valid_game($_GET["game"]);
 }
 
 $realgame = ($game !== '') ? getRealGame($game) : '';
@@ -156,10 +160,9 @@ pageHeader();
 $safe_mode = basename($mode);
 
 if ( file_exists(PAGE_PATH . "/ingame/$safe_mode.php") )
-    @include(PAGE_PATH . "/ingame/$safe_mode.php");
+    include(PAGE_PATH . "/ingame/$safe_mode.php");
 else
     error('Unable to find ' . PAGE_PATH . "/ingame/$safe_mode.php");
 
 pageFooter();
-
 ?>

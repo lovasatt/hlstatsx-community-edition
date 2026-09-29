@@ -72,11 +72,12 @@ function printserverstats($server_id)
                 serverId='$server_id_esc'
       ";
     $result = $db->query($query);
-
-    // PHP 8 Fix: Replace list()
     $row = $db->fetch_row($result);
     $total_kills = ($row) ? $row[0] : 0;
     $total_headshots = ($row) ? $row[1] : 0;
+    if ($result) {
+        $db->free_result($result);
+    }
 
     $query= "
             SELECT
@@ -113,9 +114,12 @@ function printserverstats($server_id)
         ";
     $result = $db->query($query);
     $servers   = array();
-    $server_data = $db->fetch_array($result);
+    $server_data = ($result) ? $db->fetch_array($result) : null;
     if ($server_data) {
         $servers[] = $server_data;
+    }
+    if ($result) {
+        $db->free_result($result);
     }
 ?>
 
@@ -220,7 +224,7 @@ function printserverstats($server_id)
             $pldata = $db->query("
                                 SELECT
                                     player_id,
-                                    name,
+                                    unhex(replace(hex(name), 'E280AE', '')) AS name,
                                     kills,
                                     deaths,
                                     headshots,
@@ -240,11 +244,17 @@ function printserverstats($server_id)
                                 ORDER BY
                                     kills DESC
                 ");
-            while ($thisplayer = $db->fetch_array($pldata))
-            {
-                $playerdata[$teamno][] = $thisplayer;
+            if ($pldata) {
+                while ($thisplayer = $db->fetch_array($pldata))
+                {
+                    $playerdata[$teamno][] = $thisplayer;
+                }
+                $db->free_result($pldata);
             }
             $teamno++;
+        }
+        if ($statsdata) {
+            $db->free_result($statsdata);
         }
 
         $curteam = 0;
@@ -285,15 +295,15 @@ function printserverstats($server_id)
                 if (isset($thisplayer))
                 {
                     $p_name = isset($thisplayer['name']) ? (string)$thisplayer['name'] : '';
-                    if (strlen($p_name) > 50) {
-                        $p_name = substr($p_name, 0, 50);
+                    if (mb_strlen($p_name, 'UTF-8') > 50) {
+                        $p_name = mb_substr($p_name, 0, 50, 'UTF-8');
                     }
                     if (isset($g_options['countrydata']) && $g_options['countrydata'] == 1)
                     {
                         $country_name = isset($thisplayer['cli_country']) ? strtolower((string)$thisplayer['cli_country']) : 'unknown';
                         echo '<img src="'.getFlag($thisplayer['cli_flag']).'" alt="'.ucfirst($country_name).'" title="'.ucfirst($country_name).'" />&nbsp;';
                     }
-                    echo '<a style="color:'.$thisteam['playerlist_color'].'" href="'.htmlspecialchars((string)($g_options['scripturl'] ?? ''), ENT_QUOTES, 'UTF-8').'?mode='.$mode.'&amp;player='.(int)$thisplayer['player_id'].'">';
+                    echo '<a style="color:'.$thisteam['playerlist_color'].'" href="'.htmlspecialchars((string)($g_options['scripturl'] ?? 'hlstats.php'), ENT_QUOTES, 'UTF-8').'?mode='.$mode.'&amp;player='.(int)$thisplayer['player_id'].'">';
                     echo htmlspecialchars($p_name, ENT_QUOTES, 'UTF-8').'</a>';
                 }
                 else
@@ -389,7 +399,8 @@ function printserverstats($server_id)
                 {
                     if ($thisplayer['connected']>0)
                     {
-                        $stamp = time()-$thisplayer['connected'];
+                        // Prevent negative elapsed times due to minor server clock skew
+                        $stamp = max(0, time() - (int)$thisplayer['connected']);
                         $hours = sprintf('%02d', floor($stamp / 3600));
                         $min   = sprintf('%02d', floor(($stamp % 3600) / 60));
                         $sec   = sprintf('%02d', floor($stamp % 60));

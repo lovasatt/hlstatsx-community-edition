@@ -52,7 +52,7 @@ For support and installation notes visit http://www.hlxcommunity.com
     $mode = isset($mode) ? (string)$mode : '';
     $title = isset($title) && is_array($title) ? $title : array();
     $location = isset($location) && is_array($location) ? $location : array();
-    $scripturl = htmlspecialchars((string)($g_options['scripturl'] ?? ''), ENT_QUOTES, 'UTF-8');
+    $scripturl = htmlspecialchars((string)($g_options['scripturl'] ?? 'hlstats.php'), ENT_QUOTES, 'UTF-8');
     $game_url = urlencode($game);
 
     // hit counter
@@ -222,6 +222,9 @@ For support and installation notes visit http://www.hlxcommunity.com
         // PHP 8 Fix: Replace list()
         $row = $db->fetch_row($resultGames);
         $num_games = ($row) ? (int)$row[0] : 0;
+        if ($resultGames) {
+            $db->free_result($resultGames);
+        }
 
         if ($num_games > 1 && isset($g_options['display_gamelist']) && $g_options['display_gamelist'] == 1) {
 ?>
@@ -275,15 +278,19 @@ For support and installation notes visit http://www.hlxcommunity.com
             <form name="style_selection" id="style_selection" action="" method="post"> Style:
                 <select name="stylesheet" onchange="document.style_selection.submit()">
                 <?php
-                    $d = dir('styles');
                     $styles = array();
-                    while (false !== ($e = $d->read())) {
-                        if (is_file("styles/$e") && ($e != '.') && ($e != '..') && $e != ($g_options['style'] ?? '')) {
-                            $ename = ucwords(strtolower(str_replace(array('_','.css'), array(' ',''), $e)));
-                            $styles[$e] = $ename;
+                    if (is_dir('styles')) {
+                        $d = dir('styles');
+                        if ($d) {
+                            while (false !== ($e = $d->read())) {
+                                if (is_file("styles/$e") && ($e != '.') && ($e != '..') && $e != ($g_options['style'] ?? '')) {
+                                    $ename = ucwords(strtolower(str_replace(array('_','.css'), array(' ',''), $e)));
+                                    $styles[$e] = $ename;
+                                }
+                            }
+                            $d->close();
                         }
                     }
-                    $d->close();
                     asort($styles);
                     $styles = array_merge(array(($g_options['style'] ?? 'hlstats.css') => 'Default'),$styles);
                     foreach ($styles as $e => $ename) {
@@ -353,8 +360,12 @@ For support and installation notes visit http://www.hlxcommunity.com
 <?php
     // look for actions
     $game_esc = $db->escape($game);
-    $db->query("SELECT game FROM hlstats_Actions WHERE game='".$game_esc."' LIMIT 1");
-    if ($db->num_rows()>0) {
+    $res_act = $db->query("SELECT game FROM hlstats_Actions WHERE game='".$game_esc."' LIMIT 1");
+    $has_actions = ($res_act && $db->num_rows($res_act) > 0);
+    if ($res_act) {
+        $db->free_result($res_act);
+    }
+    if ($has_actions) {
 ?>
             <li><a href="<?php echo $scripturl . "?mode=actions&amp;game=$game_url"; ?>" class="fHeading">Actions</a></li>
 <?php
@@ -363,9 +374,12 @@ For support and installation notes visit http://www.hlxcommunity.com
             <li><a href="<?php echo $scripturl . "?mode=weapons&amp;game=$game_url"; ?>" class="fHeading">Weapons</a></li>
             <li><a href="<?php echo $scripturl . "?mode=maps&amp;game=$game_url"; ?>" class="fHeading">Maps</a></li>
 <?php
-    $result = $db->query("SELECT game from hlstats_Roles WHERE game='$game_esc' AND hidden = '0' LIMIT 1");
-    $numitems = $db->num_rows($result);
-    if ($numitems > 0) {
+    $res_roles = $db->query("SELECT game from hlstats_Roles WHERE game='$game_esc' AND hidden = '0' LIMIT 1");
+    $has_roles = ($res_roles && $db->num_rows($res_roles) > 0);
+    if ($res_roles) {
+        $db->free_result($res_roles);
+    }
+    if ($has_roles) {
 ?>
             <li><a href="<?php echo $scripturl . "?mode=roles&amp;game=$game_url"; ?>" class="fHeading">Roles</a></li>
 <?php

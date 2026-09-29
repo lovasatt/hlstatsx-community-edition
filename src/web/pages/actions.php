@@ -71,7 +71,7 @@ For support and installation notes visit http://www.hlxcommunity.com
     pageHeader
     (
         array ($gamename, 'Action Statistics'),
-        array ($gamename=>"%s?game=$game", 'Action Statistics'=>'')
+        array ($gamename => ($g_options['scripturl'] ?? 'hlstats.php') . "?game=" . urlencode($game), 'Action Statistics' => '')
     );
 
     $tblPlayerActions = new Table
@@ -146,11 +146,15 @@ For support and installation notes visit http://www.hlxcommunity.com
         From a total of <strong><?php echo number_format($totalactions); ?></strong> earned actions
     </div><br /><br />
     <?php
-        $tblPlayerActions->draw($result, $db->num_rows($result), 95);
+        $numitems = ($result) ? $db->num_rows($result) : 0;
+        $tblPlayerActions->draw($result, $numitems, 95);
+        if ($result) {
+            $db->free_result($result);
+        }
     ?><br /><br />
     <div class="subblock">
         <div style="float:right;">
-            Go to: <a href="<?php echo htmlspecialchars($g_options['scripturl'] ?? '', ENT_QUOTES, 'UTF-8'); ?>?game=<?php echo htmlspecialchars($game, ENT_QUOTES, 'UTF-8'); ?>"><?php echo htmlspecialchars($gamename, ENT_QUOTES, 'UTF-8'); ?></a>
+            Go to: <a href="<?php echo htmlspecialchars($g_options['scripturl'] ?? 'hlstats.php', ENT_QUOTES, 'UTF-8'); ?>?game=<?php echo urlencode($game); ?>"><?php echo htmlspecialchars($gamename, ENT_QUOTES, 'UTF-8'); ?></a>
         </div>
         <div style="clear:both;"></div>
     </div>

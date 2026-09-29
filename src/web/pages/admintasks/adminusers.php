@@ -65,12 +65,15 @@ For support and installation notes visit http://www.hlxcommunity.com
         while ($r = $db->fetch_array($res)) {
             $existing_users[] = strtolower(trim($r['uname']));
         }
+        if ($res) { $db->free_result($res); }
 
-        // 1. Prevent duplicate username when adding a NEW user
+        // 1. Validate username format (no spaces allowed) and prevent duplicates
         $new_username = trim((string)($_POST['new_username'] ?? ''));
         if ($new_username !== '') {
-            if (in_array(strtolower($new_username), $existing_users, true)) {
-                $validation_error = "Error: The username " . htmlspecialchars($new_username) . " already exists! Choose another name.";
+            if (!preg_match('/^[a-zA-Z0-9_\-]+$/', $new_username)) {
+                $validation_error = "Error: Username can only contain letters, numbers, hyphens, and underscores (no spaces)!";
+            } elseif (in_array(strtolower($new_username), $existing_users, true)) {
+                $validation_error = "Error: The username '$new_username' already exists! Choose another name.";
             }
         }
 
@@ -80,10 +83,13 @@ For support and installation notes visit http://www.hlxcommunity.com
                 // If this row is not deleted, check if its username was altered
                 if (empty($_POST[$row_user . '_delete'])) {
                     $edited_uname = trim((string)($_POST[$row_user . '_username'] ?? ''));
-                    // If the username field exists and was changed to another existing username
+                    // Validate format and ensure no duplicate on username change
                     if ($edited_uname !== '' && strtolower($edited_uname) !== strtolower($row_user)) {
-                        if (in_array(strtolower($edited_uname), $existing_users, true)) {
-                            $validation_error = "Error: Cannot rename '" . htmlspecialchars($row_user) . "' to '" . htmlspecialchars($edited_uname) . "' because that username is already taken!";
+                        if (!preg_match('/^[a-zA-Z0-9_\-]+$/', $edited_uname)) {
+                            $validation_error = "Error: Username can only contain letters, numbers, hyphens, and underscores (no spaces)!";
+                            break;
+                        } elseif (in_array(strtolower($edited_uname), $existing_users, true)) {
+                            $validation_error = "Error: Cannot rename '$row_user' to '$edited_uname' because that username is already taken!";
                             break;
                         }
                     }
@@ -125,6 +131,7 @@ For support and installation notes visit http://www.hlxcommunity.com
 
                 $active_admin_count++;
             }
+            if ($res) { $db->free_result($res); }
 
             // If a new user is being added with level >= 100
             if ($new_username !== '') {
@@ -174,6 +181,7 @@ For support and installation notes visit http://www.hlxcommunity.com
     ");
 
     $edlist->draw($result);
+    if ($result) { $db->free_result($result); }
 ?>
 
 <table width="75%" border="0" cellspacing="0" cellpadding="0" style="margin:15px auto;">

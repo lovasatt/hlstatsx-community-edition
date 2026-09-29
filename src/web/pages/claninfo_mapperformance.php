@@ -136,6 +136,7 @@ For support and installation notes visit http://www.hlxcommunity.com
             WHERE
                 hlstats_Players.clan = $clan
                 AND hlstats_Players.game = '$game_esc'
+                AND hlstats_Players.hideranking = 0
             GROUP BY
                 map;
     ");
@@ -154,6 +155,7 @@ For support and installation notes visit http://www.hlxcommunity.com
             WHERE
                 hlstats_Players.clan = $clan
                 AND hlstats_Players.game = '$game_esc'
+                AND hlstats_Players.hideranking = 0
             GROUP BY
                 map;
     ");
@@ -164,8 +166,8 @@ For support and installation notes visit http://www.hlxcommunity.com
             tmp_clan_kills.kills,
             tmp_clan_kills.headshots,
             IFNULL(tmp_clan_deaths.deaths, 0) AS deaths,
-            ROUND(tmp_clan_kills.kills / IF(IFNULL(tmp_clan_deaths.deaths, 0) = 0, 1, tmp_clan_deaths.deaths), 2) AS kpd,
-            ROUND(tmp_clan_kills.headshots / IF(tmp_clan_kills.kills = 0, 1, tmp_clan_kills.kills), 2) AS hpk,
+            IFNULL(ROUND(tmp_clan_kills.kills / NULLIF(tmp_clan_deaths.deaths, 0), 2), '-') AS kpd,
+            IFNULL(ROUND(tmp_clan_kills.headshots / NULLIF(tmp_clan_kills.kills, 0), 2), '-') AS hpk,
             ROUND(tmp_clan_kills.kills / $div_realkills * 100, 2) AS kpercent,
             ROUND(tmp_clan_kills.headshots / $div_realheadshots * 100, 2) AS hpercent
         FROM
@@ -178,16 +180,18 @@ For support and installation notes visit http://www.hlxcommunity.com
             $tblMaps->sort2 $tblMaps->sortorder
     ");
 
-    $numitems = $db->num_rows($result);
+    $numitems = ($result) ? $db->num_rows($result) : 0;
     if ($numitems > 0)
     {
-?>
-
-<?php
-    printSectionTitle('Map Performance *');
-    $tblMaps->draw($result, $numitems, 95);
+        printSectionTitle('Map Performance *');
+        $tblMaps->draw($result, $numitems, 95);
 ?>
 <br /><br />
 <?php
     }
+    if ($result) {
+        $db->free_result($result);
+    }
+    $db->query("DROP TEMPORARY TABLE IF EXISTS tmp_clan_kills");
+    $db->query("DROP TEMPORARY TABLE IF EXISTS tmp_clan_deaths");
 ?>

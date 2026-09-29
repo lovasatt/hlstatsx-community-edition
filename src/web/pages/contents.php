@@ -76,7 +76,7 @@ For support and installation notes visit http://www.hlxcommunity.com
     } else {
         unset($_SESSION['game']);
 
-        $scripturl = htmlspecialchars((string)($g_options['scripturl'] ?? ''), ENT_QUOTES, 'UTF-8');
+        $scripturl = htmlspecialchars((string)($g_options['scripturl'] ?? 'hlstats.php'), ENT_QUOTES, 'UTF-8');
         $deletedays = (int)($g_options['DeleteDays'] ?? 28);
         $rankingtype = (isset($g_options['rankingtype']) && $g_options['rankingtype'] === 'kills') ? 'kills' : 'skill';
 

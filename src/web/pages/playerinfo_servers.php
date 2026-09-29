@@ -140,11 +140,11 @@ For support and installation notes visit http://www.hlxcommunity.com
             hlstats_Servers.name AS server,
             SUM(hlstats_Events_Frags.killerId = $player) AS kills,
             SUM(hlstats_Events_Frags.victimId = $player) AS deaths,
-            IFNULL(ROUND(SUM(hlstats_Events_Frags.killerId = $player) / IF(SUM(hlstats_Events_Frags.victimId = $player) = 0, 1, SUM(hlstats_Events_Frags.victimId = $player)), 2), '-') AS kpd,
+            IFNULL(ROUND(SUM(hlstats_Events_Frags.killerId = $player) / NULLIF(SUM(hlstats_Events_Frags.victimId = $player), 0), 2), '-') AS kpd,
             ROUND(SUM(hlstats_Events_Frags.killerId = $player) / $div_realkills * 100, 2) AS kpercent,
             ROUND(SUM(hlstats_Events_Frags.victimId = $player) / $div_realdeaths * 100, 2) AS dpercent,
             SUM(hlstats_Events_Frags.killerId = $player AND hlstats_Events_Frags.headshot = 1) AS headshots,
-            IFNULL(ROUND(SUM(hlstats_Events_Frags.killerId = $player AND hlstats_Events_Frags.headshot = 1) / IF(SUM(hlstats_Events_Frags.killerId = $player) = 0, 1, SUM(hlstats_Events_Frags.killerId = $player)), 2), '-') AS hpk,
+            IFNULL(ROUND(SUM(hlstats_Events_Frags.killerId = $player AND hlstats_Events_Frags.headshot = 1) / NULLIF(SUM(hlstats_Events_Frags.killerId = $player), 0), 2), '-') AS hpk,
             ROUND(SUM(hlstats_Events_Frags.killerId = $player AND hlstats_Events_Frags.headshot = 1) / $div_realheadshots * 100, 2) AS hpercent
         FROM
             hlstats_Events_Frags
@@ -159,12 +159,13 @@ For support and installation notes visit http://www.hlxcommunity.com
                 OR hlstats_Events_Frags.victimId = $player
             )
         GROUP BY
+            hlstats_Servers.serverId,
             hlstats_Servers.name
         ORDER BY
             $tblServers->sort $tblServers->sortorder,
             $tblServers->sort2 $tblServers->sortorder
     ");
-    $numitems = $db->num_rows($result);
+    $numitems = ($result) ? $db->num_rows($result) : 0;
     if ($numitems > 0)
     {
         printSectionTitle('Server Activity *');
@@ -172,5 +173,8 @@ For support and installation notes visit http://www.hlxcommunity.com
 ?>
     <br /><br />
 <?php
+    }
+    if ($result) {
+        $db->free_result($result);
     }
 ?>

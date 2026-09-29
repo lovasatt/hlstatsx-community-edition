@@ -98,6 +98,9 @@ For support and installation notes visit http://www.hlxcommunity.com
     ");
 
     $edlist->draw($result);
+    if ($result) {
+        $db->free_result($result);
+    }
 ?>
 
 <table width="75%" border="0" cellspacing="0" cellpadding="0" style="margin:15px auto;">

@@ -42,6 +42,12 @@ For support and installation notes visit http://www.hlxcommunity.com
     $player = (int)$player;
     $game = isset($game) ? (string)$game : '';
     $game_esc = $db->escape($game);
+
+    // PHP 8.2+ compatibility: initialize optional statistics if not defined in parent scope
+    $realheadshots = isset($realheadshots) ? (int)$realheadshots : 0;
+    $realkills     = isset($realkills) ? (int)$realkills : 0;
+    $realdeaths    = isset($realdeaths) ? (int)$realdeaths : 0;
+    $realteamkills = isset($realteamkills) ? (int)$realteamkills : 0;
 ?>
 
     <?php printSectionTitle('Player Information'); ?>
@@ -76,6 +82,7 @@ For support and installation notes visit http://www.hlxcommunity.com
                             $row = $db->fetch_row();
                             $uqid = ($row) ? trim((string)$row[0]) : '';
                             $coid = ($row) ? trim((string)$row[1]) : '';
+                            $db->free_result();
 
                             $status = 'Unknown';
                             $avatar_full = IMAGE_PATH . "/unknown.jpg";
@@ -111,9 +118,12 @@ For support and installation notes visit http://www.hlxcommunity.com
                                             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
                                         ");
                                     }
+                                    if ($chk) {
+                                        $db->free_result($chk);
+                                    }
                                     // opttype = 2: internal system option loaded by getOptions() into $g_options
-                                    $db->query("INSERT INTO `hlstats_Options` (`keyname`, `value`, `opttype`) 
-                                                VALUES ('steamcache_installed', '1', 2) 
+                                    $db->query("INSERT INTO `hlstats_Options` (`keyname`, `value`, `opttype`)
+                                                VALUES ('steamcache_installed', '1', 2)
                                                 ON DUPLICATE KEY UPDATE `value` = '1'");
                                     $g_options['steamcache_installed'] = '1';
                                 }
@@ -132,6 +142,7 @@ For support and installation notes visit http://www.hlxcommunity.com
                                         $p_cached = true;
                                     }
                                 }
+                                if ($res) { $db->free_result($res); }
 
                                 // Ignore search engine indexers and crawlers
                                 $ua = $_SERVER['HTTP_USER_AGENT'] ?? '';
@@ -143,12 +154,13 @@ For support and installation notes visit http://www.hlxcommunity.com
                                 if ($c_res && ($c_row = $db->fetch_row($c_res))) {
                                     $cooldown_until = (int)$c_row[0];
                                 }
+                                if ($c_res) { $db->free_result($c_res); }
                                 $is_valve_available = ($now >= $cooldown_until);
 
                                 if (!$p_cached && !$is_bot && $is_valve_available) {
                                     // Outbound HTTPS request with strict TLS certificate verification
                                     $curl = curl_init();
-                                    curl_setopt_array($curl, [
+                                    $curl_opts = [
                                         CURLOPT_URL => "https://steamcommunity.com/profiles/" . $coid . "?xml=1",
                                         CURLOPT_RETURNTRANSFER => true,
                                         CURLOPT_ENCODING => "",
@@ -156,10 +168,18 @@ For support and installation notes visit http://www.hlxcommunity.com
                                         CURLOPT_CONNECTTIMEOUT => 2,
                                         CURLOPT_TIMEOUT => 3,
                                         CURLOPT_FOLLOWLOCATION => false,
-                                        CURLOPT_PROTOCOLS => CURLPROTO_HTTPS,
                                         CURLOPT_SSL_VERIFYPEER => true,
                                         CURLOPT_SSL_VERIFYHOST => 2
-                                    ]);
+                                    ];
+
+                                    // PHP 8.2+ compatibility: use string protocols to avoid deprecation notices
+                                    if (defined('CURLOPT_PROTOCOLS_STR')) {
+                                        $curl_opts[CURLOPT_PROTOCOLS_STR] = 'https';
+                                    } else {
+                                        $curl_opts[CURLOPT_PROTOCOLS] = CURLPROTO_HTTPS;
+                                    }
+
+                                    curl_setopt_array($curl, $curl_opts);
 
                                     $xml = curl_exec($curl);
                                     $http_code = (int)curl_getinfo($curl, CURLINFO_HTTP_CODE);
@@ -353,6 +373,7 @@ For support and installation notes visit http://www.hlxcommunity.com
                             ");
                             $row = $db->fetch_row();
                             $firstevent = ($row) ? $row[0] : null;
+                            $db->free_result();
 
                             if ($firstevent)
                                 echo htmlspecialchars((string)$firstevent, ENT_QUOTES, 'UTF-8');
@@ -381,6 +402,7 @@ For support and installation notes visit http://www.hlxcommunity.com
                             // PHP 8 Fix: Replace list()
                             $row = $db->fetch_row();
                             $lastevent = ($row) ? $row[0] : null;
+                            $db->free_result();
 
                             if ($lastevent)
                                 echo htmlspecialchars((string)$lastevent, ENT_QUOTES, 'UTF-8');
@@ -413,6 +435,7 @@ For support and installation notes visit http://www.hlxcommunity.com
                             $row = $db->fetch_row();
                             $av_ping = ($row && $row[0] !== null) ? (int)$row[0] : null;
                             $av_latency = ($row && $row[1] !== null) ? (int)$row[1] : null;
+                            $db->free_result();
 
                             if ($av_ping !== null)
                                 echo htmlspecialchars((string)$av_ping, ENT_QUOTES, 'UTF-8')." ms (Latency: " . htmlspecialchars((string)$av_latency, ENT_QUOTES, 'UTF-8') . " ms)";
@@ -450,6 +473,7 @@ For support and installation notes visit http://www.hlxcommunity.com
 
                             // PHP 8 Fix: Replace list()
                             $row = $db->fetch_row();
+                            $db->free_result();
                             if ($row) {
                                 $favServerId = (int)$row[0];
                                 $favServerName = htmlspecialchars((string)$row[1], ENT_QUOTES, 'UTF-8');
@@ -483,6 +507,7 @@ For support and installation notes visit http://www.hlxcommunity.com
                             // PHP 8 Fix: Replace list()
                             $row = $db->fetch_row();
                             $favMap = ($row) ? htmlspecialchars((string)$row[0], ENT_QUOTES, 'UTF-8') : null;
+                            $db->free_result();
                             if ($favMap)
                                 echo "<a href=\"hlstats.php?game=" . htmlspecialchars($game, ENT_QUOTES, 'UTF-8') . "&amp;mode=mapinfo&amp;map=$favMap\"> $favMap </a>";
                             else
@@ -525,6 +550,7 @@ For support and installation notes visit http://www.hlxcommunity.com
                             $fav_weapon = !empty($rowdata[0]) ? (string)$rowdata[0] : 'Unknown';
                             $weap_name = !empty($rowdata[1]) ? (string)$rowdata[1] : $fav_weapon;
                         }
+                        if ($result) { $db->free_result($result); }
 
                         $image = getImage("/games/$game/weapons/$fav_weapon");
                         $weapon_url = "hlstats.php?mode=weaponinfo&amp;weapon=" . urlencode($fav_weapon) . "&amp;game=" . htmlspecialchars($game, ENT_QUOTES, 'UTF-8');
@@ -620,7 +646,7 @@ For support and installation notes visit http://www.hlxcommunity.com
                             $db->query
                             ("
                                 SELECT
-                                    IFNULL(ROUND(SUM(hlstats_Events_Frags.killerId = '$player') / IF(SUM(hlstats_Events_Frags.victimId = '$player') = 0, 1, SUM(hlstats_Events_Frags.victimId = '$player')), 2), '-')
+                                    IFNULL(ROUND(SUM(hlstats_Events_Frags.killerId = '$player') / NULLIF(SUM(hlstats_Events_Frags.victimId = '$player'), 0), 2), '-')
                                 FROM
                                     hlstats_Events_Frags
                                 WHERE
@@ -632,6 +658,7 @@ For support and installation notes visit http://www.hlxcommunity.com
                             // PHP 8 Fix: Replace list()
                             $row = $db->fetch_row();
                             $realkpd = ($row) ? $row[0] : '-';
+                            $db->free_result();
                             echo htmlspecialchars((string)$playerdata['kpd'], ENT_QUOTES, 'UTF-8');
                             echo " (" . htmlspecialchars((string)$realkpd, ENT_QUOTES, 'UTF-8') . "*)";
                         ?>
@@ -644,7 +671,7 @@ For support and installation notes visit http://www.hlxcommunity.com
                             $db->query
                             ("
                                 SELECT
-                                    IFNULL(SUM(hlstats_Events_Frags.headshot=1) / COUNT(*), '-')
+                                    IFNULL(ROUND(SUM(hlstats_Events_Frags.headshot = 1) / NULLIF(COUNT(*), 0), 2), '-')
                                 FROM
                                     hlstats_Events_Frags
                                 WHERE
@@ -653,6 +680,7 @@ For support and installation notes visit http://www.hlxcommunity.com
                             // PHP 8 Fix: Replace list()
                             $row = $db->fetch_row();
                             $realhpk = ($row) ? $row[0] : '-';
+                            $db->free_result();
                             echo htmlspecialchars((string)$playerdata['hpk'], ENT_QUOTES, 'UTF-8');
                             echo " (" . htmlspecialchars((string)$realhpk, ENT_QUOTES, 'UTF-8') . "*)";
                         ?>
@@ -680,6 +708,7 @@ For support and installation notes visit http://www.hlxcommunity.com
                             $sm_shots = ($row) ? $row[1] : 0;
                             $sm_hits = ($row) ? $row[2] : 0;
                             $sm_kills = ($row) ? $row[3] : 0;
+                            $db->free_result();
 
                             if ($sm_kills > 0)
                             {
@@ -748,6 +777,7 @@ For support and installation notes visit http://www.hlxcommunity.com
                             // PHP 8 Fix: Replace list()
                             $row = $db->fetch_row();
                             $kill_streak = ($row) ? (int)$row[0] : 0;
+                            $db->free_result();
                             echo number_format($kill_streak);
                         ?>
                     </td>
@@ -768,6 +798,7 @@ For support and installation notes visit http://www.hlxcommunity.com
                             // PHP 8 Fix: Replace list()
                             $row = $db->fetch_row();
                             $death_streak = ($row) ? (int)$row[0] : 0;
+                            $db->free_result();
                             echo number_format($death_streak);
                         ?>
                     </td>
@@ -929,6 +960,7 @@ For support and installation notes visit http://www.hlxcommunity.com
     $rankImageUrl = (is_array($rankimage) && !empty($rankimage['url'])) ? $rankimage['url'] : (IMAGE_PATH . '/award.png');
     $rankName = (string)($result['rankName'] ?? '');
     $rankCurMinKills = (int)($result['minKills'] ?? 0);
+    $db->free_result();
     $db->query
     ("
         SELECT
@@ -948,6 +980,7 @@ For support and installation notes visit http://www.hlxcommunity.com
     {
         $rankKillsNeeded = 0;
         $rankPercent = 0;
+        $db->free_result();
     }
     else
     {
@@ -955,6 +988,7 @@ For support and installation notes visit http://www.hlxcommunity.com
         $rankKillsNeeded = (int)$result['minKills'] - (int)$playerdata['kills'];
         $denom = (int)$result['minKills'] - $rankCurMinKills;
         $rankPercent = ($denom > 0) ? (((int)$playerdata['kills'] - $rankCurMinKills) * 100 / $denom) : 0;
+        $db->free_result();
     }
     $db->query
     ("
@@ -980,6 +1014,7 @@ For support and installation notes visit http://www.hlxcommunity.com
         $histurl = is_array($histimage) ? ($histimage['url'] ?? '') : '';
         $rankHistory .= '<img src="' . htmlspecialchars((string)$histurl, ENT_QUOTES, 'UTF-8') . '" title="' . htmlspecialchars((string)($result['rankName'] ?? ''), ENT_QUOTES, 'UTF-8') . '" alt="' . htmlspecialchars((string)($result['rankName'] ?? ''), ENT_QUOTES, 'UTF-8') . '" /> ';
     }
+    $db->free_result();
 ?>
 
     <div style="clear:both;padding-top:24px;"></div>
@@ -1094,6 +1129,8 @@ For support and installation notes visit http://www.hlxcommunity.com
             $awards_done[$ribbonCode]=$ribbonCode;
         }
     }
+    if ($res) { $db->free_result($res); }
+
     $awards = array ();
     $res_gawards = $db->query
     ("
@@ -1120,6 +1157,7 @@ For support and installation notes visit http://www.hlxcommunity.com
 
         array_push($awards, $tmp_arr);
     }
+    if ($res_gawards) { $db->free_result($res_gawards); }
 
     $GlobalAwardsList = '';
     foreach ($awards as $a)

@@ -42,8 +42,8 @@ For support and installation notes visit http://www.hlxcommunity.com
 
     global $db, $auth, $task;
 
-    // PHP 8 Fix: Null coalescing check
-    if (($auth->userdata['acclevel'] ?? 0) < 80) {
+    // Only full administrators (Level 100) are permitted to reset database collations
+    if (($auth->userdata['acclevel'] ?? 0) < 100) {
         die ('Access denied!');
     }
 ?>
@@ -98,7 +98,9 @@ For support and installation notes visit http://www.hlxcommunity.com
                     $type = $row['Type'];
                     echo "ALTER TABLE `$table` CHANGE `$field` `$field` $type CHARACTER SET $character_set COLLATE $convert_to $nullable $default;<br />";
                 }
+            if ($rs) { $db->free_result($rs); }
             }
+            if ($rs_tables) { $db->free_result($rs_tables); }
         } else {
             echo "Converting database, table, and row collations to {$character_set}:<ul>\n";
             @set_time_limit(0);
@@ -148,7 +150,9 @@ For support and installation notes visit http://www.hlxcommunity.com
                     $db->query("ALTER TABLE `$table` CHANGE `$field` `$field` $type CHARACTER SET $character_set COLLATE $convert_to $nullable $default;");
                     echo "OK</li>\n";
                 }
+            if ($rs) { $db->free_result($rs); }
             }
+            if ($rs_tables) { $db->free_result($rs_tables); }
             echo "</ul>\n";
 
             echo "Done.<br /><br />";

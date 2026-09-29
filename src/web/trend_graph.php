@@ -64,7 +64,7 @@
     $bg_color = array('red' => 90, 'green' => 90, 'blue' => 90);
     if (!empty($_GET['bgcolor']) && is_string($_GET['bgcolor'])) {
         $clean_bg = trim($_GET['bgcolor']);
-        if (preg_match('/^[a-fA-F0-9]{3,6}$/', $clean_bg)) {
+        if (preg_match('/^(?:[a-fA-F0-9]{3}|[a-fA-F0-9]{6})$/', $clean_bg)) {
             $parsed_bg = hex2rgb($clean_bg);
             if (is_array($parsed_bg) && isset($parsed_bg['red'])) {
                 $bg_color = $parsed_bg;
@@ -75,7 +75,7 @@
     $color = array('red' => 213, 'green' => 217, 'blue' => 221);
     if (!empty($_GET['color']) && is_string($_GET['color'])) {
         $clean_color = trim($_GET['color']);
-        if (preg_match('/^[a-fA-F0-9]{3,6}$/', $clean_color)) {
+        if (preg_match('/^(?:[a-fA-F0-9]{3}|[a-fA-F0-9]{6})$/', $clean_color)) {
             $parsed_color = hex2rgb($clean_color);
             if (is_array($parsed_color) && isset($parsed_color['red'])) {
                 $color = $parsed_color;
@@ -120,7 +120,8 @@
 	    array_unshift($date, '');
 	}
     }
-    
+    if ($res) { $db->free_result($res); }
+
     $update_interval = defined('IMAGE_UPDATE_INTERVAL') ? IMAGE_UPDATE_INTERVAL : 3600;
 
     $cache_dir = IMAGE_PATH . "/progress";
@@ -128,7 +129,8 @@
         @mkdir($cache_dir, 0755, true);
     }
 
-    $cache_image = IMAGE_PATH . "/progress/trend_{$player}_{$last_time}.png";
+    $style_key = substr(md5(json_encode(array($bg_color, $color))), 0, 8);
+    $cache_image = IMAGE_PATH . "/progress/trend_{$player}_{$last_time}_{$style_key}.png";
 
     if (file_exists($cache_image))
     {
@@ -138,6 +140,7 @@
                 ob_clean();
             }
             header('Content-type: image/png');
+            header('X-Content-Type-Options: nosniff');
             header('Cache-Control: public, max-age=' . $update_interval);
             readfile($cache_image);
             exit();
@@ -212,16 +215,43 @@
 	$Chart->drawHorizontalLegend(235, -1, $DataSet->GetDataDescription(),
 	    0, 0, 0, 0, 0, 0, $color['red'], $color['green'], $color['blue'], FALSE);
     }
-    
-    $Chart->Render($cache_image);
+
+    if (!is_writable($cache_dir)) {
+        // Cannot cache: stream the image directly
+        error_log('HLstatsX trend_graph: cache directory is not writable: ' . $cache_dir);
+        if (ob_get_length()) {
+            ob_clean();
+        }
+        header('Content-type: image/png');
+        header('X-Content-Type-Options: nosniff');
+        $Chart->Render('');
+        exit();
+    }
+
+    // Render to a temp file and rename, so parallel requests never read a half-written PNG
+    $tmp_image = $cache_image . '.' . getmypid() . '.tmp';
+    $Chart->Render($tmp_image);
+    if (file_exists($tmp_image)) {
+        rename($tmp_image, $cache_image);
+    }
+
+    // Remove outdated images of this player, otherwise the progress directory grows forever
+    $old_files = glob(IMAGE_PATH . "/progress/trend_{$player}_*.png");
+    if (is_array($old_files)) {
+        foreach ($old_files as $old_file) {
+            if ($old_file !== $cache_image) {
+                @unlink($old_file);
+            }
+        }
+    }
 
     if (ob_get_length()) {
         ob_clean();
     }
 
     header('Content-type: image/png');
+    header('X-Content-Type-Options: nosniff');
     header('Cache-Control: public, max-age=' . $update_interval);
     readfile($cache_image);
     exit();
-
 ?>

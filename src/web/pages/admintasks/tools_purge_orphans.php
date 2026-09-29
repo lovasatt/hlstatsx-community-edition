@@ -48,6 +48,9 @@ if (isset($_POST['confirm']))
     while ($row = $db->fetch_row($result_players)) {
         if (isset($row[0])) $active_players[(string)$row[0]] = true;
     }
+    if ($result_games) { $db->free_result($result_games); }
+    if ($result_servers) { $db->free_result($result_servers); }
+    if ($result_players) { $db->free_result($result_players); }
 
     // 2. DATABASE PURGE
     echo "<li>Cleaning Table: hlstats_Trend ... ";
@@ -95,6 +98,7 @@ if (isset($_POST['confirm']))
     } else {
         echo "Skipped (Table does not exist)</li>\n";
     }
+    if ($chk_tbl) { $db->free_result($chk_tbl); }
 
     // 3. FILESYSTEM PURGE (Stream-based with Path Fallback)
     echo "<li>Streaming progress folder for cleanup ... ";

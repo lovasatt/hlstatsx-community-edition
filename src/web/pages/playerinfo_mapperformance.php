@@ -149,11 +149,11 @@ For support and installation notes visit http://www.hlxcommunity.com
             IF(hlstats_Events_Frags.map='', '(Unaccounted)', hlstats_Events_Frags.map) AS map,
             SUM(hlstats_Events_Frags.killerId = $player) AS kills,
             SUM(hlstats_Events_Frags.victimId = $player) AS deaths,
-            IFNULL(ROUND(SUM(hlstats_Events_Frags.killerId = $player) / IF(SUM(hlstats_Events_Frags.victimId = $player) = 0, 1, SUM(hlstats_Events_Frags.victimId = $player)), 2), '-') AS kpd,
+            IFNULL(ROUND(SUM(hlstats_Events_Frags.killerId = $player) / NULLIF(SUM(hlstats_Events_Frags.victimId = $player), 0), 2), '-') AS kpd,
             ROUND(SUM(hlstats_Events_Frags.killerId = $player) / $div_realkills * 100, 2) AS kpercent,
             ROUND(SUM(hlstats_Events_Frags.victimId = $player) / $div_realdeaths * 100, 2) AS dpercent,
             SUM(hlstats_Events_Frags.killerId = $player AND hlstats_Events_Frags.headshot = 1) AS headshots,
-            IFNULL(ROUND(SUM(hlstats_Events_Frags.killerId = $player AND hlstats_Events_Frags.headshot = 1) / IF(SUM(hlstats_Events_Frags.killerId = $player) = 0, 1, SUM(hlstats_Events_Frags.killerId = $player)), 2), '-') AS hpk,
+            IFNULL(ROUND(SUM(hlstats_Events_Frags.killerId = $player AND hlstats_Events_Frags.headshot = 1) / NULLIF(SUM(hlstats_Events_Frags.killerId = $player), 0), 2), '-') AS hpk,
             ROUND(SUM(hlstats_Events_Frags.killerId = $player AND hlstats_Events_Frags.headshot = 1) / $div_realheadshots * 100, 2) AS hpercent
         FROM
             hlstats_Events_Frags
@@ -166,17 +166,16 @@ For support and installation notes visit http://www.hlxcommunity.com
             $tblMaps->sort $tblMaps->sortorder,
             $tblMaps->sort2 $tblMaps->sortorder
     ");
-    $numitems = $db->num_rows($result);
+    $numitems = ($result) ? $db->num_rows($result) : 0;
     if ($numitems > 0)
     {
-?>
-
-<?php
         printSectionTitle('Map Performance *');
         $tblMaps->draw($result, $numitems, 95);
 ?>
 <br /><br />
-
 <?php
+    }
+    if ($result) {
+        $db->free_result($result);
     }
 ?>

@@ -112,6 +112,11 @@ For support and installation notes visit http://www.hlxcommunity.com
 
     $colwidth = round(100 / $cols);
 
+    if (!$res_ranks || $db->num_rows($res_ranks) == 0)
+    {
+        echo '<tr class="bg1"><td colspan="' . $cols . '" class="fSmall" style="text-align:center;padding:15px;">No rank tiers configured for this game yet.</td></tr>';
+    }
+
     while ($r = $db->fetch_array($res_ranks))
     {
         if ($i == $cols)

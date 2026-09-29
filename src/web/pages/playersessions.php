@@ -48,7 +48,7 @@ For support and installation notes visit http://www.hlxcommunity.com
   }
     $db->query("
         SELECT
-            hlstats_Players.lastName,
+            unhex(replace(hex(hlstats_Players.lastName), 'E280AE', '')) AS lastName,
             hlstats_Players.game
         FROM
             hlstats_Players
@@ -91,11 +91,14 @@ For support and installation notes visit http://www.hlxcommunity.com
 
     if ($db->num_rows() != 1) {
         $gamename = ucfirst($game);
+        $db->free_result();
     } else {
         $row = $db->fetch_row();
         $gamename = ($row) ? (string)$row[0] : ucfirst($game);
         $db->free_result();
     }
+
+    $scripturl = htmlspecialchars((string)($g_options['scripturl'] ?? 'hlstats.php'), ENT_QUOTES, 'UTF-8');
 
     pageHeader
     (
@@ -207,8 +210,8 @@ For support and installation notes visit http://www.hlxcommunity.com
             hlstats_Players_History.headshots,
             hlstats_Players_History.suicides,
             hlstats_Players_History.connection_time,
-            ROUND(hlstats_Players_History.kills/(IF(hlstats_Players_History.deaths = 0, 1, hlstats_Players_History.deaths)), 2) AS kpd,
-            ROUND(hlstats_Players_History.headshots/(IF(hlstats_Players_History.kills = 0, 1, hlstats_Players_History.kills)), 2) AS hpk,
+            IFNULL(ROUND(hlstats_Players_History.kills / NULLIF(hlstats_Players_History.deaths, 0), 2), '-') AS kpd,
+            IFNULL(ROUND(hlstats_Players_History.headshots / NULLIF(hlstats_Players_History.kills, 0), 2), '-') AS hpk,
             hlstats_Players_History.teamkills,
             hlstats_Players_History.kill_streak,
             hlstats_Players_History.death_streak,
@@ -246,6 +249,9 @@ For support and installation notes visit http://www.hlxcommunity.com
     if ($numitems > 0)
     {
         $table->draw($result, $numitems, 95);
+    }
+    if ($result) {
+        $db->free_result($result);
     }
 ?><br /><br />
     <div class="subblock">

@@ -85,6 +85,9 @@ calculated.) The baseline points modifier for weapons is 1.00. A points modifier
     ");
 
     $edlist->draw($result);
+    if ($result) {
+        $db->free_result($result);
+    }
 ?>
 
 <table width="75%" border="0" cellspacing="0" cellpadding="0" style="margin:15px auto;">

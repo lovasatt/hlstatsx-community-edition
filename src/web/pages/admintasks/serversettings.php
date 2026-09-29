@@ -47,13 +47,15 @@ For support and installation notes visit http://www.hlxcommunity.com
         die ('Access denied!');
     }
 
-    function setdefaults($key)
-    {
-        global $db;
-        $key = (int)$key;
-        $db->query("DELETE FROM `hlstats_Servers_Config` WHERE `serverId` = $key");
-        $db->query("INSERT INTO `hlstats_Servers_Config` (`serverId`, `parameter`, `value`)
-                    SELECT $key, `parameter`, `value` FROM `hlstats_Servers_Config_Default`");
+    if (!function_exists('setdefaults')) {
+        function setdefaults($key)
+        {
+            global $db;
+            $key = (int)$key;
+            $db->query("DELETE FROM `hlstats_Servers_Config` WHERE `serverId` = $key");
+            $db->query("INSERT INTO `hlstats_Servers_Config` (`serverId`, `parameter`, `value`)
+                        SELECT $key, `parameter`, `value` FROM `hlstats_Servers_Config_Default`");
+        }
     }
 
     // PHP 8 Fix: Simplified input handling
@@ -122,6 +124,7 @@ For support and installation notes visit http://www.hlxcommunity.com
     while ($r = $db->fetch_array($res_help)) {
         $helptexts[strtolower((string)$r['parameter'])] = $r['description'];
     }
+    if ($res_help) { $db->free_result($res_help); }
 
     $footerscript = $edlist->setHelp('helpdiv', 'parameter', $helptexts);
 ?>
@@ -143,6 +146,9 @@ These are the actual server parameters used by the hlstats.pl script.<br /><br /
     ");
 
     if ($db->num_rows($result) == 0) {
+        if ($result) {
+            $db->free_result($result);
+        }
         setdefaults($key);
         $result = $db->query("
             SELECT
@@ -159,6 +165,7 @@ These are the actual server parameters used by the hlstats.pl script.<br /><br /
     }
 
     $edlist->draw($result, false);
+    if ($result) { $db->free_result($result); }
 
     // Get all other server IDs for copying configuration
     $sourceIds = '';
@@ -166,7 +173,7 @@ These are the actual server parameters used by the hlstats.pl script.<br /><br /
     while ($r = $db->fetch_array($res_srv)) {
         $sourceIds .= '<option value="' . (int)$r['serverId'] . '">' . htmlspecialchars((string)$r['name'], ENT_QUOTES, 'UTF-8') . '</option>';
     }
-
+    if ($res_srv) { $db->free_result($res_srv); }
 ?>
 
 <input type="hidden" name="key" value="<?php echo (int)$key; ?>" />

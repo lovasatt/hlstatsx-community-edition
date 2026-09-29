@@ -65,15 +65,16 @@ For support and installation notes visit http://www.hlxcommunity.com
 	    code='$action_esc'
 	    AND game='$game_esc'
     ");
-    
+
     if ($db->num_rows() != 1) {
-	$act_name = ucfirst($action);
+        $act_name = ucfirst($action);
+        $db->free_result();
     } else {
-	$actiondata = $db->fetch_array();
-	$db->free_result();
-	$act_name = $actiondata['description'];
+        $actiondata = $db->fetch_array();
+        $db->free_result();
+        $act_name = (string)($actiondata['description'] ?? ucfirst($action));
     }
-    
+
     $db->query("SELECT name FROM hlstats_Games WHERE code='$game_esc'");
     if ($db->num_rows() != 1) {
 	error('Invalid or no game specified.');
@@ -81,6 +82,7 @@ For support and installation notes visit http://www.hlxcommunity.com
         // PHP 8 Fix: Replace list()
         $row = $db->fetch_row();
 	$gamename = ($row) ? $row[0] : '';
+        $db->free_result();
     }
 
     $table = new Table(
@@ -107,27 +109,29 @@ For support and installation notes visit http://www.hlxcommunity.com
 	true,
 	50
     );
-    
+
     // Optimization: Check counts first to decide which query to run
     // This avoids running a heavy SELECT if we need to switch tables
     $resultCount = $db->query("
-	SELECT
-	    COUNT(DISTINCT hlstats_Events_PlayerActions.playerId),
-	    COUNT(hlstats_Events_PlayerActions.Id)
-	FROM
-	    hlstats_Events_PlayerActions, hlstats_Players, hlstats_Actions
-	WHERE
-	    hlstats_Actions.code = '$action_esc' AND
-	    hlstats_Players.game = '$game_esc' AND
-	    hlstats_Players.playerId = hlstats_Events_PlayerActions.playerId AND
-	    hlstats_Events_PlayerActions.actionId = hlstats_Actions.id
+        SELECT
+            COUNT(DISTINCT hlstats_Events_PlayerActions.playerId),
+            COUNT(hlstats_Events_PlayerActions.Id)
+        FROM
+            hlstats_Events_PlayerActions, hlstats_Players, hlstats_Actions
+        WHERE
+            hlstats_Actions.code = '$action_esc' AND
+            hlstats_Players.game = '$game_esc' AND
+            hlstats_Players.playerId = hlstats_Events_PlayerActions.playerId AND
+            hlstats_Events_PlayerActions.actionId = hlstats_Actions.id AND
+            hlstats_Players.hideranking<>'1'
     ");
-    
+
     // PHP 8 Fix: Replace list()
     $row = $db->fetch_row($resultCount);
     $numitems = ($row) ? (int)$row[0] : 0;
     $totalact = ($row) ? (int)$row[1] : 0;
-    
+    if ($resultCount) { $db->free_result($resultCount); }
+
     // Header must be printed before content
     pageHeader(
 	array($gamename, 'Action Details', htmlspecialchars((string)$act_name, ENT_QUOTES, 'UTF-8')),
@@ -144,7 +148,7 @@ For support and installation notes visit http://www.hlxcommunity.com
 	$result = $db->query("
 	    SELECT
 		hlstats_Events_PlayerActions.playerId,
-		hlstats_Players.lastName AS playerName,
+		unhex(replace(hex(hlstats_Players.lastName), 'E280AE', '')) AS playerName,
 		hlstats_Players.flag as flag,
 		COUNT(hlstats_Events_PlayerActions.id) AS obj_count,
 		COUNT(hlstats_Events_PlayerActions.id) * hlstats_Actions.reward_player AS obj_bonus
@@ -176,16 +180,18 @@ For support and installation notes visit http://www.hlxcommunity.com
                 hlstats_Actions.code = '$action_esc' AND
                 hlstats_Players.game = '$game_esc' AND
                 hlstats_Players.playerId = hlstats_Events_TeamBonuses.playerId AND
-                hlstats_Events_TeamBonuses.actionId = hlstats_Actions.id
+                hlstats_Events_TeamBonuses.actionId = hlstats_Actions.id AND
+                hlstats_Players.hideranking<>'1'
         ");
-        
+
         $row = $db->fetch_row($resultCount);
         $numitems = ($row) ? (int)$row[0] : 0;
+        if ($resultCount) { $db->free_result($resultCount); }
         
         $result = $db->query("
             SELECT
                 hlstats_Events_TeamBonuses.playerId,
-                hlstats_Players.lastName AS playerName,
+                unhex(replace(hex(hlstats_Players.lastName), 'E280AE', '')) AS playerName,
                 hlstats_Players.flag as flag,
                 COUNT(hlstats_Events_TeamBonuses.id) AS obj_count,
                 COUNT(hlstats_Events_TeamBonuses.id) * hlstats_Actions.reward_player AS obj_bonus
@@ -205,7 +211,10 @@ For support and installation notes visit http://www.hlxcommunity.com
                 $table->sort2 $table->sortorder
             LIMIT $table->startitem,$table->numperpage
         ");
-    }    
-    
+    }
+
     $table->draw($result, $numitems, 100, 'center');
+    if ($result) {
+        $db->free_result($result);
+    }
 ?>

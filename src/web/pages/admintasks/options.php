@@ -105,7 +105,7 @@ For support and installation notes visit http://www.hlxcommunity.com
                 $opt_name_esc = $db->escape($opt->name);
                 $opt_val_esc = $db->escape($optval);
 
-                $result = $db->query("
+                $res_check = $db->query("
                     SELECT
                         value
                     FROM
@@ -114,9 +114,14 @@ For support and installation notes visit http://www.hlxcommunity.com
                         keyname='$opt_name_esc'
                 ");
 
-                if ($db->num_rows($result) == 1)
+                $exists = ($res_check && $db->num_rows($res_check) == 1);
+                if ($res_check) {
+                    $db->free_result($res_check);
+                }
+
+                if ($exists)
                 {
-                    $result = $db->query("
+                    $db->query("
                         UPDATE
                             hlstats_Options
                         SET
@@ -127,7 +132,7 @@ For support and installation notes visit http://www.hlxcommunity.com
                 }
                 else
                 {
-                    $result = $db->query("
+                    $db->query("
                         INSERT INTO
                             hlstats_Options
                             (
@@ -199,9 +204,12 @@ For support and installation notes visit http://www.hlxcommunity.com
                     echo "<select name=\"$this->name\" style=\"width: 226px\">";
                     $name_esc = $db->escape($this->name);
                     $result = $db->query("SELECT `value`,`text` FROM hlstats_Options_Choices WHERE keyname='$name_esc' ORDER BY isDefault DESC, text ASC");
-                    while ($rowdata = $db->fetch_array($result)) {
-                        $sel = ((string)$rowdata['value'] === (string)$current_val) ? ' selected="selected"' : '';
-                        echo '<option value="' . htmlspecialchars($rowdata['value'], ENT_QUOTES, 'UTF-8') . '"' . $sel . '>' . htmlspecialchars($rowdata['text'], ENT_QUOTES, 'UTF-8') . '</option>';
+                    if ($result) {
+                        while ($rowdata = $db->fetch_array($result)) {
+                            $sel = ((string)$rowdata['value'] === (string)$current_val) ? ' selected="selected"' : '';
+                            echo '<option value="' . htmlspecialchars($rowdata['value'], ENT_QUOTES, 'UTF-8') . '"' . $sel . '>' . htmlspecialchars($rowdata['text'], ENT_QUOTES, 'UTF-8') . '</option>';
+                        }
+                        $db->free_result($result);
                     }
                     echo '</select>';
                     break;
@@ -315,9 +323,12 @@ RewriteRule sig-(.*)-(.*).png$ sig.php?player_id=$1&background=$2 [L]</textarea>
 
     $optiondata = array();
     $result = $db->query("SELECT keyname, value FROM hlstats_Options");
-    while ($rowdata = $db->fetch_row($result))
-    {
-        $optiondata[$rowdata[0]] = $rowdata[1];
+    if ($result) {
+        while ($rowdata = $db->fetch_row($result))
+        {
+            $optiondata[$rowdata[0]] = $rowdata[1];
+        }
+        $db->free_result($result);
     }
 
     foreach ($optiongroups as $og)

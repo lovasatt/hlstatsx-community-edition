@@ -126,6 +126,9 @@ For support and installation notes visit http://www.hlxcommunity.com
                 $db->query("DELETE FROM hlstats_Livestats WHERE server_id IN $serverlist");
             }
         }
+        if ($resultServers) {
+            $db->free_result($resultServers);
+        }
 
         $resultPlayers = $db->query("SELECT playerId FROM hlstats_Players WHERE game = '$game_esc'");
         if ($db->num_rows($resultPlayers) > 0)
@@ -147,6 +150,9 @@ For support and installation notes visit http://www.hlxcommunity.com
                 $db->query("DELETE FROM hlstats_Livestats WHERE player_id IN $playerlist");
             }
         }
+        if ($resultPlayers) {
+            $db->free_result($resultPlayers);
+        }
 
         foreach ($dbtables as $dbt)
         {
@@ -166,9 +172,13 @@ For support and installation notes visit http://www.hlxcommunity.com
 
     function removeGameSettings($table, $game_esc) {
         global $db;
-        $res = $db->query("SELECT COUNT(game) AS cnt FROM $table WHERE game='$game_esc';");
-        $r = $db->fetch_array($res);
-        $cnt = (int)($r['cnt'] ?? 0);
+        $res = $db->query("SELECT COUNT(game) AS cnt FROM $table WHERE game='$game_esc'");
+        $cnt = 0;
+        if ($res) {
+            $r = $db->fetch_array($res);
+            $cnt = (int)($r['cnt'] ?? 0);
+            $db->free_result($res);
+        }
         if ($cnt == 0)
         {
             $ret = "No data existent for selected gametype.";
@@ -176,7 +186,7 @@ For support and installation notes visit http://www.hlxcommunity.com
         else
         {
             $ret = $cnt . " entries deleted!";
-            $SQL = "DELETE FROM $table WHERE game='$game_esc';";
+            $SQL = "DELETE FROM $table WHERE game='$game_esc'";
             $db->query($SQL);
         }
         return $ret;
@@ -198,6 +208,7 @@ For support and installation notes visit http://www.hlxcommunity.com
         while ($r = $db->fetch_array($res_games)) {
             $all_games[] = $r['code'];
         }
+        if ($res_games) { $db->free_result($res_games); }
 
         $surviving_games = [];
         $visible_count   = 0;
@@ -262,6 +273,9 @@ After creating a game, you will be able to configure servers, awards, etc. for t
     ");
 
     $edlist->draw($result, false);
+    if ($result) {
+        $db->free_result($result);
+    }
 ?>
 
 <table width="75%" border="0" cellspacing="0" cellpadding="0" style="margin:15px auto;">

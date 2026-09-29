@@ -219,16 +219,16 @@ For support and installation notes visit http://www.hlxcommunity.com
         SELECT
             playerId,
             connection_time,
-            lastName,
+            unhex(replace(hex(lastName), 'E280AE', '')) AS lastName,
             flag,
             country,
             skill,
             kills,
             deaths,
-            IFNULL(kills/deaths, '-') AS kpd,
+            IFNULL(ROUND(kills/NULLIF(deaths, 0), 2), '-') AS kpd,
             headshots,
-            IFNULL(headshots/kills, '-') AS hpk,
-            IFNULL(ROUND((hits / shots * 100), 1), 0.0) AS acc,
+            IFNULL(ROUND(headshots/NULLIF(kills, 0), 2), '-') AS hpk,
+            IFNULL(ROUND((hits / NULLIF(shots, 0) * 100), 1), 0.0) AS acc,
             activity,
             last_skill_change
         FROM
@@ -260,7 +260,12 @@ For support and installation notes visit http://www.hlxcommunity.com
     // PHP 8 Fix: Replace list()
     $row = $db->fetch_row($resultCount);
     $numitems = ($row) ? (int)$row[0] : 0;
+    if ($resultCount) {
+        $db->free_result($resultCount);
+    }
 
-    // Logic Fix: Pass correct total item count instead of hardcoded 25
     $table->draw($result, $numitems, 100);
+    if ($result) {
+        $db->free_result($result);
+    }
 ?>

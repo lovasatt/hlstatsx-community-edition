@@ -192,20 +192,21 @@ For support and installation notes visit http://www.hlxcommunity.com
 // END TSGK MAP TEXT
         
 	if ($make_grid > 0) {
-	    $step_diff  = 0;
-	    $step_width = 0;
-	    while ($step_diff < 15) {
+	        $step_diff  = 0;
+	        $step_width = 0;
+	        $avail_height = max(1, (int)($bounds['height'] - $bounds['indent_y'][0] - $bounds['indent_y'][1]));
+	        while ($step_diff < 15 && $step_width < 1000) {
 		$step_width++;
 		if ($max_pos_y[$max_index] % $step_width == 0) {
 		    $steps = $max_pos_y[$max_index] / $step_width;
 		    if ($steps > 0)
-			$step_diff = ($bounds['height']-$bounds['indent_y'][0]-$bounds['indent_y'][1]) / $steps;
+		    $step_diff = $avail_height / $steps;
 		    else
-			$step_diff = 15;
+		    $step_diff = 15;
 		} else {
 		    $step_diff = 0;
 		}
-	    }
+        }
         
 	    for ($i=1; $i<$steps; $i++) {
 		$temp_y = (($bounds['height']-$bounds['indent_y'][0]-$bounds['indent_y'][1]) - ((($bounds['height']-$bounds['indent_y'][0]-$bounds['indent_y'][1]) / $max_pos_y[$max_index]) * ($i*$step_width))) + $bounds['indent_y'][0];
@@ -460,11 +461,14 @@ For support and installation notes visit http://www.hlxcommunity.com
 	    $step_x = 3;
         
 	    if ($bar_type==2) {
-		// skalieren auf anzahl Tage
-                if ($deletedays > 0) {
-		    $step_x = round( ($bounds['width']-$bounds['indent_x'][1]-$bounds['indent_x'][0]) / $deletedays );
+	    	// Scale to number of days
+	                    if ($deletedays > 0) {
+	    	    $step_x = (int)round( ($bounds['width']-$bounds['indent_x'][1]-$bounds['indent_x'][0]) / $deletedays );
+	    	    if ($step_x < 1) {
+	    	    $step_x = 1;
+	    	    }
                 }
-	    }
+            }
 
 	    if ($bar_type==3 || $bar_type==4) {
 		// skalieren 
@@ -476,4 +480,3 @@ For support and installation notes visit http://www.hlxcommunity.com
 		break;
 	}
     }
-?>

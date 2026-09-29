@@ -83,6 +83,7 @@ For support and installation notes visit http://www.hlxcommunity.com
             // PHP 8 Fix: Replace list()
             $row = $db->fetch_row();
             $player = (int)($row[0] ?? 0);
+            $db->free_result();
         }
     } elseif (!$player && !$uniqueid) {
         error('No player ID specified.');
@@ -91,7 +92,7 @@ For support and installation notes visit http://www.hlxcommunity.com
     $db->query("
         SELECT
             hlstats_Players.playerId,
-            hlstats_Players.lastName,
+            unhex(replace(hex(hlstats_Players.lastName), 'E280AE', '')) AS lastName,
             hlstats_Players.country,
             hlstats_Players.flag,
             hlstats_Players.clan,
@@ -103,10 +104,10 @@ For support and installation notes visit http://www.hlxcommunity.com
             hlstats_Players.skill,
             hlstats_Players.kills,
             hlstats_Players.deaths,
-            IFNULL(kills/deaths, '-') AS kpd,
+            IFNULL(ROUND(kills/NULLIF(deaths, 0), 2), '-') AS kpd,
             hlstats_Players.suicides,
             hlstats_Players.headshots,
-            IFNULL(headshots/kills, '-') AS hpk,
+            IFNULL(ROUND(headshots/NULLIF(kills, 0), 2), '-') AS hpk,
             hlstats_Players.shots,
             hlstats_Players.hits,
             IFNULL(ROUND((hits / shots * 100), 1), 0.0) AS acc,
@@ -128,34 +129,37 @@ For support and installation notes visit http://www.hlxcommunity.com
     $db->free_result();
 
     // PHP 8 Fix: Handle null name
-    $pl_name = (string)($playerdata['lastName'] ?? '');
+    $raw_name = (string)($playerdata['lastName'] ?? '');
 
-    if (strlen($pl_name) > 10) {
-        $pl_shortname = substr($pl_name, 0, 8) . '...';
+    // Multi-byte (UTF-8) safe truncation
+    if (mb_strlen($raw_name, 'UTF-8') > 10) {
+        $pl_shortname = mb_substr($raw_name, 0, 8, 'UTF-8') . '...';
     } else {
-        $pl_shortname = $pl_name;
+        $pl_shortname = $raw_name;
     }
 
-    $pl_name = htmlspecialchars($pl_name, ENT_QUOTES, 'UTF-8');
-    $pl_shortname = htmlspecialchars((string)$pl_shortname, ENT_QUOTES, 'UTF-8');
+    $pl_name = htmlspecialchars($raw_name, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    $pl_shortname = htmlspecialchars($pl_shortname, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
     $pl_urlname = urlencode((string)($playerdata['lastName'] ?? ''));
 
     $game = (string)($playerdata['game'] ?? $game ?? '');
     $game_esc = $db->escape($game);
 
     $db->query("SELECT name FROM hlstats_Games WHERE code='$game_esc'");
-    if ($db->num_rows() != 1)
+    if ($db->num_rows() != 1) {
         $gamename = ucfirst($game);
-    else {
+        $db->free_result();
+    } else {
         // PHP 8 Fix: Replace list()
         $row = $db->fetch_row();
         $gamename = ($row) ? (string)$row[0] : '';
+        $db->free_result();
     }
 
     // Added: Page Header for proper layout
     pageHeader(
         array ($gamename, 'Player Kills', $pl_name),
-        array ($gamename=>"%s?game=" . urlencode($game), 'Player Kills'=>'')
+        array ($gamename => ($g_options['scripturl'] ?? 'hlstats.php') . "?game=" . urlencode($game), 'Player Kills' => '')
     );
 
     $tblPlayerKillStats = new Table(
@@ -293,22 +297,22 @@ For support and installation notes visit http://www.hlxcommunity.com
     while ($rowdata = $db->fetch_array($result))  {
         $realheadshots += (int)($rowdata['headshots'] ?? 0);
     }
+    if ($result) { $db->free_result($result); }
 
     // Prevent division by zero
     $realheadshots_sql = ($realheadshots > 0) ? (int)$realheadshots : 1;
 
     $result = $db->query("
             SELECT
-                hlstats_Players.lastName AS name,
+                unhex(replace(hex(hlstats_Players.lastName), 'E280AE', '')) AS name,
                 hlstats_Players.flag AS flag,
                 hlstats_Players.country AS country,
                 Count(hlstats_Frags_Kills.kills) AS kills,
                 Count(hlstats_Frags_Kills.deaths) AS deaths,
                 hlstats_Frags_Kills.playerId as victimId,
-                IFNULL(Count(hlstats_Frags_Kills.kills)/Count(hlstats_Frags_Kills.deaths),
-                IFNULL(FORMAT(Count(hlstats_Frags_Kills.kills), 2), '-')) AS kpd,
+                IFNULL(ROUND(Count(hlstats_Frags_Kills.kills)/NULLIF(Count(hlstats_Frags_Kills.deaths), 0), 2), IFNULL(FORMAT(Count(hlstats_Frags_Kills.kills), 2), '-')) AS kpd,
                 SUM(hlstats_Frags_Kills.headshot=1) AS headshots,
-                IFNULL(SUM(hlstats_Frags_Kills.headshot=1) / Count(hlstats_Frags_Kills.kills), '-') AS hpk,
+                IFNULL(ROUND(SUM(hlstats_Frags_Kills.headshot=1) / NULLIF(Count(hlstats_Frags_Kills.kills), 0), 2), '-') AS hpk,
                 ROUND(SUM(hlstats_Frags_Kills.headshot=1) / $realheadshots_sql * 100, 2) AS hpercent
             FROM
                 hlstats_Frags_Kills,
@@ -316,7 +320,10 @@ For support and installation notes visit http://www.hlxcommunity.com
             WHERE
                 hlstats_Frags_Kills.playerId = hlstats_Players.playerId
             GROUP BY
-                hlstats_Frags_Kills.playerId
+                hlstats_Frags_Kills.playerId,
+                hlstats_Players.lastName,
+                hlstats_Players.flag,
+                hlstats_Players.country
             HAVING
                 Count(hlstats_Frags_Kills.kills) >= $killLimit
             ORDER BY
@@ -325,7 +332,7 @@ For support and installation notes visit http://www.hlxcommunity.com
             LIMIT 0,15
     ");
 
-    $numitems = $db->num_rows($result);
+    $numitems = ($result) ? $db->num_rows($result) : 0;
 
     if ($numitems > 0)
     {
@@ -338,4 +345,9 @@ For support and installation notes visit http://www.hlxcommunity.com
 </div>
 <?php
     }
+    // Always free query result and drop temporary table
+    if ($result) {
+        $db->free_result($result);
+    }
+    $db->query("DROP TEMPORARY TABLE IF EXISTS hlstats_Frags_Kills");
 ?>

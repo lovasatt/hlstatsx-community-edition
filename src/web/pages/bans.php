@@ -46,7 +46,7 @@ For support and installation notes visit http://www.hlxcommunity.com
     $game = isset($game) ? (string)$game : '';
     $game_esc = $db->escape($game);
     $game_url = urlencode($game);
-    $scripturl = htmlspecialchars((string)($g_options['scripturl'] ?? ''), ENT_QUOTES, 'UTF-8');
+    $scripturl = htmlspecialchars((string)($g_options['scripturl'] ?? 'hlstats.php'), ENT_QUOTES, 'UTF-8');
 
 // Player Rankings
     $res_game = $db->query
@@ -80,7 +80,7 @@ For support and installation notes visit http://www.hlxcommunity.com
     pageHeader
     (
         array ($gamename, 'Cheaters &amp; Banned Players'),
-        array ($gamename => "%s?game=$game_url", 'Cheaters &amp; Banned Players' => '')
+        array ($gamename => ($g_options['scripturl'] ?? 'hlstats.php') . "?game=$game_url", 'Cheaters &amp; Banned Players' => '')
     );
 
     $table = new Table(
@@ -171,10 +171,10 @@ For support and installation notes visit http://www.hlxcommunity.com
             hlstats_Players.skill,
             hlstats_Players.kills,
             hlstats_Players.deaths,
-            IFNULL(ROUND(hlstats_Players.kills / IF(hlstats_Players.deaths = 0, 1, hlstats_Players.deaths), 2), '-') AS kpd,
+            IFNULL(ROUND(hlstats_Players.kills / NULLIF(hlstats_Players.deaths, 0), 2), '-') AS kpd,
             hlstats_Players.headshots,
-            IFNULL(ROUND(hlstats_Players.headshots / IF(hlstats_Players.kills = 0, 1, hlstats_Players.kills), 2), '-') AS hpk,
-            IFNULL(ROUND((hlstats_Players.hits / IF(hlstats_Players.shots = 0, 1, hlstats_Players.shots) * 100), 0), 0) AS acc,
+            IFNULL(ROUND(hlstats_Players.headshots / NULLIF(hlstats_Players.kills, 0), 2), '-') AS hpk,
+            IFNULL(ROUND((hlstats_Players.hits / NULLIF(hlstats_Players.shots, 0) * 100), 0), 0) AS acc,
             activity
         FROM
             hlstats_Players
@@ -208,7 +208,12 @@ For support and installation notes visit http://www.hlxcommunity.com
             <div style="clear:both;"></div>
         </div><br /><br />
         <div style="clear:both;padding-top:4px;"></div>
-        <?php $table->draw($result, $numitems, 95); ?><br /><br />
+        <?php
+            $table->draw($result, $numitems, 95);
+            if ($result) {
+                $db->free_result($result);
+            }
+        ?><br /><br />
         <div class="subblock">
             <div style="float:left;">
                 <form method="get" action="<?php echo $scripturl; ?>">
@@ -216,12 +221,11 @@ For support and installation notes visit http://www.hlxcommunity.com
                         foreach ($_GET as $k => $v)
                         {
                             if (is_array($v)) continue;
-                            // PHP 8 Fix: Cast and check
                             $k = (string)$k;
-                            $v = valid_request((string)$v, false);
+                            $v = (string)$v;
                             if ($k !== "minkills")
                             {
-                                echo "<input type=\"hidden\" name=\"" . htmlspecialchars($k, ENT_QUOTES, 'UTF-8') . "\" value=\"" . htmlspecialchars($v, ENT_QUOTES, 'UTF-8') . "\" />\n";
+                                echo "<input type=\"hidden\" name=\"" . hlx_h($k) . "\" value=\"" . hlx_h($v) . "\" />\n";
                             }
                         }
                     ?>

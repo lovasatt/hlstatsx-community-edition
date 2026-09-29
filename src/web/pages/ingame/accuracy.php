@@ -82,6 +82,7 @@ For support and installation notes visit http://www.hlxcommunity.com
             // PHP 8 Fix: Replace list() to avoid Fatal Error on empty result
             $row = $db->fetch_row();
             $player = (int)($row[0] ?? 0);
+            $db->free_result();
         }
     } elseif (!$player && !$uniqueid) {
         error('No player ID specified.');
@@ -104,18 +105,15 @@ For support and installation notes visit http://www.hlxcommunity.com
     $db->free_result();
 
     // PHP 8 Fix: Handle null
-    $pl_name = (string)($playerdata['lastName'] ?? '');
+    $raw_name = (string)($playerdata['lastName'] ?? '');
 
-    if (strlen($pl_name) > 10)
-    {
-        $pl_shortname = substr($pl_name, 0, 8) . "...";
+    if (mb_strlen($raw_name, 'UTF-8') > 10) {
+        $pl_shortname = mb_substr($raw_name, 0, 8, 'UTF-8') . '...';
+    } else {
+        $pl_shortname = $raw_name;
     }
-    else
-    {
-        $pl_shortname = $pl_name;
-    }
-    $pl_name = htmlspecialchars((string)$pl_name, ENT_QUOTES, 'UTF-8');
-    $pl_shortname = htmlspecialchars((string)$pl_shortname, ENT_QUOTES, 'UTF-8');
+    $pl_name = htmlspecialchars($raw_name, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    $pl_shortname = htmlspecialchars($pl_shortname, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
     // PHP 8 Fix: Ensure string for urlencode
     $pl_urlname = urlencode((string)($playerdata['lastName'] ?? ''));
 
@@ -124,13 +122,24 @@ For support and installation notes visit http://www.hlxcommunity.com
     $game_esc = $db->escape($game);
 
     $db->query("SELECT name FROM hlstats_Games WHERE code='$game_esc'");
-    if ($db->num_rows() != 1)
+    if ($db->num_rows() != 1) {
         $gamename = ucfirst($game);
-    else {
+        $db->free_result();
+    } else {
         // PHP 8 Fix: Replace list()
         $row = $db->fetch_row();
         $gamename = (string)($row[0] ?? '');
+        $db->free_result();
     }
+
+    pageHeader(
+        array($gamename, 'Player Details', $raw_name, 'Weapon Accuracy'),
+        array(
+            $gamename => ($g_options['scripturl'] ?? 'hlstats.php') . "?game=" . urlencode($game),
+            'Player Details' => ($g_options['scripturl'] ?? 'hlstats.php') . "?mode=playerinfo&player=" . urlencode((string)$player),
+            $raw_name => ''
+        )
+    );
 
     // Get Weapon Name
     $result = $db->query
@@ -150,6 +159,7 @@ For support and installation notes visit http://www.hlxcommunity.com
         // PHP 8 Fix: Explicit string cast for strtolower
         $fname[strtolower($code)] = (string)($rowdata[1] ?? '');
     }
+    if ($result) { $db->free_result($result); }
 
     $tblWeaponstats = new Table(
         array(
@@ -239,9 +249,12 @@ For support and installation notes visit http://www.hlxcommunity.com
             $tblWeaponstats->sort2 $tblWeaponstats->sortorder
     ");
 
-if ($db->num_rows($result) != 0)
+$numitems = ($result) ? $db->num_rows($result) : 0;
+if ($numitems > 0)
 {
-    $tblWeaponstats->draw($result, $db->num_rows($result), 100);
+    $tblWeaponstats->draw($result, $numitems, 100);
 }
-
+if ($result) {
+    $db->free_result($result);
+}
 ?>

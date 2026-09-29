@@ -46,7 +46,7 @@ For support and installation notes visit http://www.hlxcommunity.com
     $game = isset($game) ? (string)$game : '';
     $game_esc = $db->escape($game);
     $game_url = urlencode($game);
-    $scripturl = htmlspecialchars((string)($g_options['scripturl'] ?? ''), ENT_QUOTES, 'UTF-8');
+    $scripturl = htmlspecialchars((string)($g_options['scripturl'] ?? 'hlstats.php'), ENT_QUOTES, 'UTF-8');
     $graphbg_load = htmlspecialchars((string)($g_options['graphbg_load'] ?? '282828'), ENT_QUOTES, 'UTF-8');
     $graphtxt_load = htmlspecialchars((string)($g_options['graphtxt_load'] ?? 'FFFFFF'), ENT_QUOTES, 'UTF-8');
 
@@ -73,9 +73,9 @@ For support and installation notes visit http://www.hlxcommunity.com
                 game='$game_esc'
     ";
     $result = $db->query($query);
-    // PHP 8 Fix: Replace list()
     $row = $db->fetch_row($result);
     $total_players = ($row) ? (int)$row[0] : 0;
+    $db->free_result($result);
 
     $query = "
             SELECT
@@ -89,9 +89,10 @@ For support and installation notes visit http://www.hlxcommunity.com
                 timestamp DESC LIMIT 0,1
     ";
     $result = $db->query($query);
-    // PHP 8 Fix: Replace list()
     $row = $db->fetch_row($result);
     $total_players_24h = ($row) ? (int)$row[0] : 0;
+    $db->free_result($result);
+
     $players_last_day = -1;
     if ($total_players_24h > 0) {
         $players_last_day = $total_players - $total_players_24h;
@@ -108,11 +109,11 @@ For support and installation notes visit http://www.hlxcommunity.com
                 game='$game_esc'
     ";
     $result = $db->query($query);
-    // PHP 8 Fix: Replace list()
     $row = $db->fetch_row($result);
     $total_kills = ($row) ? (int)$row[0] : 0;
     $total_headshots = ($row) ? (int)$row[1] : 0;
     $total_servers = ($row) ? (int)$row[2] : 0;
+    $db->free_result($result);
 
     $query = "
             SELECT
@@ -126,10 +127,9 @@ For support and installation notes visit http://www.hlxcommunity.com
                 timestamp DESC LIMIT 0,1
     ";
     $result = $db->query($query);
-    // PHP 8 Fix: Replace list()
     $row = $db->fetch_row($result);
     $total_kills_24h = ($row) ? (int)$row[0] : 0;
-    $db->free_result();
+    $db->free_result($result);
 
     $kills_last_day = -1;
     if ($total_kills_24h > 0) {
@@ -486,7 +486,7 @@ For support and installation notes visit http://www.hlxcommunity.com
                 hlstats_Awards.verb,
                 hlstats_Awards.d_winner_id,
                 hlstats_Awards.d_winner_count,
-                hlstats_Players.lastName AS d_winner_name,
+                unhex(replace(hex(hlstats_Players.lastName), 'E280AE', '')) AS d_winner_name,
                 hlstats_Players.flag AS flag,
                 hlstats_Players.country AS country
             FROM
@@ -499,7 +499,7 @@ For support and installation notes visit http://www.hlxcommunity.com
                 hlstats_Awards.name
         ");
 
-        $result = $db->query("
+        $res_numdays = $db->query("
             SELECT
                 IFNULL(value, 1)
             FROM
@@ -508,14 +508,17 @@ For support and installation notes visit http://www.hlxcommunity.com
                 keyname='awards_numdays'
         ");
 
-        if ($db->num_rows($result) == 1) {
-            $row = $db->fetch_row($result);
+        if ($res_numdays && $db->num_rows($res_numdays) == 1) {
+            $row = $db->fetch_row($res_numdays);
             $awards_numdays = ($row) ? (int)$row[0] : 1;
         } else {
             $awards_numdays = 1;
         }
+        if ($res_numdays) {
+            $db->free_result($res_numdays);
+        }
 
-        $result = $db->query("
+        $res_date = $db->query("
             SELECT
                 DATE_FORMAT(value, '%W %e %b'),
                 DATE_FORMAT( DATE_SUB( value, INTERVAL " . (int)$awards_numdays . " DAY ) , '%W %e %b' )
@@ -525,12 +528,14 @@ For support and installation notes visit http://www.hlxcommunity.com
                 keyname='awards_d_date'
         ");
 
-        // PHP 8 Fix: Replace list()
-        $row = $db->fetch_row($result);
+        $row = $db->fetch_row($res_date);
         $awards_d_date = ($row) ? $row[0] : false;
         $awards_s_date = ($row) ? $row[1] : false;
+        if ($res_date) {
+            $db->free_result($res_date);
+        }
 
-        if ($db->num_rows($resultAwards) > 0 && $awards_d_date) {
+        if ($resultAwards && $db->num_rows($resultAwards) > 0 && $awards_d_date) {
 ?>
 <div class="block" style="padding-top:20px">
 
@@ -584,6 +589,9 @@ For support and installation notes visit http://www.hlxcommunity.com
 ?></table>
 </div></div>
 <?php
+        }
+        if ($resultAwards) {
+            $db->free_result($resultAwards);
         }
     }
 ?>

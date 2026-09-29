@@ -56,8 +56,8 @@ For support and installation notes visit http://www.hlxcommunity.com
     
     // Added PageHeader
     pageHeader(
-	array ($gamename, 'Banned Players'),
-	array ($gamename=>"%s?game=" . urlencode($game), 'Banned Players'=>'')
+        array ($gamename, 'Banned Players'),
+        array ($gamename => ($g_options['scripturl'] ?? 'hlstats.php') . "?game=" . urlencode($game), 'Banned Players' => '')
     );
 
     $minkills = 0;
@@ -113,29 +113,29 @@ For support and installation notes visit http://www.hlxcommunity.com
     );
     
     $result = $db->query("
-	SELECT
-	    FROM_UNIXTIME(last_event,'%Y.%m.%d %T') as ban_date,
-	    playerId,
-	    lastName,
-	    country,
-	    flag,
-	    skill,
-	    kills,
-	    deaths,
-	    IFNULL(kills/deaths, '-') AS kpd,
-	    headshots,
-	    IFNULL(headshots/kills, '-') AS hpk
-	FROM
-	    hlstats_Players
-	WHERE
-	    game='$game_esc'
-	    AND hideranking=2
-	    AND kills >= $minkills
-	ORDER BY
-	    $table->sort $table->sortorder,
-	    $table->sort2 $table->sortorder,
-	    lastName ASC
-	LIMIT $table->startitem,$table->numperpage
+        SELECT
+            FROM_UNIXTIME(last_event,'%Y.%m.%d %T') as ban_date,
+            playerId,
+            unhex(replace(hex(lastName), 'E280AE', '')) AS lastName,
+            country,
+            flag,
+            skill,
+            kills,
+            deaths,
+            IFNULL(ROUND(kills/NULLIF(deaths, 0), 2), '-') AS kpd,
+            headshots,
+            IFNULL(ROUND(headshots/NULLIF(kills, 0), 2), '-') AS hpk
+        FROM
+            hlstats_Players
+        WHERE
+            game='$game_esc'
+            AND hideranking=2
+            AND kills >= $minkills
+        ORDER BY
+            $table->sort $table->sortorder,
+            $table->sort2 $table->sortorder,
+            lastName ASC
+        LIMIT $table->startitem,$table->numperpage
     ");
     
     $resultCount = $db->query("
@@ -152,7 +152,11 @@ For support and installation notes visit http://www.hlxcommunity.com
     // PHP 8 Fix: Replace list()
     $row = $db->fetch_row($resultCount);
     $numitems = ($row) ? (int)$row[0] : 0;
-    
+    if ($resultCount) { $db->free_result($resultCount); }
+
     // Fix: Draw using actual number of items, not page limit
     $table->draw($result, $numitems, 100);
+    if ($result) {
+        $db->free_result($result);
+    }
 ?>

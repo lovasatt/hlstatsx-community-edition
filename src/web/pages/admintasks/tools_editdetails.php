@@ -95,7 +95,7 @@ For support and installation notes visit http://www.hlxcommunity.com
     $sr_query = trim((string)($_GET["q"] ?? ""));
 
     if ($sr_query !== '') {
-        $search_pattern  = array("/script/i", "/;/", "/%/");
+        $search_pattern  = array("/<script\b[^>]*>(.*?)<\/script>/is", "/<script/i", "/;/");
         $replace_pattern = array("", "", "");
         $sr_query = preg_replace($search_pattern, $replace_pattern, $sr_query);
     }

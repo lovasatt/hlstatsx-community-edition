@@ -46,7 +46,7 @@ For support and installation notes visit http://www.hlxcommunity.com
     $game = isset($game) ? (string)$game : '';
     $game_esc = $db->escape($game);
     $game_url = urlencode($game);
-    $scripturl = htmlspecialchars((string)($g_options['scripturl'] ?? ''), ENT_QUOTES, 'UTF-8');
+    $scripturl = htmlspecialchars((string)($g_options['scripturl'] ?? 'hlstats.php'), ENT_QUOTES, 'UTF-8');
 
     // Clan Rankings
     $db->query
@@ -79,7 +79,7 @@ For support and installation notes visit http://www.hlxcommunity.com
     pageHeader
     (
         array ($gamename, 'Clan Rankings'),
-        array ($gamename => "%s?game=$game_url", 'Clan Rankings' => '')
+        array ($gamename => ($g_options['scripturl'] ?? 'hlstats.php') . "?game=$game_url", 'Clan Rankings' => '')
     );
 
     $table = new Table
@@ -158,7 +158,7 @@ For support and installation notes visit http://www.hlxcommunity.com
             SUM(hlstats_Players.connection_time) AS connection_time,
             ROUND(AVG(hlstats_Players.skill)) AS skill,
             ROUND(AVG(hlstats_Players.last_skill_change)) AS last_skill_change,
-            ROUND(SUM(hlstats_Players.kills) / IF(SUM(hlstats_Players.deaths) = 0, 1, SUM(hlstats_Players.deaths)), 2) AS kpd,
+            IFNULL(ROUND(SUM(hlstats_Players.kills) / NULLIF(SUM(hlstats_Players.deaths), 0), 2), '-') AS kpd,
             TRUNCATE(AVG(hlstats_Players.activity), 2) AS activity
         FROM
             hlstats_Clans
@@ -206,9 +206,11 @@ For support and installation notes visit http://www.hlxcommunity.com
             COUNT(hlstats_Players.playerId) >= $minmembers
     ");
 
-    // PHP 8 Fix: Use object method for num_rows
-    $num_rows = $db->num_rows($resultCount);
-    $db->free_result($resultCount);
+    // PHP 8 Fix: Safe num_rows check on valid result
+    $num_rows = ($resultCount) ? $db->num_rows($resultCount) : 0;
+    if ($resultCount) {
+        $db->free_result($resultCount);
+    }
 ?>
 
 <div class="block">
@@ -227,7 +229,12 @@ For support and installation notes visit http://www.hlxcommunity.com
         <div style="clear:both;"></div>
     </div>
     <br /><br />
-    <?php $table->draw($result, $num_rows, 95); ?><br /><br />
+    <?php
+        $table->draw($result, $num_rows, 95);
+        if ($result) {
+            $db->free_result($result);
+        }
+    ?><br /><br />
     <div class="subblock">
         <div style="float:left;">
             <form method="get" action="<?php echo $scripturl; ?>">
@@ -246,14 +253,13 @@ For support and installation notes visit http://www.hlxcommunity.com
                     $row = $db->fetch_row();
                     $total_clans = ($row) ? (int)$row[0] : 0;
                     $db->free_result();
-
                     foreach ($_GET as $k => $v) {
                         if (is_array($v)) continue;
                         $k = (string)$k;
-                        $v = valid_request((string)$v, false);
+                        $v = (string)$v;
 
                         if ($k !== "minmembers") {
-                            echo "<input type=\"hidden\" name=\"" . htmlspecialchars($k, ENT_QUOTES, 'UTF-8') . "\" value=\"" . htmlspecialchars($v, ENT_QUOTES, 'UTF-8') . "\" />\n";
+                            echo "<input type=\"hidden\" name=\"" . hlx_h($k) . "\" value=\"" . hlx_h($v) . "\" />\n";
                         }
                     }
                 ?>

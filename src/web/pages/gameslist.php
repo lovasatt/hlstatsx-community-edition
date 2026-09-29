@@ -42,7 +42,7 @@ For support and installation notes visit http://www.hlxcommunity.com
 
     global $game, $db, $g_options;
 
-    $scripturl = htmlspecialchars((string)($g_options['scripturl'] ?? ''), ENT_QUOTES, 'UTF-8');
+    $scripturl = htmlspecialchars((string)($g_options['scripturl'] ?? 'hlstats.php'), ENT_QUOTES, 'UTF-8');
 
     // Get list of active games
     $resultGames = $db->query("
@@ -88,6 +88,9 @@ For support and installation notes visit http://www.hlxcommunity.com
                         "<img src=\"$img_src\" style=\"margin-left: 2px; margin-right: 2px;\" alt=\"$alt\" title=\"$title\" $img_id /></a>";
                 echo "\n\t\t\t</li>\n";
             }
+        }
+        if ($resultGames) {
+            $db->free_result($resultGames);
         }
 ?>
         </ul>

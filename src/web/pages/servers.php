@@ -58,7 +58,7 @@ For support and installation notes visit http://www.hlxcommunity.com
 
     pageHeader(
         array($gamename, 'Server Live View'),
-        array($gamename => "%s?game=$game_url", 'Server Live View' => '')
+        array($gamename => ($g_options['scripturl'] ?? 'hlstats.php') . "?game=$game_url", 'Server Live View' => '')
     );
 
 ?>
@@ -110,11 +110,17 @@ For support and installation notes visit http://www.hlxcommunity.com
 
     $result = $db->query($query);
     $servers = array();
-    $server_data = $db->fetch_array($result);
+    $server_data = ($result) ? $db->fetch_array($result) : null;
     if ($server_data) {
         $servers[] = $server_data;
     } else {
+        if ($result) {
+            $db->free_result($result);
+        }
         error("No server found with ID '$server_id'.");
+    }
+    if ($result) {
+        $db->free_result($result);
     }
 
     $graphbg_load  = htmlspecialchars((string)($g_options['graphbg_load'] ?? '282828'), ENT_QUOTES, 'UTF-8');
@@ -184,9 +190,9 @@ For support and installation notes visit http://www.hlxcommunity.com
                     ?></td>
             <td class="game-table-cell" style="text-align:center;"><?php
         if ($kills > 0)
-            echo sprintf("%.4f", ($headshots / $kills));
+            echo sprintf("%.2f", ($headshots / $kills));
         else
-            echo sprintf("%.4f", 0);
+            echo sprintf("%.2f", 0);
                     ?></td>
         </tr>
     </table>

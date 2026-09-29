@@ -10,6 +10,9 @@
 
     define('IN_UPDATER', true);
 
+    // Prevent timeout during heavy database schema conversions
+    @set_time_limit(0);
+
     // Initialize variables
     global $gamename, $g_options;
     $gamename = isset($gamename) ? (string)$gamename : 'Updater';
@@ -46,10 +49,16 @@
 
         while (file_exists("./updater/{$i}.php"))
         {
-            echo "<br /><em>Running database update {$i}</em><br />\n";
+            echo "<br /><em>Running database update {$i}...</em><br />\n";
+            if (function_exists('flush')) {
+                @flush();
+            }
             include("./updater/{$i}.php");
 
-            echo "<em>Database update for DB Version {$i} complete.</em><br />";
+            echo "<em>Database update for DB Version {$i} complete.</em><br />\n";
+            if (function_exists('flush')) {
+                @flush();
+            }
             $i++;
         }
 

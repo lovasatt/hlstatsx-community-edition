@@ -64,6 +64,7 @@ For support and installation notes visit http://www.hlxcommunity.com
     // PHP 8 Fix: Replace list() which fails on null/false
     $row = $db->fetch_row($result);
     $total_players = ($row) ? (int)$row[0] : 0;
+    if ($result) { $db->free_result($result); }
 
     $query= "
             SELECT
@@ -83,6 +84,7 @@ For support and installation notes visit http://www.hlxcommunity.com
     $total_kills = ($row) ? (int)$row[0] : 0;
     $total_headshots = ($row) ? (int)$row[1] : 0;
     $total_servers = ($row) ? (int)$row[2] : 0;
+    if ($result) { $db->free_result($result); }
 ?>
 
     <table class="data-table">
@@ -99,7 +101,7 @@ For support and installation notes visit http://www.hlxcommunity.com
     <table class="data-table" >
         <tr class="data-table-head">
             <td style="text-align:center;padding:0px;">
-                <img src="show_graph.php?type=0&amp;width=870&amp;height=200&amp;server_id=<?php echo (int)$server_id; ?>&amp;bgcolor=<?php echo htmlspecialchars((string)($g_options['graphbg_load'] ?? '282828'), ENT_QUOTES, 'UTF-8'); ?>&amp;color=<?php echo htmlspecialchars((string)($g_options['graphtxt_load'] ?? 'FFFFFF'), ENT_QUOTES, 'UTF-8'); ?>" style="border:0px;" alt="Server Load Graph" />
+                <img src="show_graph.php?type=0&amp;width=870&amp;height=200&amp;server_id=<?php echo (int)$server_id; ?>&amp;game=<?php echo urlencode($game); ?>&amp;bgcolor=<?php echo htmlspecialchars((string)($g_options['graphbg_load'] ?? '282828'), ENT_QUOTES, 'UTF-8'); ?>&amp;color=<?php echo htmlspecialchars((string)($g_options['graphtxt_load'] ?? 'FFFFFF'), ENT_QUOTES, 'UTF-8'); ?>" style="border:0px;" alt="Server Load Graph" />
             </td>
         </tr>
     </table>

@@ -42,8 +42,8 @@ For support and installation notes visit http://www.hlxcommunity.com
 
     global $db, $auth, $task;
 
-    // PHP 8 Fix: Null coalescing check
-    if (($auth->userdata["acclevel"] ?? 0) < 80) {
+    // Only full administrators (Level 100) are permitted to clean up statistics
+    if (($auth->userdata["acclevel"] ?? 0) < 100) {
         die ("Access denied!");
     }
 ?>
@@ -52,6 +52,8 @@ For support and installation notes visit http://www.hlxcommunity.com
 
 <?php
     if (isset($_POST['confirm'])) {
+        @set_time_limit(300);
+        @ignore_user_abort(true);
 
         echo "<ul>\n";
 

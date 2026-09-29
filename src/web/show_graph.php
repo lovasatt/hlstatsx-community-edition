@@ -43,33 +43,34 @@ For support and installation notes visit http://www.hlxcommunity.com
     }
     foreach ($_SERVER as $key => $entry) {
         // PHP 8 Fix: Check if entry is string
-	if ($key !== 'HTTP_COOKIE' && is_string($entry)) {
-	    $search_pattern  = array('/<script>/', '/<\/script>/', '/[^A-Za-z0-9.\-\/=:;_?#&~]/');
-	    $replace_pattern = array('', '', '');
-	    $entry = preg_replace($search_pattern, $replace_pattern, $entry);
-      
-	    if ($key == 'PHP_SELF') {
+        if ($key !== 'HTTP_COOKIE' && is_string($entry)) {
+            $search_pattern  = array('/<script>/i', '/<\/script>/i', '/[^A-Za-z0-9.\-\/=:;_?#&~]/');
+            $replace_pattern = array('', '', '');
+            $entry = preg_replace($search_pattern, $replace_pattern, $entry);
+
+            if ($key === 'PHP_SELF') {
                 $last_segment = strrchr($entry, '/');
                 if ($last_segment !== false) {
-		    if (($last_segment !== '/hlstats.php') &&
-			($last_segment !== '/show_graph.php') &&
-			($last_segment !== '/sig.php') &&
-			($last_segment !== '/sig2.php') &&
-			($last_segment !== '/index.php') &&
-			($last_segment !== '/status.php') &&
-			($last_segment !== '/top10.php') &&
-			($last_segment !== '/config.php') &&
-			($last_segment !== '/') &&
-			($entry !== '')) {
-			$host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+                    if (($last_segment !== '/hlstats.php') &&
+                        ($last_segment !== '/show_graph.php') &&
+                        ($last_segment !== '/sig.php') &&
+                        ($last_segment !== '/sig2.php') &&
+                        ($last_segment !== '/index.php') &&
+                        ($last_segment !== '/status.php') &&
+                        ($last_segment !== '/top10.php') &&
+                        ($last_segment !== '/config.php') &&
+                        ($last_segment !== '/') &&
+                        ($entry !== '')) {
+                        $raw_host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+                        $host = preg_replace('/[^a-zA-Z0-9.:-]/', '', (string)$raw_host);
                         $proto = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
                         header('Location: ' . $proto . '://' . $host . '/hlstats.php');
                         exit;
-		    }
+                    }
                 }
-	    }
-	    $_SERVER[$key] = $entry;
-	}
+            }
+            $_SERVER[$key] = $entry;
+        }
     }
 
     define('IN_HLSTATS', true);
@@ -91,17 +92,17 @@ For support and installation notes visit http://www.hlxcommunity.com
 
     $width = 500;
     if (isset($_GET['width']) && is_numeric($_GET['width'])) {
-	$width = valid_request((int)$_GET['width'], true);
+        $width = max(100, min(2000, (int)$_GET['width']));
     }
 
     $server_id = 1;
     if (isset($_GET['server_id']) && is_numeric($_GET['server_id'])) {
-	$server_id = valid_request((int)$_GET['server_id'], true);
+        $server_id = valid_request((int)$_GET['server_id'], true);
     }
 
     $height = 125;
     if (isset($_GET['height']) && is_numeric($_GET['height'])) {
-	$height = valid_request((int)$_GET['height'], true);
+        $height = max(50, min(1000, (int)$_GET['height']));
     }
 
     $player = 1;
@@ -139,7 +140,7 @@ For support and installation notes visit http://www.hlxcommunity.com
     $bg_color = array('red' => 171, 'green' => 204, 'blue' => 214);
     if (!empty($_GET['bgcolor']) && is_string($_GET['bgcolor'])) {
         $clean_bg = trim($_GET['bgcolor']);
-        if (preg_match('/^[a-fA-F0-9]{3,6}$/', $clean_bg)) {
+        if (preg_match('/^(?:[a-fA-F0-9]{3}|[a-fA-F0-9]{6})$/', $clean_bg)) {
             $bg_color = hex2rgb($clean_bg);
         }
     }
@@ -147,7 +148,7 @@ For support and installation notes visit http://www.hlxcommunity.com
     $color = array('red' => 255, 'green' => 255, 'blue' => 255);
     if (!empty($_GET['color']) && is_string($_GET['color'])) {
         $clean_color = trim($_GET['color']);
-        if (preg_match('/^[a-fA-F0-9]{3,6}$/', $clean_color)) {
+        if (preg_match('/^(?:[a-fA-F0-9]{3}|[a-fA-F0-9]{6})$/', $clean_color)) {
             $color = hex2rgb($clean_color);
         }
     }
@@ -203,10 +204,9 @@ For support and installation notes visit http://www.hlxcommunity.com
                 }
                 $mod_date = date('D, d M Y H:i:s \G\M\T', $file_timestamp);
                 header('Content-Type: image/png');
-                header('Last-Modified:' . $mod_date);
-                $image = imagecreatefrompng($cache_image);
-                imagepng($image);
-                imagedestroy($image);
+                header('Last-Modified: ' . $mod_date);
+                header('Cache-Control: public, max-age=' . $update_interval);
+                readfile($cache_image);
                 exit;
             }
         }
@@ -259,61 +259,65 @@ For support and installation notes visit http://www.hlxcommunity.com
 	if ($avg_step < 10)
 	    $limit = ' LIMIT 0, 2500';
 
-	// entries
-	$data_array = array();
-	$result = $db->query("SELECT timestamp, act_players, min_players, max_players, map, uptime, fps FROM hlstats_server_load WHERE server_id=$server_id ORDER BY timestamp DESC$limit");
-	
-	$i = 0;
-	$avg_values = array();
-	while ($rowdata = $db->fetch_array($result))
-	{
-	    $i++;
-	    $avg_values[] = array('timestamp' => $rowdata['timestamp'], 'act_players' => $rowdata['act_players'], 'min_players' => $rowdata['min_players'], 'max_players' => $rowdata['max_players'], 'uptime' => $rowdata['uptime'], 'fps' => $rowdata['fps'], 'map' => $rowdata['map']);
-	    
-	    if ($i == $avg_step)
-	    {
-		$insert_values = array();
-		$insert_values['timestamp'] = $avg_values[ceil($avg_step / 2) - 1]['timestamp'];
-		$insert_values['act_players'] = 0;
-		$insert_values['min_players'] = 0;
-		$insert_values['max_players'] = 0;
-		$insert_values['uptime'] = 0;
-		$insert_values['fps'] = 0;
-		$insert_values['map'] = "";
+        // entries
+        $data_array = array();
+        $result = $db->query("SELECT timestamp, act_players, min_players, max_players, map, uptime, fps FROM hlstats_server_load WHERE server_id=$server_id ORDER BY timestamp DESC$limit");
 
-		foreach ($avg_values as $entry)
-		{
-		    $insert_values['act_players'] += $entry['act_players'];
-		    $insert_values['min_players'] += $entry['min_players'];
-		    $insert_values['max_players'] += $entry['max_players'];
-		    $insert_values['uptime'] += $entry['uptime'];
-		    $insert_values['fps'] += $entry['fps'];
-		    $insert_values['map'] = $entry['map'];
-		}
-		$insert_values['act_players'] = round($insert_values['act_players'] / $avg_step);
-		$insert_values['uptime'] = round($insert_values['uptime'] / $avg_step);
-		$insert_values['fps'] = round($insert_values['fps'] / $avg_step);
-		$insert_values['min_players'] = round($insert_values['min_players'] / $avg_step);
-		$insert_values['max_players'] = round($insert_values['max_players'] / $avg_step);
-		$data_array[] = array('timestamp' => $insert_values['timestamp'], 'act_players' => $insert_values['act_players'], 'min_players' => $insert_values['min_players'], 'max_players' => $insert_values['max_players'], 'uptime' => $insert_values['uptime'], 'fps' => $insert_values['fps'], 'map' => $insert_values['map']);
-		$avg_values = array();
-		$i = 0;
-	    }
+        $i = 0;
+        $avg_values = array();
+        while ($rowdata = $db->fetch_array($result))
+        {
+            $i++;
+            $avg_values[] = array('timestamp' => $rowdata['timestamp'], 'act_players' => $rowdata['act_players'], 'min_players' => $rowdata['min_players'], 'max_players' => $rowdata['max_players'], 'uptime' => $rowdata['uptime'], 'fps' => $rowdata['fps'], 'map' => $rowdata['map']);
 
-	}
-	
-	$last_map = '';
-	if ($avg_step == 1)
-	{
-	    $result = $db->query("SELECT act_players, max_players FROM hlstats_Servers WHERE serverId=$server_id");
-	    $rowdata = $db->fetch_array($result);
+            if ($i == $avg_step)
+            {
+                $insert_values = array();
+                $insert_values['timestamp'] = $avg_values[ceil($avg_step / 2) - 1]['timestamp'];
+                $insert_values['act_players'] = 0;
+                $insert_values['min_players'] = 0;
+                $insert_values['max_players'] = 0;
+                $insert_values['uptime'] = 0;
+                $insert_values['fps'] = 0;
+                $insert_values['map'] = "";
+
+                foreach ($avg_values as $entry)
+                {
+                    $insert_values['act_players'] += $entry['act_players'];
+                    $insert_values['min_players'] += $entry['min_players'];
+                    $insert_values['max_players'] += $entry['max_players'];
+                    $insert_values['uptime'] += $entry['uptime'];
+                    $insert_values['fps'] += $entry['fps'];
+                    $insert_values['map'] = $entry['map'];
+                }
+                $insert_values['act_players'] = round($insert_values['act_players'] / $avg_step);
+                $insert_values['uptime'] = round($insert_values['uptime'] / $avg_step);
+                $insert_values['fps'] = round($insert_values['fps'] / $avg_step);
+                $insert_values['min_players'] = round($insert_values['min_players'] / $avg_step);
+                $insert_values['max_players'] = round($insert_values['max_players'] / $avg_step);
+                $data_array[] = array('timestamp' => $insert_values['timestamp'], 'act_players' => $insert_values['act_players'], 'min_players' => $insert_values['min_players'], 'max_players' => $insert_values['max_players'], 'uptime' => $insert_values['uptime'], 'fps' => $insert_values['fps'], 'map' => $insert_values['map']);
+                $avg_values = array();
+                $i = 0;
+            }
+
+        }
+        // Free large server load query result
+        $db->free_result($result);
+
+        $last_map = '';
+        if ($avg_step == 1)
+        {
+            $result = $db->query("SELECT act_players, max_players FROM hlstats_Servers WHERE serverId=$server_id");
+            $rowdata = $db->fetch_array($result);
             // Check if rowdata exists
             if ($rowdata) {
-		$rowdata['uptime'] = 0;
+                $rowdata['uptime'] = 0;
                 $current_min = isset($data_array[0]['min_players']) ? $data_array[0]['min_players'] : 0;
-		array_unshift($data_array, array('timestamp' => time(), 'act_players' => $rowdata['act_players'], 'min_players' => $current_min, 'max_players' => $rowdata['max_players'], 'uptime' => $rowdata['uptime'], 'fps' => $rowdata['uptime'], 'map' => $last_map));
+                array_unshift($data_array, array('timestamp' => time(), 'act_players' => $rowdata['act_players'], 'min_players' => $current_min, 'max_players' => $rowdata['max_players'], 'uptime' => $rowdata['uptime'], 'fps' => $rowdata['uptime'], 'map' => $last_map));
             }
-	}
+            // Free server lookup query result
+            $db->free_result($result);
+        }
 
 	if (count($data_array) > 1)
 	{
@@ -326,24 +330,25 @@ For support and installation notes visit http://www.hlxcommunity.com
 	    drawItems($image, array('width' => $width, 'height' => $height, 'indent_x' => $indent_x, 'indent_y' => $indent_y), $data_array, 0, 'max_players', 0, 1, 0, 0, array($gray, $red, $font_color, $dark_color, $light_gray));
 	}
 
-	if ($width >= 800)
-	{
-	    if ($avg_step == 1)
-	    {
-		$result = $db->query("SELECT avg(act_players) as players FROM hlstats_server_load WHERE server_id=$server_id AND timestamp>=" . (time() - 3600));
-		$rowdata = $db->fetch_array($result);
-		$players_last_hour = sprintf("%.1f", (float)$rowdata['players']);
+        if ($width >= 800)
+        {
+            if ($avg_step == 1)
+            {
+                $result = $db->query("SELECT avg(act_players) as players FROM hlstats_server_load WHERE server_id=$server_id AND timestamp>=" . (time() - 3600));
+                $rowdata = $db->fetch_array($result);
+                $players_last_hour = sprintf("%.1f", (float)($rowdata['players'] ?? 0));
+                $db->free_result($result);
 
-		$result = $db->query("SELECT avg(act_players) as players FROM hlstats_server_load WHERE server_id=$server_id AND timestamp>=" . (time() - 86400));
-		$rowdata = $db->fetch_array($result);
-		$players_last_day = sprintf("%.1f", (float)$rowdata['players']);
+                $result = $db->query("SELECT avg(act_players) as players FROM hlstats_server_load WHERE server_id=$server_id AND timestamp>=" . (time() - 86400));
+                $rowdata = $db->fetch_array($result);
+                $players_last_day = sprintf("%.1f", (float)($rowdata['players'] ?? 0));
+                $db->free_result($result);
 
-		$str = 'Average Players Last 24h: ' . $players_last_day . ' Last 1h: ' . $players_last_hour;
-		$str_width = (imagefontwidth(1) * strlen($str)) + 2;
-		imagestring($image, 1, $width - $indent_x[1] - $str_width, $indent_y[0] - 11, $str, $font_color);
-	    }
-	}
-
+                $str = 'Average Players Last 24h: ' . $players_last_day . ' Last 1h: ' . $players_last_hour;
+                $str_width = (imagefontwidth(1) * strlen($str)) + 2;
+                imagestring($image, 1, $width - $indent_x[1] - $str_width, $indent_y[0] - 11, $str, $font_color);
+            }
+        }
     } elseif ($bar_type == 1)
     {
 	$indent_x = array(35, 35);
@@ -357,17 +362,19 @@ For support and installation notes visit http://www.hlxcommunity.com
 	    imagefilledrectangle($image, $indent_x[0] + 1, $indent_y[0] + 1, $width - $indent_x[1] - 1, $height - $indent_y[1] - 1, $light_color);
 	}
 
-	// entries
+        // entries
         $data_array = array();
         $result = $db->query("SELECT timestamp, players, kills, headshots, act_slots, max_slots FROM hlstats_Trend WHERE game='{$game_escaped}' ORDER BY timestamp DESC LIMIT 0, 350");
-	while ($rowdata = $db->fetch_array($result))
-	{
-	    $data_array[] = array('timestamp' => $rowdata['timestamp'], 'players' => $rowdata['players'], 'kills' => $rowdata['kills'], 'headshots' => $rowdata['headshots'], 'act_slots' => $rowdata['act_slots'], 'max_slots' => $rowdata['max_slots']);
-	}
+        while ($rowdata = $db->fetch_array($result))
+        {
+            $data_array[] = array('timestamp' => $rowdata['timestamp'], 'players' => $rowdata['players'], 'kills' => $rowdata['kills'], 'headshots' => $rowdata['headshots'], 'act_slots' => $rowdata['act_slots'], 'max_slots' => $rowdata['max_slots']);
+        }
+        $db->free_result($result);
 
-	$players_data = $db->query("SELECT count(playerId) as player_count FROM hlstats_Players WHERE game='{$game_escaped}'");
-	$rowdata = $db->fetch_array($players_data);
-	$total_players = $rowdata ? $rowdata['player_count'] : 0;
+        $players_data = $db->query("SELECT count(playerId) as player_count FROM hlstats_Players WHERE game='{$game_escaped}'");
+        $rowdata = $db->fetch_array($players_data);
+        $total_players = $rowdata ? $rowdata['player_count'] : 0;
+        $db->free_result($players_data);
 
 	if (count($data_array) > 1)
 	{
@@ -380,40 +387,44 @@ For support and installation notes visit http://www.hlxcommunity.com
 	    drawItems($image, array('width' => $width, 'height' => $height, 'indent_x' => $indent_x, 'indent_y' => $indent_y), $data_array, 0, 'kills', 0, 1, 0, 1, array($orange, $red, $font_color, $dark_color, $light_gray));
 	}
 
-	if ($width >= 800)
-	{
-	    $result = $db->query("SELECT players FROM hlstats_Trend WHERE game='{$game_escaped}' AND timestamp<=" . (time() - 3600) . " ORDER by timestamp DESC LIMIT 0,1");
-	    $rowdata = $db->fetch_array($result);
-	    $players_last_hour = $total_players - ($rowdata ? $rowdata['players'] : 0);
+        if ($width >= 800)
+        {
+            $result = $db->query("SELECT players FROM hlstats_Trend WHERE game='{$game_escaped}' AND timestamp<=" . (time() - 3600) . " ORDER by timestamp DESC LIMIT 0,1");
+            $rowdata = $db->fetch_array($result);
+            $players_last_hour = $total_players - ($rowdata ? $rowdata['players'] : 0);
+            $db->free_result($result);
 
-	    $result = $db->query("SELECT players FROM hlstats_Trend WHERE game='{$game_escaped}' AND timestamp<=" . (time() - 86400) . " ORDER by timestamp DESC LIMIT 0,1");
-	    $rowdata = $db->fetch_array($result);
-	    $players_last_day = $total_players - ($rowdata ? $rowdata['players'] : 0);
+            $result = $db->query("SELECT players FROM hlstats_Trend WHERE game='{$game_escaped}' AND timestamp<=" . (time() - 86400) . " ORDER by timestamp DESC LIMIT 0,1");
+            $rowdata = $db->fetch_array($result);
+            $players_last_day = $total_players - ($rowdata ? $rowdata['players'] : 0);
+            $db->free_result($result);
 
-	    $str = 'New Players Last 24h: ' . $players_last_day . ' Last 1h: ' . $players_last_hour;
-	    $str_width = (imagefontwidth(1) * strlen($str)) + 2;
-	    imagestring($image, 1, $width - $indent_x[1] - $str_width, $indent_y[0] - 11, $str, $font_color);
-	}
-
+            $str = 'New Players Last 24h: ' . $players_last_day . ' Last 1h: ' . $players_last_hour;
+            $str_width = (imagefontwidth(1) * strlen($str)) + 2;
+            imagestring($image, 1, $width - $indent_x[1] - $str_width, $indent_y[0] - 11, $str, $font_color);
+        }
     } elseif ($bar_type == 2)
     {
 	// PLAYER HISTORY GRAPH
 	$indent_x = array(35, 35);
 	$indent_y = array(15, 15);
 	
-	if (file_exists($iconpath . "/trendgraph.png")) {
-	    $trendgraph_bg = $iconpath . "/trendgraph.png";
-	} else {
-	    $trendgraph_bg = IMAGE_PATH . "/graph/trendgraph.png";
-	}
+        if (file_exists($iconpath . "/trendgraph.png")) {
+            $trendgraph_bg = $iconpath . "/trendgraph.png";
+        } elseif (file_exists(IMAGE_PATH . "/graph/trendgraph.png")) {
+            $trendgraph_bg = IMAGE_PATH . "/graph/trendgraph.png";
+        } else {
+            $trendgraph_bg = false;
+        }
 
-	$background_img = imagecreatefrompng($trendgraph_bg);
-	if ($background_img)
-	    {
-		imagecopy($image, $background_img, 0, 0, 0, 0, 400, 152);
-		imagedestroy($background_img);
-		$drawbg = false;
-	    }
+        if ($trendgraph_bg) {
+            $background_img = @imagecreatefrompng($trendgraph_bg);
+            if ($background_img) {
+                imagecopy($image, $background_img, 0, 0, 0, 0, 400, 152);
+                imagedestroy($background_img);
+                $drawbg = false;
+            }
+        }
 
 	// background
 	if ($drawbg)
@@ -430,26 +441,29 @@ For support and installation notes visit http://www.hlxcommunity.com
 
 	// define first day's timestamp range
 	$ts = strtotime(date('Y-m-d'));
-	$data_array = array();
-	$arcount = 0;
-	$result = $db->query("SELECT eventTime, skill, kills, deaths, headshots, connection_time, UNIX_TIMESTAMP(eventTime) AS ts FROM hlstats_Players_History WHERE playerId=" . $player . " ORDER BY eventTime DESC LIMIT 0, " . $deletedays);
-	while (($rowdata = $db->fetch_array($result)) && ($arcount < $deletedays))
-	{
-	    //echo $rowdata['eventTime']." - ".date("Y-m-d", $ts)."\n";
-	    while (($rowdata['eventTime'] != date("Y-m-d", $ts)) && ($arcount < $deletedays))
-	    {
-		// insert null value
-		$data_array[] = array('timestamp' => $ts, 'skill' => $rowdata['skill'], 'kills' => 0, 'headshots' => 0, 'deaths' => 0, 'time' => 0);
-		$ts -= 86400;
-		$arcount++;
-	    }
+        $data_array = array();
+        $arcount = 0;
+        $player_esc = (int)$player;
+        $result = $db->query("SELECT eventTime, skill, kills, deaths, headshots, connection_time, UNIX_TIMESTAMP(eventTime) AS ts FROM hlstats_Players_History WHERE playerId=" . $player_esc . " ORDER BY eventTime DESC LIMIT 0, " . $deletedays);
+        while (($rowdata = $db->fetch_array($result)) && ($arcount < $deletedays))
+        {
+            //echo $rowdata['eventTime']." - ".date("Y-m-d", $ts)."\n";
+            while (($rowdata['eventTime'] != date("Y-m-d", $ts)) && ($arcount < $deletedays))
+            {
+                // insert null value
+                $data_array[] = array('timestamp' => $ts, 'skill' => $rowdata['skill'], 'kills' => 0, 'headshots' => 0, 'deaths' => 0, 'time' => 0);
+                $ts -= 86400;
+                $arcount++;
+            }
 
-	    $data_array[] = array('timestamp' => $rowdata['ts'], 'skill' => $rowdata['skill'], 'kills' => $rowdata['kills'], 'headshots' => $rowdata['headshots'], 'deaths' => $rowdata['deaths'], 'time' => $rowdata['connection_time']);
-	    $arcount++;
-	    $ts -= 86400;
-	}
+            $data_array[] = array('timestamp' => $rowdata['ts'], 'skill' => $rowdata['skill'], 'kills' => $rowdata['kills'], 'headshots' => $rowdata['headshots'], 'deaths' => $rowdata['deaths'], 'time' => $rowdata['connection_time']);
+            $arcount++;
+            $ts -= 86400;
+        }
 
         $last_skill = (is_array($rowdata) && isset($rowdata['skill'])) ? $rowdata['skill'] : 0;
+        // Free player history query result
+        $db->free_result($result);
         while (($arcount < $deletedays))
         {
             $data_array[] = array('timestamp' => $ts, 'skill' => $last_skill, 'kills' => 0, 'headshots' => 0, 'deaths' => 0, 'time' => 0);
@@ -482,9 +496,10 @@ For support and installation notes visit http://www.hlxcommunity.com
 
     if ($bar_type != 2)
     {
-	@imagepng($image, IMAGE_PATH . '/progress/server_' . $width . '_' . $height . '_' . $bar_type . '_' . $clean_game_file . '_' . $server_id . '_' . $bg_id . '_' . $server_load_type . '.png');
+        @imagepng($image, IMAGE_PATH . '/progress/server_' . $width . '_' . $height . '_' . $bar_type . '_' . $clean_game_file . '_' . $server_id . '_' . $bg_id . '_' . $server_load_type . '.png');
         $mod_date = date('D, d M Y H:i:s \G\M\T', time());
         header('Last-Modified: ' . $mod_date);
+        header('Cache-Control: public, max-age=' . $update_interval);
         imagepng($image);
         imagedestroy($image);
     }

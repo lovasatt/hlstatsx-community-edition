@@ -157,10 +157,18 @@ For support and installation notes visit http://www.hlxcommunity.com
 	    $tblWeapons->sort2 $tblWeapons->sortorder
     ");
 
-    printSectionTitle('Weapon Usage *');
-    $tblWeapons->draw($result, $db->num_rows($result), 95);
+    $numitems = ($result) ? (int)$db->num_rows($result) : 0;
+    if ($numitems > 0) {
+        printSectionTitle('Weapon Usage *');
+        $tblWeapons->draw($result, $numitems, 95);
 ?>
     <br /><br />
+<?php
+    }
+    if ($result) {
+        $db->free_result($result);
+    }
+?>
 <!-- Begin StatsMe Addon 1.0 by JustinHoMi@aol.com -->
 <?php
 
@@ -261,14 +269,19 @@ For support and installation notes visit http://www.hlxcommunity.com
             $tblWeaponstats->sort2 $tblWeaponstats->sortorder
     ");
 
-if ($db->num_rows($result) != 0)
+$num_statsme = ($result) ? (int)$db->num_rows($result) : 0;
+if ($num_statsme > 0)
 {
     printSectionTitle('Weapon Stats *');
-    $tblWeaponstats->draw($result, $db->num_rows($result), 95);
+    $tblWeaponstats->draw($result, $num_statsme, 95);
 ?>
     <br /><br />
 <!-- End StatsMe Addon 1.0 by JustinHoMi@aol.com -->
 <?php
+}
+// Always free query result even if stats are empty
+if ($result) {
+    $db->free_result($result);
 }
 
     flush();
@@ -278,10 +291,16 @@ if ($db->num_rows($result) != 0)
     if ($has_neck_col === null) {
         $res = $db->query("SHOW COLUMNS FROM `hlstats_Events_Statsme2` LIKE 'neck'");
         $has_neck_col = ($res && $db->num_rows($res) > 0);
+        if ($res) {
+            $db->free_result($res);
+        }
     }
     if ($has_generic_col === null) {
         $res = $db->query("SHOW COLUMNS FROM `hlstats_Events_Statsme2` LIKE 'generic'");
         $has_generic_col = ($res && $db->num_rows($res) > 0);
+        if ($res) {
+            $db->free_result($res);
+        }
     }
 
     // Dynamic field replacement: Use column if exists, fallback to 0 if missing in DB
@@ -588,7 +607,9 @@ if ($db->num_rows($result) != 0)
             }
         </script>
 <?php
-        $tblWeaponstats2->draw($result, $db->num_rows($result), 100);
+        $numtargetitems = ($result) ? $db->num_rows($result) : 0;
+        $tblWeaponstats2->draw($result, $numtargetitems, 100);
+        $db->free_result($result);
         $flashlink = IMAGE_PATH.'/hitbox.swf?wname=All+Weapons&amp;head='.$weapon_data['total']['head'].'&amp;rightarm='.$weapon_data['total']['rightarm'].'&amp;leftarm='.$weapon_data['total']['leftarm'].'&amp;chest='.$weapon_data['total']['chest'].'&amp;stomach='.$weapon_data['total']['stomach'].'&amp;rightleg='.$weapon_data['total']['rightleg'].'&amp;leftleg='.$weapon_data['total']['leftleg'].'&amp;generic='.$weapon_data['total']['generic'].'&amp;model='.$start_model.'&amp;numcolor_num=#'.$graphtxt_load.'&amp;numcolor_pct=#'.$graphtxt_load.'&amp;linecolor=#'.$graphtxt_load.'&amp;barcolor=#FFFFFF&amp;barbackground=#000000&amp;textcolor=#FFFFFF&amp;captioncolor=#FFFFFF&amp;textcolor_total=#FFFFFF';
 ?>
         </div>
@@ -695,7 +716,9 @@ if ($db->num_rows($result) != 0)
             true
         );
 
-        $tblWeaponstats2->draw($result, $db->num_rows($result), 95);
+        $numtargetitems = ($result) ? (int)$db->num_rows($result) : 0;
+        $tblWeaponstats2->draw($result, $numtargetitems, 95);
+        $db->free_result($result);
     }
 ?>
     <br /><br />
@@ -703,5 +726,9 @@ if ($db->num_rows($result) != 0)
     <p class="note"><b>Note:</b> The Weapon Targets table automatically displays the `Neck` and `Body` (Generic) hitgroups when hits are recorded. These hitgroups are supported by Source 2 games, such as Counter-Strike 2</p>
 </div>
 <?php
+    } else {
+        if ($result) {
+            $db->free_result($result);
+        }
     }
 ?>

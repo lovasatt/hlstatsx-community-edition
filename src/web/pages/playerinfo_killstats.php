@@ -152,12 +152,11 @@ For support and installation notes visit http://www.hlxcommunity.com
     $sql_create_temp_table = "
         CREATE TEMPORARY TABLE hlstats_Frags_Kills
         (
-            playerId INT(10),
-            kills INT(10),
-            deaths INT(10),
-            headshot INT(10),
-            country varchar(128),
-            flag char(2)
+            playerId INT(10) UNSIGNED NOT NULL DEFAULT 0,
+            kills INT(10) UNSIGNED NULL,
+            deaths INT(10) UNSIGNED NULL,
+            headshot INT(10) UNSIGNED NULL,
+            KEY `idx_player` (`playerId`)
         ) DEFAULT CHARSET={$charset} COLLATE={$collate};
     ";
 
@@ -218,7 +217,7 @@ For support and installation notes visit http://www.hlxcommunity.com
     // Prevent division by zero for headshots
     $realheadshots_sql = ($realheadshots > 0) ? $realheadshots : 1;
 
-    $db->query
+    $res_count = $db->query
     ("
         SELECT
             hlstats_Players.lastName AS name
@@ -233,11 +232,15 @@ For support and installation notes visit http://www.hlxcommunity.com
         HAVING
             COUNT(hlstats_Frags_Kills.kills) >= $killLimit
     ");
-    $numitems = $db->num_rows();
+    $numitems = ($res_count) ? $db->num_rows($res_count) : 0;
+    if ($res_count) {
+        $db->free_result($res_count);
+    }
+
     $result = $db->query
     ("
         SELECT
-            hlstats_Players.lastName AS name,
+            unhex(replace(hex(hlstats_Players.lastName), 'E280AE', '')) AS name,
             hlstats_Players.flag AS flag,
             hlstats_Players.country AS country,
             COUNT(hlstats_Frags_Kills.kills) AS kills,
@@ -245,9 +248,9 @@ For support and installation notes visit http://www.hlxcommunity.com
             ROUND(COUNT(hlstats_Frags_Kills.kills) / $realkills_sql * 100, 2) AS kpercent,
             ROUND(COUNT(hlstats_Frags_Kills.deaths) / $realdeaths_sql * 100, 2) AS dpercent,
             hlstats_Frags_Kills.playerId AS victimId,
-            ROUND(COUNT(hlstats_Frags_Kills.kills) / IF(COUNT(hlstats_Frags_Kills.deaths) = 0, 1, COUNT(hlstats_Frags_Kills.deaths)), 2) AS kpd,
+            IFNULL(ROUND(COUNT(hlstats_Frags_Kills.kills) / NULLIF(COUNT(hlstats_Frags_Kills.deaths), 0), 2), '-') AS kpd,
             SUM(hlstats_Frags_Kills.headshot = 1) AS headshots,
-            ROUND(SUM(hlstats_Frags_Kills.headshot = 1) / IF(COUNT(hlstats_Frags_Kills.kills) = 0, 1, COUNT(hlstats_Frags_Kills.kills)), 2) AS hpk,
+            IFNULL(ROUND(SUM(hlstats_Frags_Kills.headshot = 1) / NULLIF(COUNT(hlstats_Frags_Kills.kills), 0), 2), '-') AS hpk,
             ROUND(SUM(hlstats_Frags_Kills.headshot = 1) / $realheadshots_sql * 100, 2) AS hpercent
         FROM
             hlstats_Frags_Kills,
@@ -269,10 +272,11 @@ For support and installation notes visit http://www.hlxcommunity.com
     if ($numitems > 0)
     {
         printSectionTitle('Player Kill Statistics *');
-        $tblPlayerKillStats->draw($result, $numitems, 95); ?>
+        $tblPlayerKillStats->draw($result, $numitems, 95);
+        ?>
     <br /><br />
     <div class="subblock">
-    <form method="get" action="<?php echo htmlspecialchars((string)($g_options['scripturl'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
+    <form method="get" action="<?php echo htmlspecialchars((string)($g_options['scripturl'] ?? 'hlstats.php'), ENT_QUOTES, 'UTF-8'); ?>">
         <strong>&#8226;</strong> Show only victims this person has killed
         <select name="killLimit" onchange="Tabs.refreshTab({'killLimit': this.options[this.selectedIndex].value, 'playerkills_page': 1})">
             <?php
@@ -293,4 +297,8 @@ For support and installation notes visit http://www.hlxcommunity.com
     <br /><br />
 <?php
     }
+    if ($result) {
+        $db->free_result($result);
+    }
+    $db->query("DROP TEMPORARY TABLE IF EXISTS hlstats_Frags_Kills");
 ?>

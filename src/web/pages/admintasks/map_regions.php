@@ -49,7 +49,10 @@ For support and installation notes visit http://www.hlxcommunity.com
 
     // --- SELF-HEALING: Auto-create and populate table if missing ---
     $check_table = $db->query("SHOW TABLES LIKE 'hlstats_Map_Regions'");
-    if ($db->num_rows($check_table) == 0)
+    $table_missing = ($db->num_rows($check_table) == 0);
+    if ($check_table) { $db->free_result($check_table); }
+
+    if ($table_missing)
     {
         $db->query("
             CREATE TABLE IF NOT EXISTS `hlstats_Map_Regions` (
@@ -145,8 +148,9 @@ For support and installation notes visit http://www.hlxcommunity.com
                 $c_esc = $db->escape($new_code);
                 $check = $db->query("SELECT 1 FROM `hlstats_Map_Regions` WHERE UPPER(`code`) = UPPER('$c_esc') LIMIT 1");
                 if ($db->num_rows($check) > 0) {
-                    $validation_error = "The Region Code '<b>" . htmlspecialchars($new_code) . "</b>' already exists!";
+                    $validation_error = "The Region Code '$new_code' already exists!";
                 }
+                if ($check) { $db->free_result($check); }
             }
         }
 
@@ -201,9 +205,11 @@ For support and installation notes visit http://www.hlxcommunity.com
                 $code_esc = $db->escape($code);
                 $check = $db->query("SELECT 1 FROM `hlstats_Map_Regions` WHERE UPPER(`code`) = UPPER('$code_esc') AND `region_id` != $r_id_int LIMIT 1");
                 if ($db->num_rows($check) > 0) {
-                    $validation_error = "The Region Code '<b>" . htmlspecialchars($code) . "</b>' is already assigned to another region.";
+                    $validation_error = "The Region Code '$code' is already assigned to another region.";
+                    if ($check) { $db->free_result($check); }
                     break;
                 }
+                if ($check) { $db->free_result($check); }
             }
         }
 
@@ -218,15 +224,19 @@ For support and installation notes visit http://www.hlxcommunity.com
                 if ($r_opt = $db->fetch_row($current_opt_res)) {
                     $current_active_code = $r_opt[0];
                 }
+                if ($current_opt_res) { $db->free_result($current_opt_res); }
 
                 // Synchronize dropdown choices for options.php cleanly
                 $db->query("DELETE FROM `hlstats_Options_Choices` WHERE `keyname` = 'google_map_region'");
                 $res = $db->query("SELECT `code`, `name` FROM `hlstats_Map_Regions` ORDER BY `name` ASC");
-                while ($r = $db->fetch_array($res)) {
-                    $c_esc = $db->escape((string)$r['code']);
-                    $n_esc = $db->escape((string)$r['name']);
-                    $is_def = ($r['code'] === $current_active_code) ? 1 : 0;
-                    $db->query("INSERT INTO `hlstats_Options_Choices` (`keyname`, `value`, `text`, `isDefault`) VALUES ('google_map_region', '$c_esc', '$n_esc', $is_def)");
+                if ($res) {
+                    while ($r = $db->fetch_array($res)) {
+                        $c_esc = $db->escape((string)$r['code']);
+                        $n_esc = $db->escape((string)$r['name']);
+                        $is_def = ($r['code'] === $current_active_code) ? 1 : 0;
+                        $db->query("INSERT INTO `hlstats_Options_Choices` (`keyname`, `value`, `text`, `isDefault`) VALUES ('google_map_region', '$c_esc', '$n_esc', $is_def)");
+                    }
+                    $db->free_result($res);
                 }
                 message("success", "Operation successful.");
             } else {
@@ -315,6 +325,9 @@ For support and installation notes visit http://www.hlxcommunity.com
     ");
 
     $edlist->draw($result);
+    if ($result) {
+        $db->free_result($result);
+    }
 ?>
 
 <table width="75%" border="0" cellspacing="0" cellpadding="0" style="margin:15px auto;">

@@ -74,6 +74,7 @@ For support and installation notes visit http://www.hlxcommunity.com
         $act_name = ucfirst($action);
         $actiondata['for_PlayerActions'] = 1; // dummy these out, this should never happen?
         $actiondata['for_PlayerPlayerActions'] = 0;
+        $db->free_result($res_act);
     }
     else
     {
@@ -95,13 +96,12 @@ For support and installation notes visit http://www.hlxcommunity.com
     pageHeader(
         array($gamename, 'Action Details', $act_name),
         array(
-            $gamename=>($g_options['scripturl'] ?? '') . "?game=$game",
-            'Action Statistics'=>($g_options['scripturl'] ?? '') . "?mode=actions&game=$game",
-            'Action Details'=>''
+            $gamename => ($g_options['scripturl'] ?? 'hlstats.php') . "?game=" . urlencode($game),
+            'Action Statistics' => ($g_options['scripturl'] ?? 'hlstats.php') . "?mode=actions&game=" . urlencode($game),
+            'Action Details' => ''
         ),
         $act_name
     );
-
 
     $table = new Table(
         array(
@@ -138,7 +138,7 @@ For support and installation notes visit http://www.hlxcommunity.com
         $result = $db->query("
             SELECT
                 hlstats_Events_PlayerActions.playerId,
-                hlstats_Players.lastName AS playerName,
+                unhex(replace(hex(hlstats_Players.lastName), 'E280AE', '')) AS playerName,
                 hlstats_Players.flag as flag,
                 COUNT(hlstats_Events_PlayerActions.id) AS obj_count,
                 COUNT(hlstats_Events_PlayerActions.id) * hlstats_Actions.reward_player AS obj_bonus
@@ -176,12 +176,12 @@ For support and installation notes visit http://www.hlxcommunity.com
         ");
     }
 
-    if (isset($actiondata['for_PlayerPlayerActions']) && $actiondata['for_PlayerPlayerActions'] == 1)
+    elseif (isset($actiondata['for_PlayerPlayerActions']) && $actiondata['for_PlayerPlayerActions'] == 1)
     {
         $result = $db->query("
             SELECT
                 hlstats_Events_PlayerPlayerActions.playerId,
-                hlstats_Players.lastName AS playerName,
+                unhex(replace(hex(hlstats_Players.lastName), 'E280AE', '')) AS playerName,
                 hlstats_Players.flag as flag,
                 COUNT(hlstats_Events_PlayerPlayerActions.id) AS obj_count,
                 COUNT(hlstats_Events_PlayerPlayerActions.id) * hlstats_Actions.reward_player AS obj_bonus
@@ -229,31 +229,11 @@ For support and installation notes visit http://www.hlxcommunity.com
 
     if ($totalact == 0)
     {
-        $result = $db->query("
-            SELECT
-                hlstats_Events_TeamBonuses.playerId,
-                hlstats_Players.lastName AS playerName,
-                hlstats_Players.flag as flag,
-                COUNT(hlstats_Events_TeamBonuses.id) AS obj_count,
-                COUNT(hlstats_Events_TeamBonuses.id) * hlstats_Actions.reward_player AS obj_bonus
-            FROM
-                hlstats_Events_TeamBonuses, hlstats_Players, hlstats_Actions
-            WHERE
-                hlstats_Actions.code = '{$action_escaped}' AND
-                hlstats_Players.game = '{$game_escaped}' AND
-                hlstats_Players.playerId = hlstats_Events_TeamBonuses.playerId AND
-                hlstats_Events_TeamBonuses.actionId = hlstats_Actions.id AND
-                hlstats_Players.hideranking = '0'
-            GROUP BY
-                hlstats_Events_TeamBonuses.playerId,
-                hlstats_Players.lastName,
-                hlstats_Players.flag,
-                hlstats_Actions.reward_player
-            ORDER BY
-                $table->sort $table->sortorder,
-                $table->sort2 $table->sortorder
-            LIMIT $table->startitem,$table->numperpage
-        ");
+        // Free previously assigned empty result before querying TeamBonuses
+        if (isset($result) && $result) {
+            $db->free_result($result);
+            $result = null;
+        }
 
         $resultCount = $db->query("
             SELECT
@@ -274,6 +254,34 @@ For support and installation notes visit http://www.hlxcommunity.com
         $numitems = ($row) ? (int)$row[0] : 0;
         $totalact = ($row) ? (int)$row[1] : 0;
         $db->free_result($resultCount);
+
+        if ($totalact > 0) {
+            $result = $db->query("
+                SELECT
+                    hlstats_Events_TeamBonuses.playerId,
+                    unhex(replace(hex(hlstats_Players.lastName), 'E280AE', '')) AS playerName,
+                    hlstats_Players.flag as flag,
+                    COUNT(hlstats_Events_TeamBonuses.id) AS obj_count,
+                    COUNT(hlstats_Events_TeamBonuses.id) * hlstats_Actions.reward_player AS obj_bonus
+                FROM
+                    hlstats_Events_TeamBonuses, hlstats_Players, hlstats_Actions
+                WHERE
+                    hlstats_Actions.code = '{$action_escaped}' AND
+                    hlstats_Players.game = '{$game_escaped}' AND
+                    hlstats_Players.playerId = hlstats_Events_TeamBonuses.playerId AND
+                    hlstats_Events_TeamBonuses.actionId = hlstats_Actions.id AND
+                    hlstats_Players.hideranking = '0'
+                GROUP BY
+                    hlstats_Events_TeamBonuses.playerId,
+                    hlstats_Players.lastName,
+                    hlstats_Players.flag,
+                    hlstats_Actions.reward_player
+                ORDER BY
+                    $table->sort $table->sortorder,
+                    $table->sort2 $table->sortorder
+                LIMIT $table->startitem,$table->numperpage
+            ");
+        }
     }
 ?>
 <div class="block">
@@ -290,8 +298,9 @@ For support and installation notes visit http://www.hlxcommunity.com
     <div style="clear:both;padding:2px;"></div>
 </div>
 <?php
-    if (isset($result)) {
+    if (!empty($result)) {
         $table->draw($result, $numitems, 95, 'center');
+        $result = null;
     }
 
     if (isset($actiondata['for_PlayerPlayerActions']) && $actiondata['for_PlayerPlayerActions'] == 1)
@@ -325,7 +334,7 @@ For support and installation notes visit http://www.hlxcommunity.com
         $result = $db->query("
             SELECT
                 hlstats_Events_PlayerPlayerActions.victimId,
-                hlstats_Players.lastName AS playerName,
+                unhex(replace(hex(hlstats_Players.lastName), 'E280AE', '')) AS playerName,
                 hlstats_Players.flag as flag,
                 COUNT(hlstats_Events_PlayerPlayerActions.id) AS obj_count,
                 COUNT(hlstats_Events_PlayerPlayerActions.id) * hlstats_Actions.reward_player * -1 AS obj_bonus
@@ -379,5 +388,8 @@ For support and installation notes visit http://www.hlxcommunity.com
 </div>
 <?php
         $table->draw($result, $numitems, 95, 'center');
+        if ($result) {
+            $db->free_result($result);
+        }
     }
 ?>

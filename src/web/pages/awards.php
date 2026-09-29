@@ -81,7 +81,7 @@ For support and installation notes visit http://www.hlxcommunity.com
 
             if ( file_exists(PAGE_PATH . '/awards_' . $t . '.php') )
             {
-                @include(PAGE_PATH . '/awards_' . $t . '.php');
+                include(PAGE_PATH . '/awards_' . $t . '.php');
             }
         }
         exit;
@@ -89,7 +89,7 @@ For support and installation notes visit http://www.hlxcommunity.com
 
     pageHeader(
         array($gamename, 'Awards Info'),
-        array($gamename => "%s?game=$game_url", 'Awards Info' => '')
+        array($gamename => ($g_options['scripturl'] ?? 'hlstats.php') . "?game=$game_url", 'Awards Info' => '')
     );
 ?>
 
@@ -108,24 +108,19 @@ if (isset($g_options['playerinfo_tabs']) && (string)$g_options['playerinfo_tabs'
 <br />
 <div id="main_content"></div>
 <?php
-if ($tab)
-{
-    $defaulttab = $tab;
-}
-else
-{
-    $defaulttab = 'daily';
-}
-// Security: Escape variables for JavaScript literal context
-$game_js = addslashes($game);
-$defaulttab_js = addslashes((string)$defaulttab);
+$allowed_tabs = array('daily', 'global', 'ranks', 'ribbons');
+$defaulttab = (!empty($tab) && in_array($tab, $allowed_tabs, true)) ? (string)$tab : 'daily';
+
+$img_base = defined('IMAGE_PATH') ? IMAGE_PATH : ($g_options['imgpath'] ?? 'hlstatsimg');
+
+$json_flags = JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP;
 
 echo "<script type=\"text/javascript\">
     new Tabs($('main_content'), $$('#main ul.subsection_tabs a'), {
         'mode': 'awards',
-        'game': '$game_js',
-        'loadingImage': '" . IMAGE_PATH . "/ajax.gif',
-        'defaultTab': '$defaulttab_js'
+        'game': " . json_encode($game, $json_flags) . ",
+        'loadingImage': " . json_encode(rtrim((string)$img_base, '/') . '/ajax.gif', $json_flags) . ",
+        'defaultTab': " . json_encode($defaulttab, $json_flags) . "
     });
 </script>";
 ?>

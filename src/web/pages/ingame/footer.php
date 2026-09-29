@@ -44,7 +44,8 @@ For support and installation notes visit http://www.hlxcommunity.com
 ?>
 <div style="clear:both;"></div>
 <div id="footer">
-    <a href="https://github.com/lovasatt/hlstatsx-community-edition" target="_blank" rel="noopener noreferrer"><img src="<?php echo htmlspecialchars((string)IMAGE_PATH, ENT_QUOTES, 'UTF-8'); ?>/footer-small.png" alt="HLstatsX Community Edition" border="0" /></a>
+    <?php $img_base = defined('IMAGE_PATH') ? IMAGE_PATH : ($g_options['imgpath'] ?? 'hlstatsimg'); ?>
+    <a href="https://github.com/lovasatt/hlstatsx-community-edition" target="_blank" rel="noopener noreferrer"><img src="<?php echo htmlspecialchars((string)$img_base, ENT_QUOTES, 'UTF-8'); ?>/footer-small.png" alt="HLstatsX Community Edition" border="0" /></a>
 </div>
 <br />
 <div class="fSmall" style="text-align:center;">

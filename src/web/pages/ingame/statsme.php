@@ -88,6 +88,7 @@ For support and installation notes visit http://www.hlxcommunity.com
             // PHP 8 Fix: Replace list()
             $row = $db->fetch_row();
             $player = (int)($row[0] ?? 0);
+            $db->free_result();
         }
     } elseif (!$player && !$uniqueid) {
         error('No player ID specified.');
@@ -97,7 +98,7 @@ For support and installation notes visit http://www.hlxcommunity.com
         SELECT
             hlstats_Players.playerId,
             hlstats_Players.connection_time,
-            hlstats_Players.lastName,
+            unhex(replace(hex(hlstats_Players.lastName), 'E280AE', '')) AS lastName,
             hlstats_Players.country,
             hlstats_Players.flag,
             hlstats_Players.clan,
@@ -109,16 +110,16 @@ For support and installation notes visit http://www.hlxcommunity.com
             hlstats_Players.skill,
             hlstats_Players.kills,
             hlstats_Players.deaths,
-            IFNULL(kills/deaths, '-') AS kpd,
+            IFNULL(ROUND(kills/NULLIF(deaths, 0), 2), '-') AS kpd,
             hlstats_Players.suicides,
             hlstats_Players.headshots,
-            IFNULL(headshots/kills, '-') AS hpk,
+            IFNULL(ROUND(headshots/NULLIF(kills, 0), 2), '-') AS hpk,
             hlstats_Players.shots,
             hlstats_Players.hits,
             hlstats_Players.teamkills,
             hlstats_Players.kill_streak,
             hlstats_Players.death_streak,
-            IFNULL(ROUND((hits / shots * 100), 1), 0.0) AS acc,
+            IFNULL(ROUND((hits / NULLIF(shots, 0) * 100), 1), 0.0) AS acc,
             hlstats_Clans.name AS clan_name,
             activity
         FROM
@@ -136,17 +137,17 @@ For support and installation notes visit http://www.hlxcommunity.com
     $playerdata = $db->fetch_array();
     $db->free_result();
 
-    // PHP 8 Fix: Handle null
-    $pl_name = (string)($playerdata['lastName'] ?? '');
+    // Multi-byte safe string truncation and UTF-8 escaping
+    $raw_name = (string)($playerdata['lastName'] ?? '');
 
-    if (strlen($pl_name) > 10) {
-        $pl_shortname = substr($pl_name, 0, 8) . '...';
+    if (mb_strlen($raw_name, 'UTF-8') > 10) {
+        $pl_shortname = mb_substr($raw_name, 0, 8, 'UTF-8') . '...';
     } else {
-        $pl_shortname = $pl_name;
+        $pl_shortname = $raw_name;
     }
 
-    $pl_name = htmlspecialchars($pl_name, ENT_QUOTES, 'UTF-8');
-    $pl_shortname = htmlspecialchars((string)$pl_shortname, ENT_QUOTES, 'UTF-8');
+    $pl_name = htmlspecialchars($raw_name, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    $pl_shortname = htmlspecialchars($pl_shortname, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
     $pl_urlname = urlencode((string)($playerdata['lastName'] ?? ''));
 
     $game = (string)($playerdata['game'] ?? $game ?? '');
@@ -156,10 +157,12 @@ For support and installation notes visit http://www.hlxcommunity.com
 
     if ($db->num_rows() != 1) {
         $gamename = ucfirst($game);
+        $db->free_result();
     } else {
         // PHP 8 Fix: Replace list()
         $row = $db->fetch_row();
         $gamename = ($row) ? (string)$row[0] : '';
+        $db->free_result();
     }
 
 ?>
@@ -237,6 +240,7 @@ For support and installation notes visit http://www.hlxcommunity.com
                 // PHP 8 Fix: Replace list()
                 $row = $db->fetch_row();
                 $realkills = ($row) ? (int)$row[0] : 0;
+                $db->free_result();
                 echo ' (' . number_format($realkills) . ')';
             ?></td>
         </tr>
@@ -257,7 +261,7 @@ For support and installation notes visit http://www.hlxcommunity.com
             <td colspan="2" class="fSmall"><?php
                 $db->query("
                         SELECT
-                            IFNULL(SUM(killerId='$player')/SUM(victimId='$player'), '-') AS kpd
+                            IFNULL(ROUND(SUM(killerId='$player')/NULLIF(SUM(victimId='$player'), 0), 2), '-') AS kpd
                         FROM
                             hlstats_Events_Frags,
                             hlstats_Servers
@@ -269,6 +273,7 @@ For support and installation notes visit http://www.hlxcommunity.com
                 // PHP 8 Fix: Replace list()
                 $row = $db->fetch_row();
                 $realkpd = ($row) ? (string)$row[0] : '-';
+                $db->free_result();
                 echo htmlspecialchars((string)($playerdata['kpd'] ?? '-'), ENT_QUOTES, 'UTF-8');
                 echo ' (' . htmlspecialchars($realkpd, ENT_QUOTES, 'UTF-8') . ')';
             ?></td>
@@ -290,6 +295,7 @@ For support and installation notes visit http://www.hlxcommunity.com
                 // PHP 8 Fix: Replace list()
                 $row = $db->fetch_row();
                 $realheadshots = ($row) ? (int)$row[0] : 0;
+                $db->free_result();
 
                 if (($playerdata['headshots'] ?? 0) == 0)
                     echo number_format($realheadshots);
@@ -303,7 +309,7 @@ For support and installation notes visit http://www.hlxcommunity.com
             <td colspan="2" class="fSmall"><?php
                 $db->query("
                         SELECT
-                            IFNULL(SUM(headshot=1)/COUNT(*), '-') AS hpk
+                            IFNULL(ROUND(SUM(headshot=1)/NULLIF(COUNT(*), 0), 2), '-') AS hpk
                         FROM
                             hlstats_Events_Frags
                         LEFT JOIN hlstats_Servers ON
@@ -314,6 +320,7 @@ For support and installation notes visit http://www.hlxcommunity.com
                 // PHP 8 Fix: Replace list()
                 $row = $db->fetch_row();
                 $realhpk = ($row) ? (string)$row[0] : '-';
+                $db->free_result();
                 echo htmlspecialchars((string)($playerdata['hpk'] ?? '-'), ENT_QUOTES, 'UTF-8');
                 echo ' (' . htmlspecialchars($realhpk, ENT_QUOTES, 'UTF-8') . ')';
             ?></td>
@@ -336,6 +343,7 @@ For support and installation notes visit http://www.hlxcommunity.com
                 // PHP 8 Fix: Replace list()
                 $row = $db->fetch_row();
                 $playerdata['accuracy'] = ($row) ? (string)$row[0] : '0.0';
+                $db->free_result();
 
                 echo htmlspecialchars((string)($playerdata['acc'] ?? '0'), ENT_QUOTES, 'UTF-8') . '%';
                 echo ' (' . htmlspecialchars($playerdata['accuracy'], ENT_QUOTES, 'UTF-8') . '%)';
@@ -358,6 +366,7 @@ For support and installation notes visit http://www.hlxcommunity.com
                 // PHP 8 Fix: Replace list()
                 $row = $db->fetch_row();
                 $realteamkills = ($row) ? (int)$row[0] : 0;
+                $db->free_result();
                 echo ' (' . number_format($realteamkills) . ')';
             ?></td>
         </tr>

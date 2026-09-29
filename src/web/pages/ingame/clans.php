@@ -125,14 +125,14 @@ For support and installation notes visit http://www.hlxcommunity.com
     $result = $db->query("
         SELECT
             hlstats_Clans.clanId,
-            hlstats_Clans.name,
-            hlstats_Clans.tag,
+            unhex(replace(hex(hlstats_Clans.name), 'E280AE', '')) AS name,
+            unhex(replace(hex(hlstats_Clans.tag), 'E280AE', '')) AS tag,
             COUNT(hlstats_Players.playerId) AS nummembers,
             SUM(hlstats_Players.kills) AS kills,
             SUM(hlstats_Players.deaths) AS deaths,
             SUM(hlstats_Players.connection_time) AS connection_time,
             ROUND(AVG(hlstats_Players.skill)) AS skill,
-            IFNULL(SUM(hlstats_Players.kills)/SUM(hlstats_Players.deaths), '-') AS kpd,
+            IFNULL(ROUND(SUM(hlstats_Players.kills)/NULLIF(SUM(hlstats_Players.deaths), 0), 2), '-') AS kpd,
             TRUNCATE(AVG(activity),2) as activity
         FROM
             hlstats_Clans,
@@ -158,16 +158,14 @@ For support and installation notes visit http://www.hlxcommunity.com
     $resultCount = $db->query("
         SELECT
             hlstats_Clans.clanId,
-            SUM(activity) as activity
+            AVG(hlstats_Players.activity) as activity
         FROM
-            hlstats_Clans
-        LEFT JOIN
+            hlstats_Clans,
             hlstats_Players
-        ON
-            hlstats_Players.clan = hlstats_Clans.clanId
         WHERE
             hlstats_Clans.game = '$game_esc'
             AND hlstats_Clans.hidden <> 1
+            AND hlstats_Players.clan = hlstats_Clans.clanId
             AND hlstats_Players.hideranking = 0
         GROUP BY
             hlstats_Clans.clanId
@@ -177,5 +175,13 @@ For support and installation notes visit http://www.hlxcommunity.com
     ");
 
     // PHP 8 Fix: Use object method for num_rows
-    $table->draw($result, $db->num_rows($resultCount), 100);
+    $numitems = ($resultCount) ? $db->num_rows($resultCount) : 0;
+    if ($resultCount) {
+        $db->free_result($resultCount);
+    }
+
+    $table->draw($result, $numitems, 100);
+    if ($result) {
+        $db->free_result($result);
+    }
 ?>

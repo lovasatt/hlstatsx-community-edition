@@ -83,6 +83,7 @@ For support and installation notes visit http://www.hlxcommunity.com
             // PHP 8 Fix: Replace list()
             $row = $db->fetch_row();
             $player = (int)($row[0] ?? 0);
+            $db->free_result();
         }
     } elseif (!$player && !$uniqueid) {
         error('No player ID specified.');
@@ -106,17 +107,17 @@ For support and installation notes visit http://www.hlxcommunity.com
     $playerdata = $db->fetch_array();
     $db->free_result();
 
-    // PHP 8 Fix: Handle null name
-    $pl_name = (string)($playerdata['lastName'] ?? '');
+    // Multi-byte safe string truncation and UTF-8 escaping
+    $raw_name = (string)($playerdata['lastName'] ?? '');
 
-    if (strlen($pl_name) > 10) {
-        $pl_shortname = substr($pl_name, 0, 8) . '...';
+    if (mb_strlen($raw_name, 'UTF-8') > 10) {
+        $pl_shortname = mb_substr($raw_name, 0, 8, 'UTF-8') . '...';
     } else {
-        $pl_shortname = $pl_name;
+        $pl_shortname = $raw_name;
     }
 
-    $pl_name = htmlspecialchars($pl_name, ENT_QUOTES, 'UTF-8');
-    $pl_shortname = htmlspecialchars((string)$pl_shortname, ENT_QUOTES, 'UTF-8');
+    $pl_name = htmlspecialchars($raw_name, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    $pl_shortname = htmlspecialchars($pl_shortname, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
     $pl_urlname = urlencode((string)($playerdata['lastName'] ?? ''));
 
     $game = (string)($playerdata['game'] ?? $game ?? '');
@@ -126,16 +127,18 @@ For support and installation notes visit http://www.hlxcommunity.com
 
     if ($db->num_rows() != 1) {
         $gamename = ucfirst($game);
+        $db->free_result();
     } else {
         // PHP 8 Fix: Replace list()
         $row = $db->fetch_row();
         $gamename = ($row) ? (string)$row[0] : '';
+        $db->free_result();
     }
 
     // Added: Page Header for proper layout
     pageHeader(
         array ($gamename, 'Map Performance', $pl_name),
-        array ($gamename=>"%s?game=" . urlencode($game), 'Map Performance'=>'')
+        array ($gamename => ($g_options['scripturl'] ?? 'hlstats.php') . "?game=" . urlencode($game), 'Map Performance' => '')
     );
 
     $tblMaps = new Table(
@@ -217,6 +220,7 @@ For support and installation notes visit http://www.hlxcommunity.com
     // PHP 8 Fix: Replace list()
     $row = $db->fetch_row();
     $realkills = ($row) ? (int)$row[0] : 0;
+    $db->free_result();
 
     $db->query("
         SELECT
@@ -233,6 +237,7 @@ For support and installation notes visit http://www.hlxcommunity.com
     // PHP 8 Fix: Replace list()
     $row = $db->fetch_row();
     $realheadshots = ($row) ? (int)$row[0] : 0;
+    $db->free_result();
 
     // Prevent division by zero
     $realkills_sql = ($realkills > 0) ? $realkills : 1;
@@ -243,10 +248,10 @@ For support and installation notes visit http://www.hlxcommunity.com
             IF(map='', '(Unaccounted)', map) AS map,
             SUM(killerId=$player) AS kills,
             SUM(victimId=$player) AS deaths,
-            IFNULL(SUM(killerId=$player) / SUM(victimId=$player), '-') AS kpd,
+            IFNULL(ROUND(SUM(killerId=$player) / NULLIF(SUM(victimId=$player), 0), 2), '-') AS kpd,
             ROUND(SUM(killerId=$player) / $realkills_sql * 100, 2) AS kpercent,
             SUM(killerId=$player AND headshot=1) as headshots,
-            IFNULL(SUM(killerId=$player AND headshot=1) / SUM(killerId=$player), '-') AS hpk,
+            IFNULL(ROUND(SUM(killerId=$player AND headshot=1) / NULLIF(SUM(killerId=$player), 0), 2), '-') AS hpk,
             ROUND(SUM(killerId=$player AND headshot=1) / $realheadshots_sql * 100, 2) AS hpercent
         FROM
             hlstats_Events_Frags
@@ -262,5 +267,9 @@ For support and installation notes visit http://www.hlxcommunity.com
             $tblMaps->sort2 $tblMaps->sortorder
     ");
 
-    $tblMaps->draw($result, $db->num_rows($result), 100);
+    $numitems = ($result) ? (int)$db->num_rows($result) : 0;
+    $tblMaps->draw($result, $numitems, 100);
+    if ($result) {
+        $db->free_result($result);
+    }
 ?>

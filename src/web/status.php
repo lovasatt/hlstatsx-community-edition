@@ -41,41 +41,42 @@ define('IN_HLSTATS', true);
 foreach ($_SERVER as $key => $entry) {
     // PHP 8 Fix: Ensure entry is string
     if ($key !== 'HTTP_COOKIE' && is_string($entry)) {
-	$search_pattern  = array('/<script>/', '/<\/script>/', '/[^A-Za-z0-9.\-\/=:;_?#&~]/');
-	$replace_pattern = array('', '', '');
-	$entry = preg_replace($search_pattern, $replace_pattern, $entry);
+        $search_pattern  = array('/<script>/i', '/<\/script>/i', '/[^A-Za-z0-9.\-\/=:;_?#&~]/');
+        $replace_pattern = array('', '', '');
+        $entry = preg_replace($search_pattern, $replace_pattern, $entry);
 
-	if ($key == 'PHP_SELF') {
+        if ($key === 'PHP_SELF') {
             $last_segment = strrchr($entry, '/');
             if ($last_segment !== false) {
-		if (($last_segment !== '/hlstats.php') &&
-		    ($last_segment !== '/show_graph.php') &&
-		    ($last_segment !== '/sig.php') &&
-		    ($last_segment !== '/sig2.php') &&
-		    ($last_segment !== '/index.php') &&
-		    ($last_segment !== '/status.php') &&
-		    ($last_segment !== '/top10.php') &&
-		    ($last_segment !== '/config.php') &&
-		    ($last_segment !== '/') &&
-		    ($entry !== '')) {
-                    $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+                if (($last_segment !== '/hlstats.php') &&
+                    ($last_segment !== '/show_graph.php') &&
+                    ($last_segment !== '/sig.php') &&
+                    ($last_segment !== '/sig2.php') &&
+                    ($last_segment !== '/index.php') &&
+                    ($last_segment !== '/status.php') &&
+                    ($last_segment !== '/top10.php') &&
+                    ($last_segment !== '/config.php') &&
+                    ($last_segment !== '/') &&
+                    ($entry !== '')) {
+                    $raw_host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+                    $host = preg_replace('/[^a-zA-Z0-9.:-]/', '', (string)$raw_host);
                     $proto = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-		    header('Location: ' . $proto . '://' . $host . '/hlstats.php');
-		    exit;
-		}
+                    header('Location: ' . $proto . '://' . $host . '/hlstats.php');
+                    exit;
+                }
             }
-	}
-	$_SERVER[$key] = $entry;
+        }
+        $_SERVER[$key] = $entry;
     }
 }
- 
+
 require('config.php');
 header('Content-Type: text/html; charset=utf-8');
 
-// Check PHP configuration
-if (version_compare(phpversion(), "4.1.0", "<"))
+// Check modern PHP version requirement
+if (version_compare(phpversion(), '8.1.0', '<'))
 {
-    error("HLstats requires PHP version 4.1.0 or newer (you are running PHP version " . phpversion() . ").");
+    error('HLstats requires PHP version 8.1.0 or newer (you are running PHP version ' . phpversion() . ').');
 }
 
 // do not report NOTICE warnings
@@ -131,9 +132,12 @@ $g_options['scriptbase'] = rtrim(str_replace('/status.php', '', (string)$g_optio
 //// Main Config
 ////
 
-$game = 'css';  
+$game = 'css';
 if (isset($_GET['game']) && is_string($_GET['game'])) {
-    $game = valid_request((string)$_GET['game'], false);
+    $game = valid_game((string)$_GET['game']);
+    if ($game === '') {
+        $game = 'css';
+    }
 }
 
 $game_escaped = $db->escape($game);
@@ -145,32 +149,44 @@ if (isset($_GET['server_id']) && is_numeric($_GET['server_id'])) {
 
 $width = 218;
 if (isset($_GET['width']) && is_numeric($_GET['width'])) {
-    $width = valid_request((int)$_GET['width'], true);
+    $width = max(100, min(1000, (int)$_GET['width']));
 }
 
 $body_color = 'ECF8FF';
-if (isset($_GET['body_color'])) {
-    $body_color = valid_request((string)$_GET['body_color'], false);
+if (!empty($_GET['body_color']) && is_string($_GET['body_color'])) {
+    $clean_hex = preg_replace('/[^a-fA-F0-9]/', '', $_GET['body_color']);
+    if (strlen($clean_hex) === 3 || strlen($clean_hex) === 6) {
+        $body_color = $clean_hex;
+    }
 }
 
 $background_color = 'ABCCD6';
-if (isset($_GET['bg_color'])) {
-    $background_color = valid_request((string)$_GET['bg_color'], false);
+if (!empty($_GET['bg_color']) && is_string($_GET['bg_color'])) {
+    $clean_hex = preg_replace('/[^a-fA-F0-9]/', '', $_GET['bg_color']);
+    if (strlen($clean_hex) === 3 || strlen($clean_hex) === 6) {
+        $background_color = $clean_hex;
+    }
 }
 
 $color = '000000';
-if (isset($_GET['color'])) {
-    $color = valid_request((string)$_GET['color'], false);
+if (!empty($_GET['color']) && is_string($_GET['color'])) {
+    $clean_hex = preg_replace('/[^a-fA-F0-9]/', '', $_GET['color']);
+    if (strlen($clean_hex) === 3 || strlen($clean_hex) === 6) {
+        $color = $clean_hex;
+    }
 }
 
 $border_width = 1;
-if (isset($_GET['border_width'])) {
-    $border_width = valid_request((int)$_GET['border_width'], true);
+if (isset($_GET['border_width']) && is_numeric($_GET['border_width'])) {
+    $border_width = max(0, min(20, (int)$_GET['border_width']));
 }
 
 $border_color = 'ABCCD6';
-if (isset($_GET['border_color'])) {
-    $border_color = valid_request((string)$_GET['border_color'], false);
+if (!empty($_GET['border_color']) && is_string($_GET['border_color'])) {
+    $clean_hex = preg_replace('/[^a-fA-F0-9]/', '', $_GET['border_color']);
+    if (strlen($clean_hex) === 3 || strlen($clean_hex) === 6) {
+        $border_color = $clean_hex;
+    }
 }
 
 $show_logo = '1';
@@ -280,6 +296,8 @@ while ($t_row = $db->fetch_array($teams_query)) {
 }
 
 $server_data = $db->fetch_array($result);
+if ($result) { $db->free_result($result); }
+if ($teams_query) { $db->free_result($teams_query); }
 
 if ($small_fonts == 1)
 {
@@ -339,10 +357,10 @@ if ($server_data && isset($server_data['addr']) && $server_data['addr'] != '')  
 
     if ($show_password != '')
     {
-	echo '<tr><td align="center" colspan="2" class="'.$fsize.'">';
-	echo '<b>Password:&nbsp;'.htmlspecialchars($show_password).'</b>';
-	echo '</td></tr>';
-    }    
+        echo '<tr><td align="center" colspan="2" class="'.$fsize.'">';
+        echo '<b>Password:&nbsp;'.hlx_h($show_password).'</b>';
+        echo '</td></tr>';
+    }
 
     if ($map_image == 1)
     {
@@ -492,12 +510,14 @@ if ($server_data && isset($server_data['addr']) && $server_data['addr'] != '')  
 		    kills DESC
 	    ");
 
-	    while ($thisplayer = $db->fetch_array($pldata))
-	    {
-		$playerdata[$teamno][] = $thisplayer;
-	    }
-	    $teamno++;
-	}
+            while ($thisplayer = $db->fetch_array($pldata))
+            {
+                $playerdata[$teamno][] = $thisplayer;
+            }
+            if ($pldata) { $db->free_result($pldata); }
+            $teamno++;
+        }
+        if ($statsdata) { $db->free_result($statsdata); } 
 	$curteam = 0;
 
 	while (isset($teamdata[$curteam]))
@@ -518,9 +538,10 @@ if ($server_data && isset($server_data['addr']) && $server_data['addr'] != '')  
             echo '<td align="left" width="85%" style="'.$teamcolor.';padding-left:3px;" class="'.$fsize.'">';
                 if (isset($thisplayer))
                 {
-                    if (strlen($thisplayer['name'])>50)
+                    // Multi-byte safe string truncation
+                    if (mb_strlen((string)$thisplayer['name'], 'UTF-8') > 50)
                     {
-                        $thisplayer['name'] = substr($thisplayer['name'], 0, 50);
+                        $thisplayer['name'] = mb_substr((string)$thisplayer['name'], 0, 50, 'UTF-8');
                     }
                     echo '<a target="_blank" style="color:'.$thisteam['playerlist_color'].';" href="'.htmlspecialchars((string)$g_options['scriptbase']).'/hlstats.php?mode=playerinfo&amp;player='.$thisplayer['player_id'].'" title="Player Details">';
                     if ($show_flags == 1)
@@ -529,7 +550,7 @@ if ($server_data && isset($server_data['addr']) && $server_data['addr'] != '')  
                         $flag_code = !empty($thisplayer['cli_flag']) ? $thisplayer['cli_flag'] : 'ZZ';
                         echo '<img src="'.getFlag($flag_code).'" alt="'.ucfirst($country_name).'" title="'.ucfirst($country_name).'">&nbsp;';
                     }
-                    echo '<span style="vertical-align:middle;">'.htmlspecialchars((string)$thisplayer['name'], ENT_COMPAT).'</span></a>';
+                    echo '<span style="vertical-align:middle;">'.hlx_h((string)$thisplayer['name']).'</span></a>';
                 }
                 else
                 {
@@ -675,9 +696,10 @@ if ($server_data && isset($server_data['addr']) && $server_data['addr'] != '')  
 	    $cut_pos = 15;
 	    if ($small_fonts == 1)
 		$cut_pos += 10;
-	    $display_name = $player['lastName'];
-	    if (strlen((string)$player['lastName']) > $cut_pos)
-		$display_name = substr((string)$player['lastName'], 0, $cut_pos);
+            $display_name = $player['lastName'];
+            // Multi-byte safe string truncation
+            if (mb_strlen((string)$player['lastName'], 'UTF-8') > $cut_pos)
+                $display_name = mb_substr((string)$player['lastName'], 0, $cut_pos, 'UTF-8');
 	    echo '<a target="_blank" href="'.htmlspecialchars((string)$g_options["scriptbase"]).'/hlstats.php?mode=playerinfo&amp;player='.$player['playerId'].'" title="Player Details">';
 	    if ($show_flags == 1)
 	    {
@@ -694,11 +716,12 @@ if ($server_data && isset($server_data['addr']) && $server_data['addr'] != '')  
 		    echo '<img src="'.IMAGE_PATH.'/player.gif" />&nbsp;';
 		}
 	    }
-	    echo '<span style="vertical-align:middle;">'.htmlspecialchars((string)$display_name, ENT_COMPAT).'</span></a>';
+	    echo '<span style="vertical-align:middle;">'.hlx_h((string)$display_name).'</span></a>';
 	    echo '</td><td align="right" width="15%" style="padding-right:2px;" class="'.$fsize.'">';
 	    echo $player['skill'];
 	    echo '</td></tr>'; 
 	}
+        if ($top_result) { $db->free_result($top_result); }
 	echo '</table></td></tr>';
     }
     echo '</table>';

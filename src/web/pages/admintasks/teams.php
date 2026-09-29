@@ -88,6 +88,9 @@ You can specify descriptive names for each game's team codes.<br /><br />
     ");
 
     $edlist->draw($result);
+    if ($result) {
+        $db->free_result($result);
+    }
 ?>
 
 <table width="75%" border="0" cellspacing="0" cellpadding="0" style="margin:15px auto;">

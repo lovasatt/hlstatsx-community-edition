@@ -87,17 +87,19 @@ For support and installation notes visit http://www.hlxcommunity.com
             hlstats_Actions.code,
             hlstats_Actions.description,
             COUNT(hlstats_Events_PlayerActions.id) AS obj_count,
-            SUM(hlstats_Events_PlayerActions.bonus) AS obj_bonus
+            IFNULL(SUM(hlstats_Events_PlayerActions.bonus), 0) AS obj_bonus
         FROM
             hlstats_Actions
-        LEFT JOIN
+        INNER JOIN
             hlstats_Events_PlayerActions
         ON
             hlstats_Events_PlayerActions.actionId = hlstats_Actions.id
         WHERE
             hlstats_Events_PlayerActions.playerId = $player
         GROUP BY
-            hlstats_Actions.id
+            hlstats_Actions.id,
+            hlstats_Actions.code,
+            hlstats_Actions.description
         )
         UNION ALL
         (
@@ -105,33 +107,36 @@ For support and installation notes visit http://www.hlxcommunity.com
             hlstats_Actions.code,
             hlstats_Actions.description,
             COUNT(hlstats_Events_PlayerPlayerActions.id) AS obj_count,
-            SUM(hlstats_Events_PlayerPlayerActions.bonus) AS obj_bonus
+            IFNULL(SUM(hlstats_Events_PlayerPlayerActions.bonus), 0) AS obj_bonus
         FROM
             hlstats_Actions
-        LEFT JOIN
+        INNER JOIN
             hlstats_Events_PlayerPlayerActions
         ON
             hlstats_Events_PlayerPlayerActions.actionId = hlstats_Actions.id
         WHERE
             hlstats_Events_PlayerPlayerActions.playerId = $player
         GROUP BY
-            hlstats_Actions.id
+            hlstats_Actions.id,
+            hlstats_Actions.code,
+            hlstats_Actions.description
         )
         ORDER BY
             $tblPlayerActions->sort $tblPlayerActions->sortorder,
             $tblPlayerActions->sort2 $tblPlayerActions->sortorder
     ");
-    $numitems = $db->num_rows($result);
+    $numitems = ($result) ? $db->num_rows($result) : 0;
     if ($numitems > 0)
     {
-?>
-
-<?php
         printSectionTitle('Player Actions *');
         $tblPlayerActions->draw($result, $numitems, 95);
 ?>
         <br /><br />
 <?php
+    }
+    // Always free first query result memory
+    if ($result) {
+        $db->free_result($result);
     }
     $tblPlayerPlayerActionsV = new Table
     (
@@ -174,36 +179,33 @@ For support and installation notes visit http://www.hlxcommunity.com
             hlstats_Actions.code,
             hlstats_Actions.description,
             COUNT(hlstats_Events_PlayerPlayerActions.id) AS obj_count,
-            SUM(hlstats_Events_PlayerPlayerActions.bonus) * -1 AS obj_bonus
+            IFNULL(SUM(hlstats_Events_PlayerPlayerActions.bonus) * -1, 0) AS obj_bonus
         FROM
             hlstats_Actions
-        LEFT JOIN
+        INNER JOIN
             hlstats_Events_PlayerPlayerActions
         ON
             hlstats_Events_PlayerPlayerActions.actionId = hlstats_Actions.id
         WHERE
             hlstats_Events_PlayerPlayerActions.victimId = $player
         GROUP BY
-            hlstats_Actions.id
+            hlstats_Actions.id,
+            hlstats_Actions.code,
+            hlstats_Actions.description
         ORDER BY
             $tblPlayerPlayerActionsV->sort $tblPlayerPlayerActionsV->sortorder,
             $tblPlayerPlayerActionsV->sort2 $tblPlayerPlayerActionsV->sortorder
     ");
-    $numitemsv = $db->num_rows($result);
+    $numitemsv = ($result) ? $db->num_rows($result) : 0;
     if ($numitemsv > 0)
     {
-        if ($numitems == 0)
-        {
-?>
-
-<?php
-        }
-
         printSectionTitle('Victims of Player-Player Actions *');
-        // Logic Fix: Use correct item count ($numitemsv) for the second table pagination
         $tblPlayerPlayerActionsV->draw($result, $numitemsv, 95);
 ?>
         <br /><br />
 <?php
+    }
+    if ($result) {
+        $db->free_result($result);
     }
 ?>

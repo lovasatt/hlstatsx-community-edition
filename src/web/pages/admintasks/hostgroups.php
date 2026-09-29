@@ -83,6 +83,9 @@ The patterns are sorted below in the order they will be applied. A more specific
     ");
 
     $edlist->draw($result);
+    if ($result) {
+        $db->free_result($result);
+    }
 ?>
 
 <table width="75%" border="0" cellspacing="0" cellpadding="0" style="margin:15px auto;">

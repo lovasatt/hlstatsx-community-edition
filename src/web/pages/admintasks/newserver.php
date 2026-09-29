@@ -93,14 +93,19 @@ For support and installation notes visit http://www.hlxcommunity.com
         } else {
             // 2. Check for duplicate address + port in database
             $s_port_int = (int)$s_port;
-            $db->query("SELECT `name` FROM `hlstats_Servers` WHERE `address` = '" . $db->escape($s_address) . "' AND `port` = $s_port_int LIMIT 1");
+            $res_dup = $db->query("SELECT `name` FROM `hlstats_Servers` WHERE `address` = '" . $db->escape($s_address) . "' AND `port` = $s_port_int LIMIT 1");
 
-            if ($row = $db->fetch_array()) {
-                message("warning", "A server with address " . htmlspecialchars($s_address) . ":" . $s_port_int . " already exists: " . htmlspecialchars($row['name']) . ".");
+            if ($row = $db->fetch_array($res_dup)) {
+                $server_existing_name = (string)$row['name'];
+                if ($res_dup) { $db->free_result($res_dup); }
+                message("warning", "A server with address $s_address:$s_port_int already exists: $server_existing_name.");
             } else {
+                if ($res_dup) { $db->free_result($res_dup); }
+
                 // 3. Verify game configuration
-                $db->query("SELECT `realgame` FROM `hlstats_Games` WHERE `code` = '" . $db->escape($selGame) . "' LIMIT 1");
-                $row = $db->fetch_row();
+                $res_game = $db->query("SELECT `realgame` FROM `hlstats_Games` WHERE `code` = '" . $db->escape($selGame) . "' LIMIT 1");
+                $row = ($res_game) ? $db->fetch_row($res_game) : null;
+                if ($res_game) { $db->free_result($res_game); }
 
                 if (!$row) {
                     message("warning", "Selected game configuration is invalid.");
@@ -113,8 +118,9 @@ For support and installation notes visit http://www.hlxcommunity.com
                     }
 
                     $script_path = (isset($_SERVER['SSL']) || (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] == "on") || (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] == "https")) ? 'https://' : 'http://';
-                    $script_path .= $_SERVER['HTTP_HOST'];
-                    $script_path .= str_replace("\\", "/", dirname($_SERVER["PHP_SELF"]));
+                    $safe_host = preg_replace('/[^a-zA-Z0-9.:\[\]-]/', '', (string)($_SERVER['HTTP_HOST'] ?? 'localhost'));
+                    $script_path .= ($safe_host !== '') ? $safe_host : 'localhost';
+                    $script_path .= str_replace("\\", "/", dirname((string)$_SERVER["PHP_SELF"]));
 
                     // Insert server record
                     $db->query(sprintf(
@@ -153,7 +159,8 @@ For support and installation notes visit http://www.hlxcommunity.com
 
                     $_POST = array();
 
-                    echo "<script type=\"text/javascript\"> window.location.href=\"" . $g_options['scripturl'] . "?mode=admin&game=" . urlencode($selGame) . "&task=serversettings&key=$insert_id#startsettings\"; </script>";
+                    $redirect_url = $g_options['scripturl'] . "?mode=admin&game=" . urlencode($selGame) . "&task=serversettings&key=" . (int)$insert_id . "#startsettings";
+                    echo "<script type=\"text/javascript\">window.location.href = " . json_encode($redirect_url, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) . ";</script>";
                     exit;
                 }
             }
@@ -163,7 +170,6 @@ For support and installation notes visit http://www.hlxcommunity.com
 Enter the address of a server that you want to accept data from.<br /><br />
 The "Public Address" should be the address you want shown to users. If left blank, it will be generated from the IP Address and Port. If you are using any kind of log relaying utility (i.e. hlstats.pl will not be receiving data directly from the game servers), you will want to set the IP Address and Port to the address of the log relay program, and set the Public Address to the real address of the game server. You will need a separate log relay for each game server. You can specify a hostname (or anything at all) in the Public Address.<p>
 
-<script type="text/javascript">
 <script type="text/javascript">
 function checkMod() {
     var form = document.forms['newserverform'];
@@ -177,7 +183,7 @@ function checkMod() {
         form.server_address.focus();
         return false;
     }
-    if (form.game_mod.value === 'PLEASESELECT' || form.game_mod.value === '') {
+    if (form.game_mod.value === 'PLEASESELECT') {
         alert('You must make a selection for Admin Mod');
         form.game_mod.focus();
         return false;
@@ -228,11 +234,13 @@ function checkMod() {
             <select name="game_mod">
             <option value="PLEASESELECT">PLEASE SELECT</option>
             <?php
-                $db->query("SELECT code, name FROM `hlstats_Mods_Supported`");
-
-                while ($row = $db->fetch_array()) {
-                    $selected = ($selected_mod === $row['code']) ? ' selected="selected"' : '';
-                    echo '<option value="' . htmlspecialchars($row['code']) . '"' . $selected . '>' . htmlspecialchars($row['name']) . '</option>';
+                $res_mods = $db->query("SELECT code, name FROM `hlstats_Mods_Supported`");
+                if ($res_mods) {
+                    while ($row = $db->fetch_array($res_mods)) {
+                        $selected = ($selected_mod === $row['code']) ? ' selected="selected"' : '';
+                        echo '<option value="' . htmlspecialchars($row['code']) . '"' . $selected . '>' . htmlspecialchars($row['name']) . '</option>';
+                    }
+                    $db->free_result($res_mods);
                 }
             ?>
             </select>

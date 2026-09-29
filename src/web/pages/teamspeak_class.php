@@ -194,6 +194,23 @@ class teamspeakDisplayClass
         return strtr((string)$str, $map);
     }
 
+    private function _escapeTS3($str) {
+        $map = [
+            '\\' => '\\\\',
+            '/'  => '\\/',
+            ' '  => '\\s',
+            '|'  => '\\p',
+            "\a" => '\\a',
+            "\b" => '\\b',
+            "\f" => '\\f',
+            "\n" => '\\n',
+            "\r" => '\\r',
+            "\t" => '\\t',
+            "\v" => '\\v'
+        ];
+        return strtr((string)$str, $map);
+    }
+
     private function _parseTS3KeyValues($str) {
         $result = [];
         $parts = explode(' ', trim((string)$str));
@@ -247,7 +264,7 @@ class teamspeakDisplayClass
             if (strpos($password, ':') !== false) {
                 list($user, $pass) = explode(':', $password, 2);
             }
-            fputs($socket, "login " . $user . " " . $this->_unescapeTS3($pass) . "\n");
+            fputs($socket, "login " . $this->_escapeTS3($user) . " " . $this->_escapeTS3($pass) . "\n");
             fgets($socket, 4096); // Read login response
         }
 
@@ -438,7 +455,11 @@ class teamspeakDisplayClass
         // Sanitize hostname: strip protocol prefixes (ts3server://, http://, ://) and trailing slashes
         $host = preg_replace('~^([a-z0-9_]+://|://)~i', '', $raw_host);
         $host = rtrim($host, '/');
-        if (strpos($host, ':') !== false) {
+
+        // Strip port safely for both IPv4 and bracketed IPv6 addresses
+        if (preg_match('/^\[([a-f0-9:]+)\](?::\d+)?$/i', $host, $m)) {
+            $host = $m[1];
+        } elseif (substr_count($host, ':') === 1) {
             $parts = explode(':', $host, 2);
             $host = $parts[0];
         }

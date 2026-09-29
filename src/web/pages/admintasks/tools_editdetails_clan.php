@@ -69,7 +69,9 @@ For support and installation notes visit http://www.hlxcommunity.com
         while ($rowdata = $db->fetch_row($res_map)) {
             $mapselect .= ";" . (string)$rowdata[0] . "/" . (string)$rowdata[1];
         }
+        $db->free_result($res_map);
     }
+    if ($table_check) { $db->free_result($table_check); }
     $mapselect .= ";";
 ?>
 
@@ -111,6 +113,7 @@ For support and installation notes visit http://www.hlxcommunity.com
     }
 
     $data = $db->fetch_array($result);
+    if ($result) { $db->free_result($result); }
 
     echo "<span class='fTitle'>";
     echo htmlspecialchars((string)($data['tag'] ?? ''), ENT_QUOTES, 'UTF-8');

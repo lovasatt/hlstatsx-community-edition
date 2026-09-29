@@ -111,11 +111,11 @@ For support and installation notes visit http://www.hlxcommunity.com
     $result = $db->query("
         SELECT
             hlstats_Events_Frags.killerId,
-            hlstats_Players.lastName AS killerName,
+            unhex(replace(hex(hlstats_Players.lastName), 'E280AE', '')) AS killerName,
             hlstats_Players.flag as flag,
             COUNT(hlstats_Events_Frags.map) AS frags,
             SUM(hlstats_Events_Frags.headshot=1) as headshots,
-            IFNULL(SUM(hlstats_Events_Frags.headshot=1) / Count(hlstats_Events_Frags.map), '-') AS hpk
+            IFNULL(ROUND(SUM(hlstats_Events_Frags.headshot=1) / NULLIF(COUNT(hlstats_Events_Frags.map), 0), 2), '-') AS hpk
         FROM
             hlstats_Events_Frags,
             hlstats_Players
@@ -125,7 +125,9 @@ For support and installation notes visit http://www.hlxcommunity.com
             AND hlstats_Players.game='$game_esc'
             AND hlstats_Players.hideranking<>'1'
         GROUP BY
-            hlstats_Events_Frags.killerId
+            hlstats_Events_Frags.killerId,
+            hlstats_Players.lastName,
+            hlstats_Players.flag
         ORDER BY
             $table->sort $table->sortorder,
             $table->sort2 $table->sortorder
@@ -135,20 +137,22 @@ For support and installation notes visit http://www.hlxcommunity.com
     $resultCount = $db->query("
         SELECT
             COUNT(DISTINCT hlstats_Events_Frags.killerId),
-            SUM(hlstats_Events_Frags.map='$map_esc')
+            COUNT(hlstats_Events_Frags.id)
         FROM
             hlstats_Events_Frags,
-            hlstats_Servers
+            hlstats_Players
         WHERE
-            hlstats_Servers.serverId = hlstats_Events_Frags.serverId
+            hlstats_Players.playerId = hlstats_Events_Frags.killerId
             AND hlstats_Events_Frags.map='$map_esc'
-            AND hlstats_Servers.game='$game_esc'
+            AND hlstats_Players.game='$game_esc'
+            AND hlstats_Players.hideranking<>'1'
     ");
 
     // PHP 8 Fix: Replace list()
     $row = $db->fetch_row($resultCount);
     $numitems = ($row) ? (int)($row[0] ?? 0) : 0;
     $totalkills = ($row) ? (int)($row[1] ?? 0) : 0;
+    if ($resultCount) { $db->free_result($resultCount); }
 ?>
 
 <div class="block">
@@ -160,5 +164,10 @@ For support and installation notes visit http://www.hlxcommunity.com
         <div style="clear:both;"></div>
     </div>
     <br /><br />
-    <?php $table->draw($result, $numitems, 100, 'center'); ?>
+    <?php
+        $table->draw($result, $numitems, 100, 'center');
+        if ($result) {
+            $db->free_result($result);
+        }
+    ?>
 </div>

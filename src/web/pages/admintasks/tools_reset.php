@@ -42,8 +42,8 @@ For support and installation notes visit http://www.hlxcommunity.com
 
     global $db, $auth, $task, $g_options;
 
-    // PHP 8 Fix: Null coalescing check
-    if (($auth->userdata['acclevel'] ?? 0) < 80) {
+    // Only full administrators (Level 100) are permitted to execute database resets
+    if (($auth->userdata['acclevel'] ?? 0) < 100) {
         die ('Access denied!');
     }
 ?>
@@ -54,6 +54,8 @@ For support and installation notes visit http://www.hlxcommunity.com
 
     if (isset($_POST['confirm']))
     {
+        @set_time_limit(0);
+        @ignore_user_abort(true);
         echo "<ul>\n";
 
         $gamefilter = '';
@@ -603,6 +605,7 @@ For support and installation notes visit http://www.hlxcommunity.com
             }
             $games[] = '<option value="' . htmlspecialchars($code, ENT_QUOTES, 'UTF-8') . '">' . $disabled_flag . htmlspecialchars($name, ENT_QUOTES, 'UTF-8') . ' - ' . htmlspecialchars($code, ENT_QUOTES, 'UTF-8') . "</option>\n";
         }
+        if ($result) { $db->free_result($result); }
 
 ?>
 <script type="text/javascript">

@@ -44,7 +44,7 @@ For support and installation notes visit http://www.hlxcommunity.com
     $game = isset($game) ? (string)$game : '';
     $game_esc = $db->escape($game);
     $game_url = urlencode($game);
-    $scripturl = htmlspecialchars((string)($g_options['scripturl'] ?? ''), ENT_QUOTES, 'UTF-8');
+    $scripturl = htmlspecialchars((string)($g_options['scripturl'] ?? 'hlstats.php'), ENT_QUOTES, 'UTF-8');
 
     // Role Statistics
     $db->query
@@ -67,7 +67,7 @@ For support and installation notes visit http://www.hlxcommunity.com
     pageHeader
     (
         array ($gamename, 'Role Statistics'),
-        array ($gamename => "%s?game=$game_url", 'Role Statistics' => '')
+        array ($gamename => ($g_options['scripturl'] ?? 'hlstats.php') . "?game=$game_url", 'Role Statistics' => '')
     );
 
     $result = $db->query
@@ -87,6 +87,9 @@ For support and installation notes visit http://www.hlxcommunity.com
         $code = $rowdata[0];
         $fname[strtolower((string)$code)] = htmlspecialchars((string)$rowdata[1], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
     }
+    if ($result) {
+        $db->free_result($result);
+    }
 
     $tblRoles = new Table
     (
@@ -96,7 +99,7 @@ For support and installation notes visit http://www.hlxcommunity.com
             (
                 'code',
                 'Role',
-                'width=24&type=roleimg&align=left&link=' . urlencode("mode=rolesinfo&amp;role=%k&amp;game=$game_url"),
+                'width=24&type=roleimg&align=left&link=' . urlencode("mode=rolesinfo&role=%k&game=$game_url"),
                 $fname
             ),
 	    new TableColumn
@@ -186,6 +189,7 @@ For support and installation notes visit http://www.hlxcommunity.com
     $totalkills  = ($row) ? (int)$row[0] : 0;
     $totaldeaths = ($row) ? (int)$row[1] : 0;
     $totalpicked = ($row) ? (int)$row[2] : 0;
+    $db->free_result();
 
     $div_realkills  = ($totalkills > 0) ? $totalkills : 1;
     $div_realdeaths = ($totaldeaths > 0) ? $totaldeaths : 1;
@@ -202,7 +206,7 @@ For support and installation notes visit http://www.hlxcommunity.com
             ROUND(hlstats_Roles.kills / $div_realkills * 100, 2) AS kpercent,
             hlstats_Roles.deaths,
             ROUND(hlstats_Roles.deaths / $div_realdeaths * 100, 2) AS dpercent,
-            ROUND(hlstats_Roles.kills / IF(hlstats_Roles.deaths = 0, 1, hlstats_Roles.deaths), 2) AS kpd
+            IFNULL(ROUND(hlstats_Roles.kills / NULLIF(hlstats_Roles.deaths, 0), 2), '-') AS kpd
         FROM
             hlstats_Roles
         WHERE
@@ -223,7 +227,13 @@ For support and installation notes visit http://www.hlxcommunity.com
         From a total of <strong><?php echo number_format($totalkills); ?></strong> kills with <strong><?php echo number_format($totaldeaths); ?></strong> deaths
     </div>
     <br /><br />
-    <?php $tblRoles->draw($result, $db->num_rows($result), 95); ?><br /><br />
+    <?php
+        $numitems = ($result) ? $db->num_rows($result) : 0;
+        $tblRoles->draw($result, $numitems, 95);
+        if ($result) {
+            $db->free_result($result);
+        }
+    ?><br /><br />
     <div class="subblock">
         <div style="float:right;">
             Go to: <a href="<?php echo $scripturl . '?game=' . $game_url; ?>"><?php echo htmlspecialchars($gamename, ENT_QUOTES, 'UTF-8'); ?></a>

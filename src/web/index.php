@@ -1,3 +1,3 @@
 <?php
-header("Location:hlstats.php");
-?>
+header('Location: hlstats.php');
+exit;

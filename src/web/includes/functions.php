@@ -41,6 +41,33 @@ if (!defined('IN_HLSTATS')) {
 }
 
 /**
+ * hlx_h()
+ * Escapes a value for safe HTML output (text and attribute context).
+ *
+ * @param mixed $str
+ * @return string
+ */
+function hlx_h($str)
+{
+    return htmlspecialchars((string)$str, ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5, 'UTF-8');
+}
+
+/**
+ * valid_game()
+ * Game codes are used in file paths and SQL, so only allow a strict charset.
+ *
+ * @param mixed $str
+ * @return string
+ */
+function valid_game($str)
+{
+    if (is_array($str)) {
+        return '';
+    }
+    return substr(preg_replace('/[^A-Za-z0-9_\-]/', '', (string)$str), 0, 32);
+}
+
+/**
  * getOptions()
  * 
  * @return Array All the options from the options/perlconfig table
@@ -93,23 +120,19 @@ function getFlag($flag, $type='url')
  */
 function valid_request($str, $numeric = false)
 {
-    $search_pattern = array("/[^A-Za-z0-9\[\]*.,=()!\"$%&^`ґ':;?ЯІі#+~_\-|<>\/\\\\@{}дцьДЦЬ ]/");
-    $replace_pattern = array('');
-    // PHP 8 Fix: Ensure string type for preg_replace
-    $str = preg_replace($search_pattern, $replace_pattern, (string)$str);
+    if (is_array($str)) {
+        return $numeric ? -1 : '';
+    }
+
+    // Allow Unicode letters (including Hungarian), numbers, spaces and safe punctuation
+    $str = preg_replace('/[^\p{L}\p{N}\[\]*.,=()!"$%&^`\':;?#+~_\-|<>\/\\\\@{ }]/u', '', (string)$str);
 
     if (!$numeric) {
-	// Deprecated, throws an warning in php 7.4 and above
-	/*if ( get_magic_quotes_gpc() )
-	    return $str = htmlspecialchars(stripslashes($str), ENT_QUOTES);
-	else
-	    return $str = htmlspecialchars($str, ENT_QUOTES);*/
-
-	return htmlspecialchars($str, ENT_QUOTES);
+        return htmlspecialchars((string)$str, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
     }
 
     if (is_numeric($str)) {
-	return intval($str);
+        return intval($str);
     }
 
     return -1;
@@ -189,15 +212,18 @@ function error($message, $exit = true)
 function makeQueryString($key, $value, $notkeys = array())
 {
     if (!is_array($notkeys)) {
-	$notkeys = array();
+        $notkeys = array();
     }
 
     $querystring = '';
     foreach ($_GET as $k => $v) {
-	$v = valid_request($v, false);
-	if ($k && $k != $key && !in_array($k, $notkeys)) {
-	    $querystring .= urlencode((string)$k) . '=' . rawurlencode((string)$v) . '&amp;';
-	}
+        if (is_array($v)) {
+            continue;
+        }
+
+        if ($k && $k != $key && !in_array($k, $notkeys)) {
+            $querystring .= urlencode((string)$k) . '=' . rawurlencode((string)$v) . '&amp;';
+        }
     }
 
     $querystring .= urlencode((string)$key) . '=' . urlencode((string)$value);
@@ -327,13 +353,13 @@ function getSortArrow($sort, $sortorder, $name, $longname, $var_sort = 'sort', $
  */
 function getSelect($name, $values, $currentvalue = '')
 {
-    $select = "<select name=\"$name\" style=\"width:300px;\">\n";
+    $select = "<select name=\"" . hlx_h($name) . "\" style=\"width:300px;\">\n";
 
     $gotcval = false;
 
     foreach ($values as $k => $v)
     {
-	$select .= "\t<option value=\"$k\"";
+	$select .= "\t<option value=\"" . hlx_h($k) . "\"";
 
 	if ($k == $currentvalue)
 	{
@@ -341,12 +367,12 @@ function getSelect($name, $values, $currentvalue = '')
 	    $gotcval = true;
 	}
 
-	$select .= ">$v</option>\n";
+	$select .= ">" . hlx_h($v) . "</option>\n";
     }
 
     if ($currentvalue && !$gotcval)
     {
-	$select .= "\t<option value=\"$currentvalue\" selected=\"selected\">$currentvalue</option>\n";
+	$select .= "\t<option value=\"" . hlx_h($currentvalue) . "\" selected=\"selected\">" . hlx_h($currentvalue) . "</option>\n";
     }
 
     $select .= '</select>';
@@ -363,60 +389,44 @@ function getSelect($name, $values, $currentvalue = '')
  * @param string $target
  * @return
  */
- 
+
 function getLink($url, $type = 'http://', $target = '_blank')
 {
-    // PHP 8 Fix: Explicit string cast
-    $url = (string)$url;
+    $url = trim((string)$url);
     $urld = parse_url($url);
 
     if ($urld === false) {
         return 'Invalid Url :(';
     }
 
-    if(!isset($urld['scheme']) && (!isset($urld['host']) && isset($urld['path'])))
-    {
-	    $urld['scheme']=str_replace('://', '', $type);
-	    $urld['host']=$urld['path'];
-	    unset($urld['path']);
-    }
-    
-    // PHP 8 Fix: Ensure scheme exists before checking
-    $scheme = isset($urld['scheme']) ? $urld['scheme'] : '';
-    if($scheme !='http' && $scheme !='https')
-    {
-	    return 'Invalid Url :(';
+    // Bare host without scheme ("example.com/path?x=1"): retry with the default scheme
+    if (!isset($urld['scheme']) && !isset($urld['host']) && isset($urld['path'])) {
+        $urld = parse_url(rtrim((string)$type, ':/') . '://' . $url);
+        if ($urld === false) {
+            return 'Invalid Url :(';
+        }
     }
 
-    if(!isset($urld['path']))
-    {
-	    $urld['path']='';
+    $scheme = isset($urld['scheme']) ? strtolower($urld['scheme']) : '';
+    if (($scheme !== 'http' && $scheme !== 'https') || empty($urld['host'])) {
+        return 'Invalid Url :(';
     }
 
-    if(!isset($urld['query']))
-    {
-	    $urld['query']='';
-    }
-    else
-    {
-	    $urld['query']='?' . urlencode($urld['query']);
+    $host = $urld['host'];
+    if (!preg_match('/^[\p{L}\p{N}.\-]+$|^\[[0-9A-Fa-f:.]+\]$/u', $host)) {
+        return 'Invalid Url :(';
     }
 
-    if(!isset($urld['fragment']))
-    {
-	    $urld['fragment']='';
-    }
-    else
-    {
-	    $urld['fragment']='#' . urlencode($urld['fragment']);
-    }
+    $port     = isset($urld['port']) ? ':' . (int)$urld['port'] : '';
+    $path     = isset($urld['path']) ? str_replace(' ', '%20', $urld['path']) : '';
+    $query    = (isset($urld['query']) && $urld['query'] !== '') ? '?' . $urld['query'] : '';
+    $fragment = (isset($urld['fragment']) && $urld['fragment'] !== '') ? '#' . $urld['fragment'] : '';
 
-    $host = isset($urld['host']) ? $urld['host'] : '';
-    $uri = sprintf("%s%s%s", $urld['path'], $urld['query'], $urld['fragment']);
-    $host_uri = $host . $uri;
-    
-    // PHP 8 Fix: scheme is now safe string
-    return sprintf('<a href="%s://%s%s" target="%s">%s</a>', $scheme, $host, $uri, $target, htmlspecialchars($host_uri, ENT_COMPAT));
+    $host_uri = $host . $port . $path . $query . $fragment;
+
+    // Attribute values are always escaped; rel prevents window.opener abuse
+    return sprintf('<a href="%s://%s" target="%s" rel="noopener noreferrer">%s</a>',
+        hlx_h($scheme), hlx_h($host_uri), hlx_h($target), hlx_h($host_uri));
 }
 
 /**
@@ -428,29 +438,24 @@ function getLink($url, $type = 'http://', $target = '_blank')
  */
 function getEmailLink($email, $maxlength = 40)
 {
-    // PHP 8 Fix: Ensure string
-    $email = (string)$email;
-    if (preg_match('/(.+)@(.+)/', $email, $regs))
+    $email = trim((string)$email);
+
+    if (filter_var($email, FILTER_VALIDATE_EMAIL))
     {
-	if (strlen($email) > $maxlength)
-	{
-	    $email_title = substr($email, 0, $maxlength - 3) . '...';
-	}
-	else
-	{
-	    $email_title = $email;
-	}
-
-	$email = str_replace('"', urlencode('"'), $email);
-	$email = str_replace('<', urlencode('<'), $email);
-	$email = str_replace('>', urlencode('>'), $email);
-
-	return "<a href=\"mailto:$email\">" . htmlspecialchars($email_title, ENT_COMPAT) . '</a>';
+    if (mb_strlen($email, 'UTF-8') > $maxlength)
+    {
+        $email_title = mb_substr($email, 0, $maxlength - 3, 'UTF-8') . '...';
     }
-
     else
     {
-	return '';
+        $email_title = $email;
+    }
+
+    return '<a href="mailto:' . hlx_h($email) . '">' . hlx_h($email_title) . '</a>';
+    }
+    else
+    {
+    return '';
     }
 }
 
@@ -462,40 +467,60 @@ function getEmailLink($email, $maxlength = 40)
  */
 function getImage($filename)
 {
+    static $cache = array();
+
     $filename = (string)$filename;
-    if (preg_match('/^(.*\/)(.+)$/', $filename, $matches)) {
-	$relpath = $matches[1];
-	$realfilename = $matches[2];
-	
-	$path = IMAGE_PATH . $filename;
-	$url = IMAGE_PATH . $relpath . rawurlencode($realfilename);
-    
-	// check if image exists
-	if (file_exists($path . '.png'))
-	{
-	    $ext = 'png';
-	} elseif (file_exists($path . '.gif'))
-	{
-	    $ext = 'gif';
-	} elseif (file_exists($path . '.jpg'))
-	{
-	    $ext = 'jpg';
-	}
-	else
-	{
-	    $ext = '';
-	}
-    
-	if ($ext)
-	{
-	    $size = @getImageSize("$path.$ext");
-            if ($size) {
-	        return array('url' => "$url.$ext", 'path' => "$path.$ext", 'width' => $size[0], 'height' => $size[1], 'size' => $size[3]);
-            }
-	}
+
+    // Block path traversal and null bytes (weapon/role codes come from game server logs)
+    if (strpos($filename, '..') !== false || strpos($filename, "\0") !== false) {
+    return false;
     }
 
-    return false;
+    if (array_key_exists($filename, $cache)) {
+    return $cache[$filename];
+    }
+
+    $result = false;
+
+    if (preg_match('/^(.*\/)(.+)$/', $filename, $matches)) {
+    $relpath = $matches[1];
+    $realfilename = $matches[2];
+
+    $path = IMAGE_PATH . $filename;
+    $url = IMAGE_PATH . $relpath . rawurlencode($realfilename);
+
+    // check if image exists
+    if (file_exists($path . '.png'))
+    {
+        $ext = 'png';
+    } elseif (file_exists($path . '.gif'))
+    {
+        $ext = 'gif';
+    } elseif (file_exists($path . '.jpg'))
+    {
+        $ext = 'jpg';
+    }
+    else
+    {
+        $ext = '';
+    }
+
+    if ($ext)
+    {
+        $size = @getimagesize("$path.$ext");
+            if ($size) {
+            $result = array('url' => "$url.$ext", 'path' => "$path.$ext", 'width' => $size[0], 'height' => $size[1], 'size' => $size[3]);
+            }
+    }
+    }
+
+    // Keep the cache bounded on very long-running requests
+    if (count($cache) > 2000) {
+    $cache = array();
+    }
+    $cache[$filename] = $result;
+
+    return $result;
 }
 
 function mystripslashes($text)
@@ -534,7 +559,7 @@ function getJSText($js)
 
 function get_player_rank($playerdata) {
     global $db, $g_options;
-    
+
     $rank = 0;
     $tempdeaths = (int)($playerdata['deaths'] ?? 0);
     if ($tempdeaths == 0)
@@ -544,7 +569,7 @@ function get_player_rank($playerdata) {
     $rankingtype = (string)($g_options['rankingtype'] ?? 'skill');
     // Ensure rankingtype is safe (usually kills or skill)
     if ($rankingtype !== 'kills' && $rankingtype !== 'skill') $rankingtype = 'skill';
-    
+
     $player_rank_val = $db->escape((string)($playerdata[$rankingtype] ?? 0));
     $player_kills = (float)($playerdata['kills'] ?? 0);
     $query = "
@@ -562,36 +587,13 @@ function get_player_rank($playerdata) {
 		    )
 	    )
     ";
-    $db->query($query);
-    // PHP 8 Fix: Replace list()
-    $row = $db->fetch_row();
+    $result = $db->query($query);
+    $row = $db->fetch_row($result);
+    $db->free_result($result);
     $rank = ($row) ? (int)$row[0] : 0;
     $rank++;
 
     return $rank;
-}
-
-if (!function_exists('file_get_contents')) {
-      function file_get_contents($filename, $incpath = false, $resource_context = null)
-      {
-          if (false === $fh = fopen($filename, 'rb', $incpath)) {
-              trigger_error('file_get_contents() failed to open stream: No such file or directory', E_USER_WARNING);
-              return false;
-          }
-  
-          clearstatcache();
-          if ($fsize = @filesize($filename)) {
-              $data = fread($fh, $fsize);
-          } else {
-              $data = '';
-              while (!feof($fh)) {
-                  $data .= fread($fh, 8192);
-              }
-          }
-  
-          fclose($fh);
-          return $data;
-      }
 }
 
 /**
@@ -602,15 +604,15 @@ if (!function_exists('file_get_contents')) {
  */
 function hex2rgb($hexVal = '')
 {
-    // PHP 8 Fix: Add delimiters to regex pattern
     $hexVal = preg_replace('/[^a-fA-F0-9]/', '', (string)$hexVal);
+    if (strlen($hexVal) == 3)
+    {
+        $hexVal = $hexVal[0] . $hexVal[0] . $hexVal[1] . $hexVal[1] . $hexVal[2] . $hexVal[2];
+    }
     if (strlen($hexVal) != 6)
     {
-	return 'ERR: Incorrect colorcode, expecting 6 chars (a-f, 0-9)';
+        return array('red' => 0, 'green' => 0, 'blue' => 0);
     }
-    $arrTmp = explode(' ', chunk_split($hexVal, 2, ' '));
-    $arrTmp = array_map('hexdec', $arrTmp);
-    return array('red' => $arrTmp[0], 'green' => $arrTmp[1], 'blue' => $arrTmp[2]);
+    $arrTmp = array_map('hexdec', str_split($hexVal, 2));
+    return array('red' => $arrTmp[0] ?? 0, 'green' => $arrTmp[1] ?? 0, 'blue' => $arrTmp[2] ?? 0);
 }
-
-?>

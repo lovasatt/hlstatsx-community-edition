@@ -42,6 +42,9 @@ For support and installation notes visit http://www.hlxcommunity.com
 
     global $db, $auth, $gamecode;
 
+    // Prevent silent truncation of POST variables on large ribbon tables (> 1000 inputs)
+    @ini_set('max_input_vars', 10000);
+
     // PHP 8 Fix: Null coalescing check
     if (($auth->userdata["acclevel"] ?? 0) < 80) {
         die ("Access denied!");
@@ -96,6 +99,9 @@ Special Logic:<br />
     ");
 
     $edlist->draw($result);
+    if ($result) {
+        $db->free_result($result);
+    }
 ?>
 
 <table width="75%" border="0" cellspacing="0" cellpadding="0" style="margin:15px auto;">
@@ -103,3 +109,46 @@ Special Logic:<br />
     <td align="center"><input type="submit" value="  Apply  " class="submit" /></td>
 </tr>
 </table>
+<script type="text/javascript">
+/* <![CDATA[ */
+document.addEventListener("DOMContentLoaded", function () {
+    var form = document.querySelector('form[name*="ribbons"]') || document.querySelector("form");
+    if (!form) return;
+
+    var modifiedRows = {};
+
+    form.addEventListener("input", function (e) {
+        trackRowChange(e.target);
+    });
+    form.addEventListener("change", function (e) {
+        trackRowChange(e.target);
+    });
+
+    function trackRowChange(elem) {
+        if (!elem || !elem.name) return;
+        var match = elem.name.match(/^([0-9]+)_/);
+        if (match) {
+            modifiedRows[match[1]] = true;
+        }
+    }
+
+    form.addEventListener("submit", function () {
+        var rowElements = form.querySelectorAll('input[name="rows[]"]');
+        rowElements.forEach(function (hiddenInput) {
+            var rowId = hiddenInput.value;
+            var deleteCheckbox = form.querySelector('input[name="' + rowId + '_delete"]');
+            var isMarkedForDeletion = deleteCheckbox && deleteCheckbox.checked;
+
+            if (!modifiedRows[rowId] && !isMarkedForDeletion) {
+                hiddenInput.disabled = true;
+
+                var fields = form.querySelectorAll('[name^="' + rowId + '_"]');
+                fields.forEach(function (field) {
+                    field.disabled = true;
+                });
+            }
+        });
+    });
+});
+/* ]]> */
+</script>

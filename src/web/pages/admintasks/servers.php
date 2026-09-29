@@ -47,12 +47,15 @@ For support and installation notes visit http://www.hlxcommunity.com
         die ("Access denied!");
     }
 
-    function delete_server($server)
-    {
-        global $db;
-        $server_esc = $db->escape($server);
-        $db->query("DELETE FROM `hlstats_Servers_Config` WHERE `serverId` = '$server_esc'");
-        $db->query("DELETE FROM `hlstats_server_load` WHERE `server_id`  = '$server_esc'");
+    if (!function_exists('delete_server')) {
+        function delete_server($server)
+        {
+            global $db;
+            $server_esc = $db->escape($server);
+            $db->query("DELETE FROM `hlstats_Servers_Config` WHERE `serverId` = '$server_esc'");
+            $db->query("DELETE FROM `hlstats_server_load` WHERE `server_id`  = '$server_esc'");
+            $db->query("DELETE FROM `hlstats_Livestats` WHERE `server_id`    = '$server_esc'");
+        }
     }
 
     // Prepare variables for EditList
@@ -139,10 +142,15 @@ For support and installation notes visit http://www.hlxcommunity.com
                         LIMIT 1
                     ");
 
-                    if ($db->num_rows($check) > 0) {
+                    if ($check && $db->num_rows($check) > 0) {
                         $existing = $db->fetch_array($check);
-                        $validation_error = "The address {$pair_key} is already assigned to another server: " . htmlspecialchars($existing['name']) . ".";
+                        $existing_name = (string)($existing['name'] ?? '');
+                        $db->free_result($check);
+                        $validation_error = "The address {$pair_key} is already assigned to another server: $existing_name.";
                         break;
+                    }
+                    if ($check) {
+                        $db->free_result($check);
                     }
                 }
             }
@@ -184,7 +192,9 @@ For support and installation notes visit http://www.hlxcommunity.com
     ");
 
     $edlist->draw($result, false);
-
+    if ($result) {
+        $db->free_result($result);
+    }
 ?>
 
 <table width="75%" border="0" cellspacing="0" cellpadding="0">

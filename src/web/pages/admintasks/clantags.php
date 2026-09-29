@@ -83,7 +83,7 @@ For support and installation notes visit http://www.hlxcommunity.com
     <td class="fSmall">Matches literal A or a</td>
 </tr>
 <tr class="bg2" style="vertical-align:middle;">
-    <td class="fSmall">x></td>
+    <td class="fSmall">x</td>
     <td class="fSmall">Matches literal X or x</td>
 </tr>
 </table><br />
@@ -102,12 +102,12 @@ For support and installation notes visit http://www.hlxcommunity.com
     <td class="fSmall">[ZOOM]Player</td>
 </tr>
 <tr class="bg2" style="vertical-align:middle;">
-    <td class="fSmall">{AAXX}</tt></td>
+    <td class="fSmall">{AAXX}</td>
     <td class="fSmall">Matches 2 to 4 characters inside curly braces</td>
-    <td class="fSmall">{S3G}Player</tt></td>
+    <td class="fSmall">{S3G}Player</td>
 </tr>
 <tr class="bg1" style="vertical-align:middle;">
-    <td class="fSmall">rex>></tt></td>
+    <td class="fSmall">rex>></td>
     <td class="fSmall">Matches the string "rex>>", "REX>>", etc.</td>
     <td class="fSmall">REX>>Tyranno</td>
 </tr>
@@ -131,6 +131,9 @@ For support and installation notes visit http://www.hlxcommunity.com
     ");
 
     $edlist->draw($result);
+    if ($result) {
+        $db->free_result($result);
+    }
 ?>
 
 <table width="75%" border="0" cellspacing="0" cellpadding="0" style="margin:15px auto;">

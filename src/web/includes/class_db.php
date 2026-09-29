@@ -85,25 +85,40 @@ class DB_mysql
         mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 
         try {
-	    if ( $use_pconnect )
-	    {
-                $host = "p:" . $db_addr;
-	    }
-	    else
-	    {
-                $host = $db_addr;
-	    }
+            $host = (string)$db_addr;
+            $port = 3306;
+            $socket = null;
+
+            if (strpos($host, ':/') !== false)
+            {
+                // Unix socket notation, e.g. "localhost:/tmp/mysql.sock" or ":/tmp/mysql.sock"
+                list($host, $socket) = explode(':', $host, 2);
+                if ($host === '') {
+                    $host = 'localhost';
+                }
+            }
+            elseif (preg_match('/^([^:]+):(\d+)$/', $host, $m))
+            {
+                // "host:port" notation
+                $host = $m[1];
+                $port = (int)$m[2];
+            }
+
+        if ( $use_pconnect )
+        {
+                $host = "p:" . $host;
+        }
             
-            $this->link = mysqli_connect($host, $db_user, $db_pass);
+            $this->link = mysqli_connect($host, $db_user, $db_pass, null, $port, $socket);
             
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             $this->link = false;
         }
 
-	if ( $this->link )
-	{
+    if ( $this->link )
+    {
             try {
-		if (defined('DB_CHARSET')) {
+	if (defined('DB_CHARSET')) {
                     mysqli_set_charset($this->link, DB_CHARSET);
                 } else {
                     mysqli_set_charset($this->link, 'utf8mb4');
@@ -114,12 +129,12 @@ class DB_mysql
                     mysqli_query($this->link, $query_str);
                 }
 
-		if ( $db_name != '' )
-		{
-		    $this->db_name = $db_name;
-		    mysqli_select_db($this->link, $db_name);
-		}
-            } catch (Exception $e) {
+	if ( $db_name != '' )
+	{
+	    $this->db_name = $db_name;
+	    mysqli_select_db($this->link, $db_name);
+	}
+            } catch (\Throwable $e) {
                 if ($this->link) mysqli_close($this->link);
                 $this->error("Database initialization failed: " . $e->getMessage());
             }
@@ -148,7 +163,7 @@ class DB_mysql
 	return false;
     }
 
-    function fetch_array($query_id = 0)
+    function fetch_array($query_id = 0, $mode = MYSQLI_BOTH)
     {
 	if ( !$query_id )
 	{
@@ -157,9 +172,9 @@ class DB_mysql
 
 	if ( $query_id instanceof mysqli_result )
 	{
-	    return mysqli_fetch_array($query_id);
-	}
-	return false;
+        return mysqli_fetch_array($query_id, $mode);
+    }
+    return false;
     }
 
     function fetch_row($query_id = 0)
@@ -203,7 +218,14 @@ class DB_mysql
 
 	if ( $query_id instanceof mysqli_result )
 	{
-	    mysqli_free_result($query_id);
+        try {
+	mysqli_free_result($query_id);
+        } catch (\Throwable $e) {
+	return false;
+        }
+        if ($this->last_result === $query_id) {
+            $this->last_result = null;
+        }
             return true;
 	}
 	return false;
@@ -249,27 +271,32 @@ class DB_mysql
 	}
         
         try {
-	    $this->last_result = mysqli_query($this->link, $query);
-        } catch (Exception $e) {
-            $this->last_result = false;
-        }
-        
-	$endtime = microtime(true);
-
-	$this->last_insert_id = mysqli_insert_id($this->link);
-
-	if($calcrows == true)
-	{
-            try {
-		$calc_result = mysqli_query($this->link, "select found_rows() as rowcount");
-		if($calc_result && $row = mysqli_fetch_assoc($calc_result))
-		{
-		    $this->last_calc_rows = (int)$row['rowcount'];
-		}
-            } catch (Exception $e) {
-                $this->last_calc_rows = 0;
+            $this->last_result = mysqli_query($this->link, $query);
+            } catch (\Throwable $e) {
+                $this->last_result = false;
+                $this->last_error_msg = $e->getMessage();
             }
-	}
+
+        $endtime = microtime(true);
+
+        $this->last_insert_id = mysqli_insert_id($this->link);
+
+        if($calcrows == true)
+        {
+                try {
+        	$calc_result = mysqli_query($this->link, "select found_rows() as rowcount");
+        if($calc_result && $row = mysqli_fetch_assoc($calc_result))
+        {
+            $this->last_calc_rows = (int)$row['rowcount'];
+        }
+        if ($calc_result instanceof mysqli_result)
+        {
+            mysqli_free_result($calc_result);
+        }
+                } catch (\Throwable $e) {
+                    $this->last_calc_rows = 0;
+                }
+        }
 
 	$this->querycount++;
 
@@ -282,33 +309,34 @@ class DB_mysql
 	{
 	    if($this->profile)
 	    {
-		$backtrace = debug_backtrace();
-                $file_info = isset($backtrace[0]) ? basename($backtrace[0]['file']) . ':' . $backtrace[0]['line'] : 'unknown';
+	$backtrace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 2);
+                $bt = isset($backtrace[1]) ? $backtrace[1] : (isset($backtrace[0]) ? $backtrace[0] : null);
+                $file_info = ($bt && isset($bt['file'])) ? basename($bt['file']) . ':' . $bt['line'] : 'unknown';
                 $escaped_source = mysqli_real_escape_string($this->link, $file_info);
                 $duration = $endtime - $starttime;
                 
 		$profilequery = "insert into hlstats_sql_web_profile (source, run_count, run_time) values ".
-		    "('$escaped_source',1,'$duration')"
-		    ."ON DUPLICATE KEY UPDATE run_count = run_count+1, run_time=run_time+$duration";
+		    "('$escaped_source',1,'$duration') ".
+		    "ON DUPLICATE KEY UPDATE run_count = run_count+1, run_time=run_time+$duration";
 		try {
-                    mysqli_query($this->link, $profilequery);
-                } catch (Exception $e) {}
-	    }
-	    return $this->last_result;
-	}
-	else
-	{
-	    if ($showerror)
-	    {
-                // Retrieve actual error from MySQLi exception handling logic
-                $error_msg = mysqli_error($this->link);
-		$this->error('Bad query. ' . $error_msg);
+	                    mysqli_query($this->link, $profilequery);
+	                } catch (\Throwable $e) {}
+	        }
+	        return $this->last_result;
 	    }
 	    else
 	    {
-		return false;
-	    }
-	}
+	        if ($showerror)
+	        {
+	                // Retrieve actual error from MySQLi exception handling logic
+	                $error_msg = ($this->link instanceof mysqli && mysqli_error($this->link)) ? mysqli_error($this->link) : ($this->last_error_msg ?? 'Unknown query error');
+		$this->error('Bad query. ' . $error_msg);
+            }
+            else
+	    {
+    	return false;
+            }
+        }
     }
 
     function result($row_idx, $field, $query_id = 0)
@@ -327,7 +355,7 @@ class DB_mysql
             }
             if (mysqli_data_seek($query_id, (int)$row_idx)) {
                 $row_data = mysqli_fetch_array($query_id);
-                return isset($row_data[$field]) ? $row_data[$field] : false;
+                return (is_array($row_data) && array_key_exists($field, $row_data)) ? $row_data[$field] : false;
             }
 	}
 	return false;
@@ -343,32 +371,33 @@ class DB_mysql
     
 	return '';
     }
-
     function error($message, $exit=true)
     {
-        // Safe output with PHP 8.4 type safety
-        $out = "<b>Database Error</b><br />\n<br />\n" .
-            "<i>Server Address:</i> " . htmlspecialchars((string)$this->db_addr, ENT_QUOTES, 'UTF-8') . "<br />\n" .
-            "<i>Server Username:</i> " . htmlspecialchars((string)$this->db_user, ENT_QUOTES, 'UTF-8') . "<br /><br />\n" .
-            "<i>Error Diagnostic:</i><br />\n" . htmlspecialchars((string)$message, ENT_QUOTES, 'UTF-8') . "<br /><br />\n";
-            
+        // Always log the full details server-side
+        error_log('HLstatsX DB error: ' . (string)$message . ' | last query: ' . substr((string)$this->last_query, 0, 500));
+
+        $out = "<b>Database Error</b><br />\n<br />\n";
+
         if (defined('DB_DEBUG') && DB_DEBUG == true) {
-             $out .= "<i>Server Error:</i> (" . mysqli_errno($this->link) . ") " . htmlspecialchars(mysqli_error($this->link)) . "<br /><br />\n" .
-	    "<i>Last SQL Query:</i><br />\n<pre style=\"font-size:10px;\">" . htmlspecialchars($this->last_query) . "</pre>";
+            $out .= "<i>Server Address:</i> " . htmlspecialchars((string)$this->db_addr, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "<br />\n" .
+                "<i>Server Username:</i> " . htmlspecialchars((string)$this->db_user, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "<br /><br />\n" .
+                "<i>Error Diagnostic:</i><br />\n" . htmlspecialchars((string)$message, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "<br /><br />\n";
+
+            if ($this->link instanceof mysqli) {
+                $out .= "<i>Server Error:</i> (" . mysqli_errno($this->link) . ") " . htmlspecialchars(mysqli_error($this->link), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "<br /><br />\n";
+            }
+            $out .= "<i>Last SQL Query:</i><br />\n<pre style=\"font-size:10px;\">" . htmlspecialchars($this->last_query, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "</pre>";
+        } else {
+            $out .= "The database is currently unavailable. Please try again later.<br /><br />\n";
         }
 
         if (function_exists('error')) {
-            // Call global error handler if exists (based on your code structure)
-            // But we need to ensure it doesn't loop or fail
-            echo $out;
-            if ($exit) die();
+            error($out, $exit);
         } else {
-	    if ($exit) {
-                die($out);
-            } else {
-                echo $out;
+            echo $out;
+            if ($exit) {
+                die();
             }
         }
     }
 }
-?>

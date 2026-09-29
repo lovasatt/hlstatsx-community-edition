@@ -73,6 +73,7 @@ For support and installation notes visit http://www.hlxcommunity.com
     {
         $flagselect .= ";" . (string)$rowdata[0] . "/" . (string)$rowdata[1];
     }
+    if ($res_flags) { $db->free_result($res_flags); }
     $flagselect .= ";";
 
     $proppage = new PropertyPage("hlstats_Players", "playerId", $id, array(
@@ -92,19 +93,31 @@ For support and installation notes visit http://www.hlxcommunity.com
         ))
     ));
 
+    $playerId = (int)$id;
+
     if (isset($_POST['fullName']))
     {
+        $country_name_sync = '';
         if (!empty($_POST['flag']))
         {
             $flag_esc = $db->escape($_POST['flag']);
             $res_c = $db->query("SELECT `name` FROM hlstats_Countries WHERE `flag` = '$flag_esc' LIMIT 1");
-            if ($res_c && $row_c = $db->fetch_row($res_c))
-            {
-                $_POST['country'] = $row_c[0];
+            if ($res_c) {
+                if ($row_c = $db->fetch_row($res_c)) {
+                    $country_name_sync = (string)$row_c[0];
+                }
+                $db->free_result($res_c);
             }
         }
 
         $proppage->update();
+
+        // Synchronize textual country column matching the selected flag
+        if ($country_name_sync !== '') {
+            $country_esc = $db->escape($country_name_sync);
+            $db->query("UPDATE hlstats_Players SET country='$country_esc' WHERE playerId='$playerId'");
+        }
+
         message("success", "Profile updated successfully.");
     }
     $playerId = (int)$id;
@@ -121,6 +134,7 @@ For support and installation notes visit http://www.hlxcommunity.com
     }
 
     $data = $db->fetch_array($result);
+    if ($result) { $db->free_result($result); }
 
     echo '<span class="fTitle">';
     // PHP 8 Fix: XSS Protection
@@ -199,5 +213,6 @@ document.addEventListener("DOMContentLoaded", function() {
 <?php
     printSectionTitle('Player IP Addresses');
     $tblIps->draw($resultIps, 50, 50);
+    if ($resultIps) { $db->free_result($resultIps); }
 ?>
 </div><br /><br />

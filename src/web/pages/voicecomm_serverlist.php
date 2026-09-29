@@ -13,7 +13,7 @@
 
     $game = isset($game) ? (string)$game : '';
     $url_game = urlencode($game);
-    $scripturl = htmlspecialchars((string)($g_options['scripturl'] ?? ''), ENT_QUOTES, 'UTF-8');
+    $scripturl = htmlspecialchars((string)($g_options['scripturl'] ?? 'hlstats.php'), ENT_QUOTES, 'UTF-8');
 
     $result = $db->query("
         SELECT
@@ -142,7 +142,7 @@
                 <?php echo $ts_slots_html; ?>
             </td>
             <td>
-                <?php echo $safe_descr; ?>
+                <?php echo !empty($safe_descr) ? $safe_descr : '<span style="color:#888;">&mdash;</span>'; ?>
             </td>
         </tr>
 <?php
@@ -209,7 +209,7 @@
                     <?php echo $ve_slots_html; ?>
                 </td>
                 <td>
-                    <?php echo $safe_descr; ?>
+                    <?php echo !empty($safe_descr) ? $safe_descr : '<span style="color:#888;">&mdash;</span>'; ?>
                 </td>
             </tr>
 <?php
@@ -270,7 +270,7 @@
                     <?php echo $dc_slots_html; ?>
                 </td>
                 <td>
-                    <?php echo $safe_descr; ?>
+                    <?php echo !empty($safe_descr) ? $safe_descr : '<span style="color:#888;">&mdash;</span>'; ?>
                 </td>
             </tr>
 <?php
@@ -291,8 +291,12 @@
                 $safe_name    = htmlspecialchars($display_name, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
                 $safe_descr   = htmlspecialchars((string)$sg_server['descr'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
                 $sg_server_id = (int)$sg_server['serverId'];
-                $sg_url_ident = urlencode($sg_info->m_group_url ?: $sg_ident);
-                $join_url     = "https://steamcommunity.com/groups/{$sg_url_ident}";
+                $sg_url_ident = urlencode((string)(!empty($sg_info->m_group_url) ? $sg_info->m_group_url : $sg_ident));
+                if (empty($sg_info->m_group_url) && preg_match('/^[0-9]{17,20}$/', $sg_ident)) {
+                    $join_url = "https://steamcommunity.com/gid/{$sg_url_ident}";
+                } else {
+                    $join_url = "https://steamcommunity.com/groups/{$sg_url_ident}";
+                }
 
                 if ($sg_ok && empty($sg_info->m_error)) {
                     $sg_slots_html = '<span style="color:#2ecc71; font-weight:bold;">🟢 ' . number_format($sg_info->m_members_in_game) . ' in-game / ' . number_format($sg_info->m_members_count) . ' members</span>';

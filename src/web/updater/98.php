@@ -46,16 +46,29 @@ if (!$res_pk_load || $db->num_rows($res_pk_load) == 0) {
     $dup_check = $db->query("SELECT `server_id`, `timestamp`, COUNT(*) AS cnt FROM `hlstats_server_load` GROUP BY `server_id`, `timestamp` HAVING cnt > 1 LIMIT 1");
     if ($dup_check && $db->num_rows($dup_check) > 0) {
         $db->query("DROP TABLE IF EXISTS `hlstats_server_load_tmp`");
+        $db->query("DROP TABLE IF EXISTS `hlstats_server_load_old`");
         $db->query("CREATE TABLE `hlstats_server_load_tmp` LIKE `hlstats_server_load`");
         $db->query("ALTER TABLE `hlstats_server_load_tmp` ADD PRIMARY KEY (`server_id`, `timestamp`)");
         $db->query("INSERT IGNORE INTO `hlstats_server_load_tmp` SELECT * FROM `hlstats_server_load`");
-        $db->query("DROP TABLE `hlstats_server_load`");
-        $db->query("RENAME TABLE `hlstats_server_load_tmp` TO `hlstats_server_load`");
+        $db->query("RENAME TABLE `hlstats_server_load` TO `hlstats_server_load_old`, `hlstats_server_load_tmp` TO `hlstats_server_load`");
+        $db->query("DROP TABLE IF EXISTS `hlstats_server_load_old`");
     } else {
         $db->query("ALTER TABLE `hlstats_server_load` ADD PRIMARY KEY (`server_id`, `timestamp`)");
     }
+    if ($dup_check) {
+        $db->free_result($dup_check);
+    }
     echo "OK.<br />";
 }
+if ($res_pk_load) {
+    $db->free_result($res_pk_load);
+}
+// Clean up secondary index now completely superseded by the PRIMARY KEY
+$chk_dup_idx = $db->query("SHOW INDEX FROM `hlstats_server_load` WHERE `Key_name` = 'idx_server_timestamp'");
+if ($chk_dup_idx && $db->num_rows($chk_dup_idx) > 0) {
+    $db->query("ALTER TABLE `hlstats_server_load` DROP INDEX `idx_server_timestamp`");
+}
+if ($chk_dup_idx) { $db->free_result($chk_dup_idx); }
 flush();
 
 // 3. Primary Key Hardening for hlstats_Trend
@@ -67,15 +80,22 @@ if (!$res_pk_trend || $db->num_rows($res_pk_trend) == 0) {
     $dup_check_trend = $db->query("SELECT `game`, `timestamp`, COUNT(*) AS cnt FROM `hlstats_Trend` GROUP BY `game`, `timestamp` HAVING cnt > 1 LIMIT 1");
     if ($dup_check_trend && $db->num_rows($dup_check_trend) > 0) {
         $db->query("DROP TABLE IF EXISTS `hlstats_Trend_tmp`");
+        $db->query("DROP TABLE IF EXISTS `hlstats_Trend_old`");
         $db->query("CREATE TABLE `hlstats_Trend_tmp` LIKE `hlstats_Trend`");
         $db->query("ALTER TABLE `hlstats_Trend_tmp` ADD PRIMARY KEY (`game`, `timestamp`)");
         $db->query("INSERT IGNORE INTO `hlstats_Trend_tmp` SELECT * FROM `hlstats_Trend`");
-        $db->query("DROP TABLE `hlstats_Trend`");
-        $db->query("RENAME TABLE `hlstats_Trend_tmp` TO `hlstats_Trend`");
+        $db->query("RENAME TABLE `hlstats_Trend` TO `hlstats_Trend_old`, `hlstats_Trend_tmp` TO `hlstats_Trend`");
+        $db->query("DROP TABLE IF EXISTS `hlstats_Trend_old`");
     } else {
         $db->query("ALTER TABLE `hlstats_Trend` ADD PRIMARY KEY (`game`, `timestamp`)");
     }
+    if ($dup_check_trend) {
+        $db->free_result($dup_check_trend);
+    }
     echo "OK.<br />";
+}
+if ($res_pk_trend) {
+    $db->free_result($res_pk_trend);
 }
 flush();
 
@@ -95,6 +115,9 @@ if ($res_map_idx && $row = $db->fetch_array($res_map_idx)) {
     flush();
     $db->query("ALTER TABLE `hlstats_Events_Frags` ADD INDEX `map` (`map`(32))");
     echo "OK.<br />";
+}
+if ($res_map_idx) {
+    $db->free_result($res_map_idx);
 }
 flush();
 

@@ -194,9 +194,9 @@ if (!function_exists('getGameBadgeHtml')) {
               <td style="width:20%; font-weight:bold;">Community:</td>
               <td style="vertical-align:middle;">
                   <?php if (!empty($dc->m_icon)): ?>
-                      <img src="<?php echo htmlspecialchars($dc->m_icon, ENT_QUOTES, 'UTF-8'); ?>" alt="" width="28" height="28" loading="lazy" style="border-radius:3px; vertical-align:middle; margin-right:8px; box-shadow:0 1px 3px rgba(0,0,0,0.3); object-fit:cover;" />
+                      <img src="<?php echo htmlspecialchars($dc->m_icon, ENT_QUOTES, 'UTF-8'); ?>" alt="" width="28" height="28" loading="lazy" style="width:28px; height:28px; border-radius:4px; vertical-align:middle; margin-right:8px; border:1px solid rgba(0,0,0,0.15); box-shadow:0 1px 3px rgba(0,0,0,0.25); object-fit:cover;" />
                   <?php else: ?>
-                      <img src="<?php echo IMAGE_PATH; ?>/discord/discord.png" alt="" width="28" height="28" style="vertical-align:middle; margin-right:8px;" />
+                      <img src="<?php echo IMAGE_PATH; ?>/discord/discord.png" alt="" width="28" height="28" style="width:28px; height:28px; border-radius:4px; vertical-align:middle; margin-right:8px; border:1px solid rgba(0,0,0,0.15); box-shadow:0 1px 3px rgba(0,0,0,0.25); object-fit:cover; background:rgba(0,0,0,0.05);" />
                   <?php endif; ?>
                   <span style="vertical-align:middle; font-weight:bold; font-size:13px;"><?php echo $safe_name; ?></span>
                   <?php if (!empty($dc->m_name) && strcasecmp($safe_name, $dc->m_name) !== 0): ?>
@@ -355,16 +355,17 @@ if (!function_exists('getGameBadgeHtml')) {
             $offset = ($current_page - 1) * $per_page;
             $paged_members = array_slice($dc->m_directory, $offset, $per_page);
 
-            global $game;
+            global $game, $g_options;
             $url_game = urlencode((string)($game ?? ''));
             $game_param = ($url_game !== '') ? "&amp;game={$url_game}" : '';
+            $script_url_clean = htmlspecialchars((string)($g_options['scripturl'] ?? 'hlstats.php'), ENT_QUOTES, 'UTF-8');
 
-            $page_base_url = "hlstats.php?mode=discord{$game_param}&amp;dcId={$dcId}&amp;per_page={$per_page}";
+            $page_base_url = "{$script_url_clean}?mode=discord{$game_param}&amp;dcId={$dcId}&amp;per_page={$per_page}";
         ?>
             <!-- Per-page selector dropdown -->
             <?php if ($total_dir_members > 10): ?>
             <div style="margin-bottom: 10px; text-align: right; font-size: 11px;">
-                <form method="get" action="hlstats.php" style="display:inline; margin:0;">
+                <form method="get" action="<?php echo $script_url_clean; ?>" style="display:inline; margin:0;">
                   <input type="hidden" name="mode" value="discord" />
                   <?php if (!empty($game)): ?>
                   <input type="hidden" name="game" value="<?php echo htmlspecialchars((string)($game ?? ''), ENT_QUOTES, 'UTF-8'); ?>" />

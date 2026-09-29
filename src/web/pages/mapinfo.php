@@ -54,7 +54,7 @@ For support and installation notes visit http://www.hlxcommunity.com
     $game_url = urlencode($game);
     $map_esc  = $db->escape((string)$map);
     $map_url  = urlencode((string)$map);
-    $scripturl = htmlspecialchars((string)($g_options['scripturl'] ?? ''), ENT_QUOTES, 'UTF-8');
+    $scripturl = htmlspecialchars((string)($g_options['scripturl'] ?? 'hlstats.php'), ENT_QUOTES, 'UTF-8');
     $deletedays = (int)($g_options['DeleteDays'] ?? 28);
 
     // Fetch Name and Realgame (needed for image logic)
@@ -83,7 +83,7 @@ For support and installation notes visit http://www.hlxcommunity.com
             new TableColumn(
                 'killerName',
                 'Player',
-                'width=50&align=left&flag=1&link=' . urlencode('mode=playerinfo&amp;player=%k')
+                'width=50&align=left&flag=1&link=' . urlencode('mode=playerinfo&player=%k')
             ),
             new TableColumn(
                 'frags',
@@ -143,16 +143,20 @@ For support and installation notes visit http://www.hlxcommunity.com
         FROM
             hlstats_Events_Frags
         INNER JOIN
-            hlstats_Servers
-            ON hlstats_Servers.serverId = hlstats_Events_Frags.serverId
+            hlstats_Players
+            ON hlstats_Players.playerId = hlstats_Events_Frags.killerId
         WHERE
             hlstats_Events_Frags.map = '$map_esc'
-            AND hlstats_Servers.game = '$game_esc'
+            AND hlstats_Players.game = '$game_esc'
+            AND hlstats_Players.hideranking = 0
     ");
 
     $row = $db->fetch_row($resultCount);
     $numitems   = ($row) ? (int)$row[0] : 0;
     $totalkills = ($row) ? (int)$row[1] : 0;
+    if ($resultCount) {
+        $db->free_result($resultCount);
+    }
 ?>
 
 <div class="block">
@@ -237,6 +241,10 @@ For support and installation notes visit http://www.hlxcommunity.com
     else
     {
         $table->draw($result, $numitems, 95, 'center');
+    }
+
+    if ($result) {
+        $db->free_result($result);
     }
 ?>
 </div>

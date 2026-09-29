@@ -111,14 +111,14 @@ For support and installation notes visit http://www.hlxcommunity.com
             hlstats_Players.skill,
             hlstats_Players.kills,
             hlstats_Players.deaths,
-            IFNULL(kills / deaths, '-') AS kpd,
+            IFNULL(ROUND(kills / NULLIF(deaths, 0), 2), '-') AS kpd,
             hlstats_Players.suicides,
             hlstats_Players.headshots,
-            IFNULL(headshots / kills, '-') AS hpk,
+            IFNULL(ROUND(headshots / NULLIF(kills, 0), 2), '-') AS hpk,
             hlstats_Players.shots,
             hlstats_Players.hits,
             hlstats_Players.teamkills,
-            IFNULL(ROUND((hits / shots * 100), 1), 0) AS acc,
+            IFNULL(ROUND((hits / NULLIF(shots, 0) * 100), 1), 0.0) AS acc,
             CONCAT(hlstats_Clans.name) AS clan_name,
             activity
         FROM
@@ -139,16 +139,16 @@ For support and installation notes visit http://www.hlxcommunity.com
 
     $playerdata = $db->fetch_array();
     $db->free_result();
-    $pl_name = $playerdata['lastName'] ?? 'Unknown';
+    $pl_name = (string)($playerdata['lastName'] ?? 'Unknown');
 
-    if (strlen((string)$pl_name) > 10) {
-        $pl_shortname = substr((string)$pl_name, 0, 8) . '...';
+    if (mb_strlen($pl_name, 'UTF-8') > 10) {
+        $pl_shortname = mb_substr($pl_name, 0, 8, 'UTF-8') . '...';
     } else {
         $pl_shortname = $pl_name;
     }
 
-    $pl_name = htmlspecialchars((string)$pl_name, ENT_QUOTES, 'UTF-8');
-    $pl_shortname = htmlspecialchars((string)$pl_shortname, ENT_QUOTES, 'UTF-8');
+    $pl_name = htmlspecialchars($pl_name, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    $pl_shortname = htmlspecialchars($pl_shortname, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
     $pl_urlname = urlencode((string)$playerdata['lastName']);
     $game = (string)$playerdata['game'];
 
@@ -166,12 +166,15 @@ For support and installation notes visit http://www.hlxcommunity.com
 
     if ($db->num_rows() != 1) {
         $gamename = ucfirst($game);
+        $db->free_result();
     } else {
         // PHP 8 Fix: Replace list()
         $row = $db->fetch_row();
         $gamename = ($row) ? $row[0] : ucfirst($game);
         $db->free_result();
     }
+
+    $scripturl = htmlspecialchars((string)($g_options['scripturl'] ?? 'hlstats.php'), ENT_QUOTES, 'UTF-8');
 
     $hideranking = $playerdata['hideranking'];
 
@@ -255,9 +258,9 @@ For support and installation notes visit http://www.hlxcommunity.com
         array ($gamename, 'Player Details', $pl_name),
         array
         (
-            $gamename=>($g_options['scripturl'] ?? '') . "?game=$game",
-            'Player Rankings'=>($g_options['scripturl'] ?? '') . "?mode=players&game=$game",
-            'Player Details'=>""
+            $gamename => $scripturl . "?game=" . urlencode($game),
+            'Player Rankings' => $scripturl . "?mode=players&amp;game=" . urlencode($game),
+            'Player Details' => ""
         ),
         $pl_name
     );
@@ -293,7 +296,7 @@ For support and installation notes visit http://www.hlxcommunity.com
             {
                 'mode': 'playerinfo',
                 'game': '<?php echo htmlspecialchars($game, ENT_QUOTES, 'UTF-8'); ?>',
-                'loadingImage': '<?php echo htmlspecialchars((string)IMAGE_PATH, ENT_QUOTES, 'UTF-8'); ?>/ajax.gif',
+                'loadingImage': '<?php echo htmlspecialchars((string)(defined('IMAGE_PATH') ? IMAGE_PATH : ($g_options['imgpath'] ?? 'hlstatsimg')), ENT_QUOTES, 'UTF-8'); ?>/ajax.gif',
                 'defaultTab': 'general_aliases',
                 'extra':
                 {
@@ -336,11 +339,11 @@ For support and installation notes visit http://www.hlxcommunity.com
             <?php
                 if (isset($_SESSION['loggedin']))
                 {
-                    echo 'Admin Options: <a href="'.htmlspecialchars((string)($g_options['scripturl'] ?? ''), ENT_QUOTES, 'UTF-8')."?mode=admin&amp;task=tools_editdetails_player&amp;id=$player\">Edit Player Details</a><br />";
+                    echo 'Admin Options: <a href="' . $scripturl . "?mode=admin&amp;task=tools_editdetails_player&amp;id=$player\">Edit Player Details</a><br />";
                 }
             ?>
-            Go to: <a href="<?php echo htmlspecialchars((string)($g_options['scripturl'] ?? ''), ENT_QUOTES, 'UTF-8') . "?mode=players&amp;game=" . htmlspecialchars((string)$game, ENT_QUOTES, 'UTF-8'); ?>">Player Rankings</a>
+            Go to: <a href="<?php echo $scripturl . "?mode=players&amp;game=" . urlencode($game); ?>">Player Rankings</a>
         </div>
-        <div style="clear:both;"></div>
+    <div style="clear:both;"></div>
     </div>
 </div>

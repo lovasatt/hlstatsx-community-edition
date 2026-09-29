@@ -411,7 +411,7 @@ printSectionTitle('Clan Information');
             connection_time,
             kills,
             deaths,
-            ROUND(hlstats_Players.kills / IF(hlstats_Players.deaths = 0, 1, hlstats_Players.deaths), 2) AS kpd,
+            IFNULL(ROUND(hlstats_Players.kills / NULLIF(hlstats_Players.deaths, 0), 2), '-') AS kpd,
             ROUND(hlstats_Players.kills / " . $clan_kills_safe . " * 100, 2) AS percent,
             activity
         FROM
@@ -448,6 +448,7 @@ printSectionTitle('Clan Information');
 <?php
     printSectionTitle('Members');
     $tblMembers->draw($result, $numitems, 95);
+    $db->free_result($result);
 ?>
 <br /><br />
 <?php

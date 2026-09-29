@@ -52,7 +52,8 @@ For support and installation notes visit http://www.hlxcommunity.com
 <br />
     <div id="footer">
         <!-- Security: Escape constants -->
-        <a href="http://www.hlxce.com" target="_blank"><img src="<?php echo htmlspecialchars((string)IMAGE_PATH, ENT_QUOTES, 'UTF-8'); ?>/footer-small.png" alt="HLstatsX Community Edition" border="0" /></a>
+        <?php $img_base = defined('IMAGE_PATH') ? IMAGE_PATH : ($g_options['imgpath'] ?? 'hlstatsimg'); ?>
+        <a href="https://github.com/lovasatt/hlstatsx-community-edition" target="_blank" rel="noopener noreferrer"><img src="<?php echo htmlspecialchars((string)$img_base, ENT_QUOTES, 'UTF-8'); ?>/footer-small.png" alt="HLstatsX Community Edition" border="0" /></a>
     </div>
 <br />
 <div class="fSmall" style="text-align:center;">
@@ -79,13 +80,12 @@ available from <a href="https://www.maxmind.com" target="_blank" rel="noopener n
 
 <?php
     // PHP 8 Fix: Escape URL to prevent XSS
-    $script_url = htmlspecialchars((string)($g_options['scripturl'] ?? ''), ENT_QUOTES, 'UTF-8');
+    $script_url = htmlspecialchars((string)($g_options['scripturl'] ?? 'hlstats.php'), ENT_QUOTES, 'UTF-8');
     echo '<br /><br />[<a href="' . $script_url . "?mode=admin\">Admin</a>]";
 
     if (!empty($_SESSION['loggedin'])) {
-
-        echo '&nbsp;[<a href="hlstats.php?logout=1">Logout</a>]';
-
+        // Use normalized script_url for logout link
+        echo '&nbsp;[<a href="' . $script_url . '?logout=1">Logout</a>]';
     }
 ?>
 </div>

@@ -57,7 +57,7 @@ For support and installation notes visit http://www.hlxcommunity.com
     $game_esc = $db->escape($game);
     $game_url = urlencode($game);
     $flag_esc = $db->escape((string)$flag);
-    $scripturl = htmlspecialchars((string)($g_options['scripturl'] ?? ''), ENT_QUOTES, 'UTF-8');
+    $scripturl = htmlspecialchars((string)($g_options['scripturl'] ?? 'hlstats.php'), ENT_QUOTES, 'UTF-8');
 
     $SQL = "
         SELECT
@@ -68,7 +68,7 @@ For support and installation notes visit http://www.hlxcommunity.com
             SUM(hlstats_Players.deaths) AS deaths,
             SUM(hlstats_Players.connection_time) AS connection_time,
             ROUND(AVG(hlstats_Players.skill)) AS avgskill,
-            IFNULL(SUM(hlstats_Players.kills) / IF(SUM(hlstats_Players.deaths) = 0, 1, SUM(hlstats_Players.deaths)), '-') AS kpd,
+            IFNULL(ROUND(SUM(hlstats_Players.kills) / NULLIF(SUM(hlstats_Players.deaths), 0), 2), '-') AS kpd,
             TRUNCATE(AVG(activity), 2) as activity
         FROM
             hlstats_Countries
@@ -107,6 +107,7 @@ For support and installation notes visit http://www.hlxcommunity.com
     if ($db->num_rows() != 1)
     {
         $gamename = ucfirst($game);
+        $db->free_result();
     }
     else
     {
@@ -264,7 +265,7 @@ For support and installation notes visit http://www.hlxcommunity.com
             new TableColumn(
                 'lastName',
                 'Name',
-                'width=28&flag=1&link=' . urlencode('mode=playerinfo&amp;player=%k')
+                'width=28&flag=1&link=' . urlencode('mode=playerinfo&player=%k')
             ),
             new TableColumn(
                 'mmrank',
@@ -341,7 +342,7 @@ For support and installation notes visit http://www.hlxcommunity.com
             hlstats_Players.connection_time,
             hlstats_Players.kills,
             hlstats_Players.deaths,
-            ROUND(hlstats_Players.kills / IF(hlstats_Players.deaths = 0, 1, hlstats_Players.deaths), 2) AS kpd,
+            IFNULL(ROUND(hlstats_Players.kills / NULLIF(hlstats_Players.deaths, 0), 2), '-') AS kpd,
             ROUND(hlstats_Players.kills / $clan_kills_sql * 100, 2) AS percent,
             hlstats_Players.activity
         FROM
@@ -373,10 +374,15 @@ For support and installation notes visit http://www.hlxcommunity.com
     // PHP 8 Fix: Use object method
     $row = $db->fetch_row($resultCount);
     $numitems = ($row) ? (int)$row[0] : 0;
-    $db->free_result();
+    if ($resultCount) {
+        $db->free_result($resultCount);
+    }
 ?>
 <div class="block" style="padding-top:10px;">
 <?php
     printSectionTitle('Members');
     $tblMembers->draw($result, $numitems, 95);
+    if ($result) {
+        $db->free_result($result);
+    }
 ?></div>

@@ -48,16 +48,28 @@ For support and installation notes visit http://www.hlxcommunity.com
 
     global $g_options;
 
-    header('Cache-Control: no-cache');
-
-    // Security Fix: HTTP_REFERER is user input, must be sanitized against XSS and javascript: URIs
-    $lastpage = (string)($_SERVER['HTTP_REFERER'] ?? '');
-    if (!preg_match('~^https?://~i', $lastpage) && !str_starts_with($lastpage, '/')) {
-        $lastpage = '';
+    // Prevent PHP warning if output buffering was already flushed
+    if (!headers_sent()) {
+        header('Cache-Control: no-cache');
     }
 
-    // Ensure style is safe (prevent directory traversal)
-    $style = basename((string)($g_options['style'] ?? 'default.css'));
+    // Security Fix: Prevent Open Redirect / external spoofed referrers in "Go Back" link
+    $lastpage = (string)($_SERVER['HTTP_REFERER'] ?? '');
+    if ($lastpage !== '') {
+        $host = (string)($_SERVER['HTTP_HOST'] ?? '');
+        $parsed = parse_url($lastpage);
+        $ref_host = $parsed['host'] ?? '';
+        if ($ref_host !== '' && strtolower($ref_host) !== strtolower($host)) {
+            $lastpage = '';
+        } elseif (!preg_match('~^https?://~i', $lastpage) && !str_starts_with($lastpage, '/')) {
+            $lastpage = '';
+        }
+    }
+
+    // Support user selected style from cookie while ensuring path safety
+    $cookie_style = isset($_COOKIE['style']) ? basename((string)$_COOKIE['style']) : '';
+    $raw_style = ($cookie_style !== '' && preg_match('/\.css$/i', $cookie_style)) ? $cookie_style : (string)($g_options['style'] ?? 'default.css');
+    $style = basename($raw_style);
     if ($style === '' || !preg_match('/\.css$/i', $style)) {
         $style = 'default.css';
     }

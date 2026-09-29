@@ -194,7 +194,7 @@ class Table
 	if ($this->showranking)
 	{
 	    $totalwidth += 5;
-	    echo "<td style=\"width:5%;text-align=:right;\" class=\"fSmall\">Rank</td>\n";
+	    echo "<td style=\"width:5%;text-align:right;\" class=\"fSmall\">Rank</td>\n";
 	}
 
 	foreach ($this->columns as $col)
@@ -245,7 +245,7 @@ class Table
                 
                 // PHP 8 Fix: Ensure key exists
 		$colval = isset($rowdata[$col->name]) ? $rowdata[$col->name] : null;
-                $colval_lower = (!empty($colval)) ? strtolower((string)$colval) : null;
+                $colval_lower = (!empty($colval)) ? mb_strtolower((string)$colval, 'UTF-8') : null;
 
 		if ($col->align != 'left')
 		{
@@ -266,15 +266,15 @@ class Table
 		if ($col->link)
 		{
 		    if (strpos($col->link, 'javascript:') === false) {
-			$link = str_ireplace('%k', urlencode((string)$rowdata[$this->keycol]), $col->link);
-			$cellbody .= "<a href=\"" . $g_options['scripturl'] . "?$link\">";
+		    $link = str_ireplace('%k', urlencode((string)($rowdata[$this->keycol] ?? '')), $col->link);
+		    $cellbody .= "<a href=\"" . hlx_h($g_options['scripturl'] . '?' . $link) . "\">";
 		    }
 		    else
 		    {              
-			$col->link = str_replace('\\\\', '', $col->link);
-			$link      = str_ireplace('%k', $rowdata[$this->keycol], $col->link);
-			$cellbody .= "<a href=\"$link\">";
-		    }  
+		    $col->link = str_replace('\\\\', '', $col->link);
+		    $link      = str_ireplace('%k', rawurlencode((string)($rowdata[$this->keycol] ?? '')), $col->link);
+		    $cellbody .= "<a href=\"" . hlx_h($link) . "\">";
+		    }
 		}
 
 		if ($col->icon)
@@ -289,11 +289,11 @@ class Table
 		{
 		    #$link = ereg_replace("%f", $col->link);
 		    if ($g_options['countrydata'] == 1) { 
-			if ($rowdata['flag'] == '') {
+			if (!isset($rowdata['flag']) || $rowdata['flag'] == '') {
 			    $rowdata['flag'] = '0';
 			    $alt_text        = 'No Country';
 			} else {
-			    $alt_text        = ucfirst(strtolower($rowdata['country']));
+			    $alt_text        = hlx_h(ucfirst(mb_strtolower((string)($rowdata['country'] ?? ''), 'UTF-8')));
 			}
 
 			$cellbody .= '<img src="' . getFlag($rowdata['flag'])."\" class=\"tableicon\" alt=\"$alt_text\" title=\"$alt_text\" />";
@@ -311,40 +311,32 @@ class Table
                               $colval = '0';
                         }
 
-			$cellbody = '<img src="' . IMAGE_PATH  . "/mmranks/" . $colval . ".png\" class=\"tableicon\" alt=\"elorank\" style=\"height:20px;width:50px;\" />";
+			$cellbody .= '<img src="' . IMAGE_PATH  . "/mmranks/" . (int)$colval . ".png\" class=\"tableicon\" alt=\"elorank\" style=\"height:20px;width:50px;\" />";
 			break;
 		    case 'timestamp':
-			$cellbody  = timestamp_to_str($colval);
-			break;           
+			$cellbody .= timestamp_to_str($colval);
+			break;
 
 		    case 'roleimg':
-			$image = getImage("/games/$game/roles/" . $colval_lower);
-			// check if image exists for game -- otherwise check realgame
-			if ($image)
-			{
-			    $cellbody .= '<img src="' . $image['url'] . '" alt="' . $col->fname[$colval_lower] . '" title="' . $col->fname[$colval_lower] . '" />&nbsp;';
-			}
-			elseif ($realgame && $image = getImage("/games/$realgame/roles/" . $colval_lower))
-			{
-			    $cellbody .= '<img src="' . $image['url'] . '" alt="' . $col->fname[$colval_lower] . '" title="' . $col->fname[$colval_lower] . '" />&nbsp;';
-			}
-			
-			if (!empty($col->fname[$colval_lower]))
-			{
-			    $cellbody .= '<b>' . $col->fname[$colval_lower] . '</b>';
-			}
-			else
-			{
-                            // PHP 8 Fix: Cast to string
-			    $cellbody .= '<b>' . ucwords(preg_replace('/_/', ' ', (string)$colval)) . '</b>';
-			}
-
-			break;
+		    	    $image = getImage("/games/$game/roles/" . $colval_lower);
+		    	    $role_name = (is_array($col->fname) && $colval_lower !== null && isset($col->fname[$colval_lower])) ? (string)$col->fname[$colval_lower] : ucwords(preg_replace('/_/', ' ', (string)$colval));
+		    	    // check if image exists for game -- otherwise check realgame
+		    	    if ($image)
+		    	    {
+		    		    $cellbody .= '<img src="' . hlx_h($image['url']) . '" alt="' . hlx_h($role_name) . '" title="' . hlx_h($role_name) . '" />&nbsp;';
+		    	    }
+		    	    elseif (!empty($realgame) && ($image = getImage("/games/$realgame/roles/" . $colval_lower)))
+		    	    {
+		    	        $cellbody .= '<img src="' . hlx_h($image['url']) . '" alt="' . hlx_h($role_name) . '" title="' . hlx_h($role_name) . '" />&nbsp;';
+		    	    }
+		    	    
+		    	    $cellbody .= '<b>' . hlx_h($role_name) . '</b>';
+		    	    break;
 		      
 		    case 'weaponimg':
 			// Check if game has the image -- if not, failback to real game.  If not, no image.
                         // PHP 8 Fix: Safe ternary operator priority
-                        $fname_val = (!empty($col->fname) && isset($col->fname[$colval_lower])) ? $col->fname[$colval_lower] : ucwords(preg_replace('/_/', ' ', (string)$colval));
+                        $fname_val = hlx_h((!empty($col->fname) && is_array($col->fname) && isset($col->fname[$colval_lower])) ? $col->fname[$colval_lower] : ucwords(preg_replace('/_/', ' ', (string)$colval)));
                         
 			$image = getImage("/games/$game/weapons/" . $colval_lower);
 			if ($image)
@@ -362,13 +354,13 @@ class Table
 			break;
 
 		    case 'bargraph':
-			$cellbody .= '<meter min="0" max="100" low="25" high="50" optimum="75" value="'.$colval.'"></meter>';
+			$cellbody .= '<meter min="0" max="100" low="25" high="50" optimum="75" value="'.(float)$colval.'"></meter>';
 			break;
 		    case 'heatmap':
 			$heatmap = getImage("/games/$game/heatmaps/$colval-kill");
 			$heatmapthumb = getImage("/games/$game/heatmaps/$colval-kill-thumb");
 
-			if ($heatmap) {
+			if ($heatmap && $heatmapthumb) {
 			    $cellbody .= "<span style=\"text-align: center;\"><a href=\"" . $heatmap['url'] . "\" rel=\"boxed\"><img width=\"20\" height=\"16\" src=\"" . $heatmapthumb['url'] . "\" /></a></span>";
 			} else {
 			    $cellbody .= "&nbsp;";
@@ -380,13 +372,15 @@ class Table
 			if ((is_numeric($colval)) && ($colval >= 1000))
 			    $colval = number_format($colval);
                         // PHP 8 Fix: Ensure string for htmlspecialchars
-			$colval = nl2br(htmlspecialchars((string)$colval, ENT_COMPAT));
+			    $colval = nl2br(hlx_h($colval));
 
-			if ($col->embedlink == 'yes')
+		        if ($col->embedlink == 'yes')
 			    {
-				$colval = preg_replace(array('/%A%([^ %]+)%/','/%\/A%/'), array("<a href=\"$1\">", '</a>'), $colval);
-			    }
-
+			    $colval = preg_replace_callback('/%A%(https?:\/\/[^ %"\'<>]+)%/i', function ($m) {
+		    	    return '<a href="' . $m[1] . '" rel="noopener noreferrer">';
+			}, $colval);
+			$colval = preg_replace('/%\/A%/', '</a>', $colval);
+		        }
 			$cellbody .= $colval;
 			    if ($this->showranking && $rank == 1 && $i == 1)
 				$cellbody .= '</b>';
@@ -425,10 +419,12 @@ class Table
 
 	    echo "</tr>\n\n";
 
-	    $rank++;
-	}
+            $rank++;
+        }
+
+        $db->free_result($result);
 ?>
-	</table>
+    </table>
 </div><br /><br />
 <?php
 	if ($numpages > 1)
@@ -475,7 +471,7 @@ class Table
 		    if ($i < $numpages - 1)
 			$this->_echoPageNumber($numpages, "Last page", "... ");
 		    else
-			$this->_echoPageNumber($numpages, 10);
+			$this->_echoPageNumber($numpages, $numpages);
 		}
 	    }
 	?>
@@ -561,4 +557,3 @@ class TableColumn
 	$this->fname = $fname;
     }
 }
-?>

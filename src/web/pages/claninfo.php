@@ -158,15 +158,16 @@
         exit;
     }
 
-    $scripturl = htmlspecialchars((string)($g_options['scripturl'] ?? ''), ENT_QUOTES, 'UTF-8');
+    $scripturl = htmlspecialchars((string)($g_options['scripturl'] ?? 'hlstats.php'), ENT_QUOTES, 'UTF-8');
     $game_url = urlencode((string)$game);
+    $img_base = defined('IMAGE_PATH') ? IMAGE_PATH : ($g_options['imgpath'] ?? 'hlstatsimg');
 
     pageHeader(
         array($gamename, 'Clan Details', $cl_full),
         array(
-            $gamename=>$scripturl . "?game=$game_url",
-            'Clan Rankings'=>$scripturl . "?mode=clans&amp;game=$game_url",
-            'Clan Details'=>''
+            $gamename => $scripturl . "?game=$game_url",
+            'Clan Rankings' => $scripturl . "?mode=clans&amp;game=$game_url",
+            'Clan Details' => ''
         ),
         (string)($clandata['name'] ?? '')
     );
@@ -203,14 +204,15 @@
     </ul><br />
     <div id="main_content"></div>
     <script type="text/javascript">
+    <?php $json_flags = JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP; ?>
     var Tabs = new Tabs($('main_content'), $$('#main ul.subsection_tabs a'), {
         'mode': 'claninfo',
-        'game': '<?php echo addslashes($game); ?>',
-        'loadingImage': '<?php echo htmlspecialchars((string)IMAGE_PATH, ENT_QUOTES, 'UTF-8'); ?>/ajax.gif',
+        'game': <?php echo json_encode($game, $json_flags); ?>,
+        'loadingImage': <?php echo json_encode(rtrim((string)$img_base, '/') . '/ajax.gif', $json_flags); ?>,
         'defaultTab': 'general',
         'extra': {
-            'clan': '<?php echo (int)$clan; ?>',
-            'members_page': '<?php echo addslashes((string)$members_page); ?>'
+            'clan': <?php echo (int)$clan; ?>,
+            'members_page': <?php echo json_encode((string)$members_page, $json_flags); ?>
         }
     });
     </script>

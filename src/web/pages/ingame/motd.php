@@ -120,13 +120,13 @@ For support and installation notes visit http://www.hlxcommunity.com
         $result_players = $db->query("
             SELECT
                 playerId,
-                lastName,
+                unhex(replace(hex(lastName), 'E280AE', '')) AS lastName,
                 connection_time,
                 skill,
                 flag,
                 country,
-                IFNULL(kills/deaths, '-') AS kpd,
-                IFNULL(headshots/kills, '-') AS hpk,
+                IFNULL(ROUND(kills/NULLIF(deaths, 0), 2), '-') AS kpd,
+                IFNULL(ROUND(headshots/NULLIF(kills, 0), 2), '-') AS hpk,
                 activity
             FROM
                 hlstats_Players
@@ -138,7 +138,11 @@ For support and installation notes visit http://www.hlxcommunity.com
                 $table_players->sort $table_players->sortorder
             LIMIT 0,$players
         ");
-        $table_players->draw($result_players, $db->num_rows($result_players), 100);
+        $num_players = ($result_players) ? (int)$db->num_rows($result_players) : 0;
+        $table_players->draw($result_players, $num_players, 100);
+        if ($result_players) {
+            $db->free_result($result_players);
+        }
     }
 
     //
@@ -182,8 +186,8 @@ For support and installation notes visit http://www.hlxcommunity.com
         $result_clans = $db->query("
             SELECT
                 hlstats_Clans.clanId,
-                hlstats_Clans.name,
-                hlstats_Clans.tag,
+                unhex(replace(hex(hlstats_Clans.name), 'E280AE', '')) AS name,
+                unhex(replace(hex(hlstats_Clans.tag), 'E280AE', '')) AS tag,
                 COUNT(hlstats_Players.playerId) AS nummembers,
                 ROUND(AVG(hlstats_Players.skill)) AS skill,
                 TRUNCATE(AVG(IF($min_act > (UNIX_TIMESTAMP() - hlstats_Players.last_event), ((100/$min_act) * ($min_act - (UNIX_TIMESTAMP() - hlstats_Players.last_event))), -1)),2) as activity
@@ -205,7 +209,11 @@ For support and installation notes visit http://www.hlxcommunity.com
                 $table_clans->sort $table_clans->sortorder
             LIMIT 0,$clans
         ");
-        $table_clans->draw($result_clans, $db->num_rows($result_clans), 100);
+        $num_clans = ($result_clans) ? (int)$db->num_rows($result_clans) : 0;
+        $table_clans->draw($result_clans, $num_clans, 100);
+        if ($result_clans) {
+            $db->free_result($result_clans);
+        }
     }
 
     //
@@ -254,20 +262,17 @@ For support and installation notes visit http://www.hlxcommunity.com
         if (isset($server_id) && $rowdata['serverId'] == $server_id)
             $this_server = $rowdata;
     }
+    // Free servers query result
+    $db->free_result();
 
-    for ($i = 0; $i < count($servers); $i++)
+    $server_count = count($servers);
+    for ($i = 0; $i < $server_count; $i++)
     {
         $rowdata = $servers[$i];
-        $server_id = $rowdata['serverId'];
+        $current_srv_id = (int)$rowdata['serverId'];
         $c = ($i % 2) + 1;
-        $addr = $rowdata['addr'];
-        $kills     = (int)$rowdata['kills'];
-        $headshots = (int)$rowdata['headshots'];
-        $player_string = $rowdata['act_players']."/".$rowdata['max_players'];
-
-        $map_ct_wins = (int)($rowdata['map_ct_wins'] ?? 0);
-        $map_ts_wins = (int)($rowdata['map_ts_wins'] ?? 0);
-
+        $addr = (string)($rowdata['addr'] ?? '');
+        $player_string = (int)($rowdata['act_players'] ?? 0) . '/' . (int)($rowdata['max_players'] ?? 0);
 ?>
 
             <tr class="bg<?php echo $c; ?>">
@@ -275,14 +280,15 @@ For support and installation notes visit http://www.hlxcommunity.com
                     echo '<strong>' . htmlspecialchars((string)($rowdata['name'] ?? ''), ENT_QUOTES, 'UTF-8') . '</strong>';
                 ?></td>
                 <td style="width:20%;" class="fSmall"><?php
-                    echo htmlspecialchars((string)($addr ?? ''), ENT_QUOTES, 'UTF-8');
+                    echo htmlspecialchars($addr, ENT_QUOTES, 'UTF-8');
                 ?></td>
                 <td style="text-align:center;width:15%;" class="fSmall"><?php
                     echo htmlspecialchars((string)($rowdata['act_map'] ?? ''), ENT_QUOTES, 'UTF-8');
                 ?></td>
                 <td style="text-align:center;width:15%;" class="fSmall"><?php
                     $map_started = (int)($rowdata['map_started'] ?? 0);
-                    $stamp = ($map_started > 0) ? time() - $map_started : 0;
+                    // Prevent negative timer on clock skew
+                    $stamp = ($map_started > 0) ? max(0, time() - $map_started) : 0;
 
                     $hours = sprintf('%02d', floor($stamp / 3600));
                     $min   = sprintf('%02d', floor(($stamp % 3600) / 60));

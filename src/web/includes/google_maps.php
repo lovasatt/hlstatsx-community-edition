@@ -192,58 +192,64 @@ function printMap($type = 'main')
             }
 <?php
                 $game_esc = $db->escape($game);
-                $db->query("SELECT serverId, IF(publicaddress != '', publicaddress, CONCAT(address, ':', port)) AS addr, name, kills, lat, lng, city, country FROM hlstats_Servers WHERE game='$game_esc' AND lat IS NOT NULL AND lng IS NOT NULL");
+                $res_servers = $db->query("SELECT serverId, IF(publicaddress != '', publicaddress, CONCAT(address, ':', port)) AS addr, name, kills, lat, lng, city, country FROM hlstats_Servers WHERE game='$game_esc' AND lat IS NOT NULL AND lng IS NOT NULL");
 
                 $servers = array();
-                while ($row = $db->fetch_array()) {
-                    // Skip this part, if we already have the location info (should be the same)
-                    $key = $row['lat'] . ',' . $row['lng'];
-                    if (!isset($servers[$key])) {
-                        $servers[$key] = array('lat' => $row['lat'], 'lng' => $row['lng'], 'addr' => $row['addr'], 'city' => $row['city'], 'country' => $row['country'], 'servers' => array());
+                if ($res_servers) {
+                    while ($row = $db->fetch_array($res_servers)) {
+                        $key = $row['lat'] . ',' . $row['lng'];
+                        if (!isset($servers[$key])) {
+                            $servers[$key] = array('lat' => $row['lat'], 'lng' => $row['lng'], 'addr' => $row['addr'], 'city' => $row['city'], 'country' => $row['country'], 'servers' => array());
+                        }
+                        $servers[$key]['servers'][] = array('serverId' => $row['serverId'], 'addr' => $row['addr'], 'name' => $row['name'], 'kills' => $row['kills']);
                     }
-                    $servers[$key]['servers'][] = array('serverId' => $row['serverId'], 'addr' => $row['addr'], 'name' => $row['name'], 'kills' => $row['kills']);
+                    $db->free_result($res_servers);
                 }
 
                 foreach ($servers as $map_location) {
                     $kills = 0;
                     $servers_js = array();
                     foreach ($map_location['servers'] as $server) {
-                        $search_pattern = array("/[^A-Za-z0-9\[\]*.,=()!\"$%&^`ґ':;ЯІі#+~_\-|<>\/@{}дцьДЦЬ ]/");
-                        $replace_pattern = array("");
-                        $server['name'] = preg_replace($search_pattern, $replace_pattern, (string)$server['name']);
-                        $temp = "[" . (int)$server['serverId'] . ",";
-                        $temp .= "'" . htmlspecialchars(urldecode(preg_replace($search_pattern, $replace_pattern, (string)$server['addr'])), ENT_QUOTES, 'UTF-8') . "',";
-                        $temp .= "'" . htmlspecialchars(urldecode((string)$server['name']), ENT_QUOTES, 'UTF-8') . "']";
-                        $servers_js[] = $temp;
+                        // Allow Unicode letters (including Hungarian) and safe characters with /u
+                        $safe_sname = preg_replace('/[^\p{L}\p{N}\[\]*.,=()!"$%&^`\':;?#+~_\-|<>\/@{ }]/u', '', (string)$server['name']);
+                        $safe_saddr = preg_replace('/[^\p{L}\p{N}\[\]*.,=()!"$%&^`\':;?#+~_\-|<>\/@{ }]/u', '', (string)$server['addr']);
+                        $servers_js[] = array(
+                            (int)$server['serverId'],
+                            htmlspecialchars((string)$safe_saddr, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'),
+                            htmlspecialchars((string)$safe_sname, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')
+                        );
                         $kills += (int)$server['kills'];
                     }
-                    echo 'createMarkerS([' . (float)$map_location['lat'] . ', ' . (float)$map_location['lng'] . '], [' . implode(',', $servers_js) . '], "' . htmlspecialchars(urldecode((string)$map_location['city']), ENT_QUOTES, 'UTF-8') . '", "' . htmlspecialchars(urldecode((string)$map_location['country']), ENT_QUOTES, 'UTF-8') . '", ' . $kills . ");\n";
+                    $js_servers_json = json_encode($servers_js, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP);
+                    $js_city_json    = json_encode((string)$map_location['city'], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP);
+                    $js_country_json = json_encode((string)$map_location['country'], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP);
+
+                    echo 'createMarkerS([' . (float)$map_location['lat'] . ', ' . (float)$map_location['lng'] . '], ' . $js_servers_json . ', ' . $js_city_json . ', ' . $js_country_json . ', ' . $kills . ");\n";
                 }
 
-                $db->query("SELECT 
-                            hlstats_Livestats.* 
-                        FROM 
+                $res_live = $db->query("SELECT
+                            hlstats_Livestats.*
+                        FROM
                             hlstats_Livestats
                         INNER JOIN
-                            hlstats_Servers 
+                            hlstats_Servers
                             ON (hlstats_Servers.serverId=hlstats_Livestats.server_id)
-                        WHERE 
-                            hlstats_Livestats.cli_lat IS NOT NULL 
+                        WHERE
+                            hlstats_Livestats.cli_lat IS NOT NULL
                             AND hlstats_Livestats.cli_lng IS NOT NULL
                             AND hlstats_Servers.game='$game_esc'");
 
                 $players = array();
-                while ($row = $db->fetch_array()) {
-                    // Skip this part, if we already have the location info (should be the same)
-                    $key = $row['cli_lat'] . ',' . $row['cli_lng'];
-                    if (!isset($players[$key])) {
-                        $players[$key] = array('cli_lat' => $row['cli_lat'], 'cli_lng' => $row['cli_lng'], 'cli_city' => $row['cli_city'], 'cli_country' => $row['cli_country'], 'players' => array());
+                if ($res_live) {
+                    while ($row = $db->fetch_array($res_live)) {
+                        $key = $row['cli_lat'] . ',' . $row['cli_lng'];
+                        if (!isset($players[$key])) {
+                            $players[$key] = array('cli_lat' => $row['cli_lat'], 'cli_lng' => $row['cli_lng'], 'cli_city' => $row['cli_city'], 'cli_country' => $row['cli_country'], 'players' => array());
+                        }
+                        $clean_pname = preg_replace('/[^\p{L}\p{N}\[\]*.,=()!"$%&^`\':;?#+~_\-|<>\/\\\\@{ }]/u', '', (string)$row['name']);
+                        $players[$key]['players'][] = array('playerId' => $row['player_id'], 'name' => $clean_pname, 'kills' => $row['kills'], 'deaths' => $row['deaths'], 'connected' => $row['connected']);
                     }
-                    $search_pattern = array("/[^A-Za-z0-9\[\]*.,=()!\"$%&^`ґ':;ЯІі#+~_\-|<>\/@{}дцьДЦЬ ]/");
-                    $replace_pattern = array("");
-                    $row['name'] = preg_replace($search_pattern, $replace_pattern, (string)$row['name']);
-
-                    $players[$key]['players'][] = array('playerId' => $row['player_id'], 'name' => $row['name'], 'kills' => $row['kills'], 'deaths' => $row['deaths'], 'connected' => $row['connected']);
+                    $db->free_result($res_live);
                 }
 
                 foreach ($players as $map_location) {
@@ -256,22 +262,26 @@ function printMap($type = 'main')
                         $sec = sprintf("%02d", floor($stamp % 60));
                         $time_str = $hours . ":" . $min . ":" . $sec;
 
-                        $search_pattern = array("/[^A-Za-z0-9\[\]*.,=()!\"$%&^`ґ':;ЯІі#+~_\-|<>\/@{}дцьДЦЬ ]/");
-                        $replace_pattern = array("");
+                        $clean_pname = preg_replace('/[^\p{L}\p{N}\[\]*.,=()!"$%&^`\':;?#+~_\-|<>\/@{ }]/u', '', (string)$player['name']);
 
-                        $temp = "[" . (int)$player['playerId'] . ",";
-                        $temp .= "'" . htmlspecialchars(urldecode(preg_replace($search_pattern, $replace_pattern, (string)$player['name'])), ENT_QUOTES, 'UTF-8') . "',";
-                        $temp .= (int)$player['kills'] . ",";
-                        $temp .= (int)$player['deaths'] . ",";
-                        $temp .= "'" . $time_str . "']";
-                        $players_js[] = $temp;
+                        $players_js[] = array(
+                            (int)$player['playerId'],
+                            htmlspecialchars((string)$clean_pname, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'),
+                            (int)$player['kills'],
+                            (int)$player['deaths'],
+                            $time_str
+                        );
                     }
 
-                    echo "createMarker([" . (float)$map_location['cli_lat'] . ", " . (float)$map_location['cli_lng'] . '], "' . htmlspecialchars(urldecode((string)$map_location['cli_city']), ENT_QUOTES, 'UTF-8') . '", "' . htmlspecialchars(urldecode((string)$map_location['cli_country']), ENT_QUOTES, 'UTF-8') . '", [' . implode(',', $players_js) . "]);\n";
+                    $js_players_json = json_encode($players_js, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP);
+                    $js_city_json    = json_encode((string)$map_location['cli_city'], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP);
+                    $js_country_json = json_encode((string)$map_location['cli_country'], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP);
+
+                    echo 'createMarker([' . (float)$map_location['cli_lat'] . ', ' . (float)$map_location['cli_lng'] . '], ' . $js_city_json . ', ' . $js_country_json . ', ' . $js_players_json . ");\n";
                 }
             } else if ($type == 'clan') {
                 $clan_id = (int)$clan;
-                $db->query("
+                $res_clan = $db->query("
                     SELECT
                         playerId,
                         lastName,
@@ -302,37 +312,40 @@ function printMap($type = 'main')
                 ");
 
                 $players = array();
-                while ($row = $db->fetch_array()) {
-                    // Skip this part, if we already have the location info (should be the same)
-                    $key = $row['lat'] . ',' . $row['lng'];
-                    if (!isset($players[$key])) {
-                        $players[$key] = array('lat' => $row['lat'], 'lng' => $row['lng'], 'city' => $row['city'], 'country' => $row['country'], 'players' => array());
+                if ($res_clan) {
+                    while ($row = $db->fetch_array($res_clan)) {
+                        $key = $row['lat'] . ',' . $row['lng'];
+                        if (!isset($players[$key])) {
+                            $players[$key] = array('lat' => $row['lat'], 'lng' => $row['lng'], 'city' => $row['city'], 'country' => $row['country'], 'players' => array());
+                        }
+                        $clean_clan_pname = preg_replace('/[^\p{L}\p{N}\[\]*.,=()!"$%&^`\':;?#+~_\-|<>\/\\\\@{ }]/u', '', (string)$row['lastName']);
+                        $players[$key]['players'][] = array(
+                            'playerId' => $row['playerId'],
+                            'name' => $clean_clan_pname,
+                            'kills' => $row['kills'],
+                            'deaths' => $row['deaths']
+                        );
                     }
-                    $search_pattern = array("/[^A-Za-z0-9\[\]*.,=()!\"$%&^`ґ':;ЯІі#+~_\-|<>\/@{}дцьДЦЬ ]/");
-                    $replace_pattern = array("");
-                    $row['lastName'] = preg_replace($search_pattern, $replace_pattern, (string)$row['lastName']);
-
-                    $players[$key]['players'][] = array(
-                        'playerId' => $row['playerId'],
-                        'name' => $row['lastName'],
-                        'kills' => $row['kills'],
-                        'deaths' => $row['deaths']
-                    );
+                    $db->free_result($res_clan);
                 }
 
                 foreach ($players as $location) {
                     $players_js = array();
                     foreach ($location['players'] as $player) {
-                        $search_pattern = array("/[^A-Za-z0-9\[\]*.,=()!\"$%&^`ґ':;ЯІі#+~_\-|<>\/@{}дцьДЦЬ ]/");
-                        $replace_pattern = array("");
-                        $temp = "[" . (int)$player['playerId'] . ",";
-                        $temp .= "'" . htmlspecialchars(urldecode(preg_replace($search_pattern, $replace_pattern, (string)$player['name'])), ENT_QUOTES, 'UTF-8') . "',";
-                        $temp .= (int)$player['kills'] . ",";
-                        $temp .= (int)$player['deaths'] . "]";
-                        $players_js[] = $temp;
+                        $clean_clan_pname = preg_replace('/[^\p{L}\p{N}\[\]*.,=()!"$%&^`\':;?#+~_\-|<>\/@{ }]/u', '', (string)$player['name']);
+                        $players_js[] = array(
+                            (int)$player['playerId'],
+                            htmlspecialchars((string)$clean_clan_pname, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'),
+                            (int)$player['kills'],
+                            (int)$player['deaths']
+                        );
                     }
 
-                    echo "createMarker([" . (float)$location['lat'] . ", " . (float)$location['lng'] . '], "' . htmlspecialchars(urldecode((string)$location['city']), ENT_QUOTES, 'UTF-8') . '", "' . htmlspecialchars(urldecode((string)$location['country']), ENT_QUOTES, 'UTF-8') . '", [' . implode(',', $players_js) . "]);\n";
+                    $js_players_json = json_encode($players_js, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP);
+                    $js_city_json    = json_encode((string)$location['city'], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP);
+                    $js_country_json = json_encode((string)$location['country'], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP);
+
+                    echo 'createMarker([' . (float)$location['lat'] . ', ' . (float)$location['lng'] . '], ' . $js_city_json . ', ' . $js_country_json . ', ' . $js_players_json . ");\n";
                 }
             }
 ?>
@@ -370,7 +383,9 @@ function printMapCenter($country)
                 echo "var mapLatLng = [" . (float)$row['lat'] . ", " . (float)$row['lng'] . "];\nvar mapZoom = " . (int)$row['zoom'] . ";";
                 $found = true;
             }
+            if ($result) { $db->free_result($result); }
         }
+        if ($check_table) { $db->free_result($check_table); }
     }
 
     // --- LEVEL 2: Static fallback dictionary (matches the 35 install.sql regions) ---
@@ -444,4 +459,3 @@ function printMapType($maptype)
     }
     echo "\n";
 }
-?>

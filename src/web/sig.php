@@ -48,12 +48,13 @@ if (ob_get_level() == 0) {
 }
 
 foreach ($_SERVER as $key => $entry) {
+    // PHP 8 Fix: Ensure entry is string
     if ($key !== 'HTTP_COOKIE' && is_string($entry)) {
-        $search_pattern  = array('/<script>/', '/<\/script>/', '/[^A-Za-z0-9.\-\/=:;_?#&~]/');
+        $search_pattern  = array('/<script>/i', '/<\/script>/i', '/[^A-Za-z0-9.\-\/=:;_?#&~]/');
         $replace_pattern = array('', '', '');
         $entry = preg_replace($search_pattern, $replace_pattern, $entry);
 
-        if ($key == 'PHP_SELF') {
+        if ($key === 'PHP_SELF') {
             $last_segment = strrchr($entry, '/');
             if ($last_segment !== false) {
                 if (($last_segment !== '/hlstats.php') &&
@@ -67,7 +68,7 @@ foreach ($_SERVER as $key => $entry) {
                     ($last_segment !== '/') &&
                     ($entry !== '')) {
                     $raw_host = $_SERVER['HTTP_HOST'] ?? 'localhost';
-                    $host = preg_replace('/[^a-zA-Z0-9.:-]/', '', $raw_host);
+                    $host = preg_replace('/[^a-zA-Z0-9.:-]/', '', (string)$raw_host);
                     $proto = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
                     header('Location: ' . $proto . '://' . $host . '/hlstats.php');
                     exit;
@@ -118,25 +119,19 @@ function imagecopymerge_alpha($dst_im, $src_im, $dst_x, $dst_y, $src_x, $src_y, 
     imagedestroy($cut); // Memory cleanup
 }
 
-function f_num($number) {
-    $number = (int)$number;
-    if (($number >= 10) &&($number < 20))
-	return $number.'th';
-    else {
-	switch ($number % 10) {
-	    case 1:
-		return $number.'st';
-		break;
-	    case 2:
-		return $number.'nd';
-		break;
-	    case 3:
-		return $number.'rd';
-		break;
-	    default:
-		return $number.'th';
-		break;
-	}
+if (!function_exists('f_num')) {
+    function f_num($number) {
+        $number = (int)$number;
+        if (($number >= 10) && ($number < 20))
+            return $number.'th';
+        else {
+            switch ($number % 10) {
+                case 1:  return $number.'st';
+                case 2:  return $number.'nd';
+                case 3:  return $number.'rd';
+                default: return $number.'th';
+            }
+        }
     }
 }
 
@@ -157,36 +152,42 @@ function f_num($number) {
 	$game_escaped=$db->escape($game);
 	
 	// Obtain realgame from hlstats_Games
-	$db->query("
-	    SELECT
-		realgame
-	    FROM
-		hlstats_Games
-	    WHERE
-		code = '$game_escaped'
-	");
-        
+        $db->query("
+            SELECT
+                realgame
+            FROM
+                hlstats_Games
+            WHERE
+                code = '$game_escaped'
+        ");
+
         // PHP 8 Fix: Replace fetch_row direct access
-	$row = $db->fetch_row();
+        $row = $db->fetch_row();
         $realgame = ($row) ? $row[0] : '';
-	
-	// Obtain player_id from the steam_id and game code
-	$db->query("
-	    SELECT
-		playerId
-	    FROM
-		hlstats_PlayerUniqueIds
-	    WHERE
-		uniqueId = '{$steam_id_escaped}' AND
-		game = '{$game_escaped}'
-	");
-	
-	if ($db->num_rows() != 1) {
-	    // No such player - handle gracefully or error
-            // error("No such player '$player_id'."); 
+        // Free result to prevent memory leak
+        $db->free_result();
+
+        // Obtain player_id from the steam_id and game code
+        $db->query("
+            SELECT
+                playerId
+            FROM
+                hlstats_PlayerUniqueIds
+            WHERE
+                uniqueId = '{$steam_id_escaped}' AND
+                game = '{$game_escaped}'
+        ");
+
+        if ($db->num_rows() != 1) {
+            // Free unneeded result
+            $db->free_result();
+            // No such player - handle gracefully or error
+            // error("No such player '$player_id'.");
         } else {
-	    $row = $db->fetch_row();
+            $row = $db->fetch_row();
             $player_id = (int)$row[0];
+            // Free result after fetching
+            $db->free_result();
         }
     }
     
@@ -205,6 +206,12 @@ function f_num($number) {
         $background = rand(1, 11);
     } else {
         $background = (int)$background;
+    }
+
+    if ($player_id <= 0) {
+        if (ob_get_length()) { ob_clean(); }
+        header("HTTP/1.0 404 Not Found");
+        exit();
     }
 
     $cache_dir = IMAGE_PATH . '/progress';
@@ -229,6 +236,7 @@ function f_num($number) {
             }
             $mod_date = date('D, d M Y H:i:s \G\M\T', $file_timestamp);
             header('Content-Type: image/png');
+            header('X-Content-Type-Options: nosniff');
             header('Last-Modified: ' . $mod_date);
             header('Cache-Control: public, max-age=' . $update_interval);
 
@@ -240,33 +248,6 @@ function f_num($number) {
     ////
     //// Main
     ////
-
-if (!empty($_GET['color']) && is_string($_GET['color'])) {
-    $clean_c = trim($_GET['color']);
-    if (preg_match('/^[a-fA-F0-9]{3,6}$/', $clean_c)) {
-        $color = hex2rgb($clean_c);
-    }
-}
-
-if (!empty($_GET['caption_color']) && is_string($_GET['caption_color'])) {
-    $clean_cc = trim($_GET['caption_color']);
-    if (preg_match('/^[a-fA-F0-9]{3,6}$/', $clean_cc)) {
-        $caption_color = hex2rgb($clean_cc);
-    }
-}
-
-if (!empty($_GET['link_color']) && is_string($_GET['link_color'])) {
-    $clean_lc = trim($_GET['link_color']);
-    if (preg_match('/^[a-fA-F0-9]{3,6}$/', $clean_lc)) {
-        $link_color = hex2rgb($clean_lc);
-    }
-}
-
-if ($player_id <= 0) {
-    if (ob_get_length()) { ob_clean(); }
-    header("HTTP/1.0 404 Not Found");
-    exit();
-}
 
 if ($player_id > 0) {
     $player_id_esc = $db->escape($player_id);
@@ -303,20 +284,9 @@ if ($player_id > 0) {
     $db->free_result();
 
     $pl_name = (string)($playerdata['lastName'] ?? 'Unknown');
-    
-    if(function_exists('imagettftext')) {
-	if (strlen($pl_name) > 30) {
-	    $pl_name = substr($pl_name, 0, 27) . '...';
-	}
-    } else {
-	if (strlen($pl_name) > 30) {
-	    $pl_shortname =	substr($pl_name, 0, 27) . '...';
-	} else {
-	    $pl_shortname	= $pl_name;
-	    $pl_name		= htmlspecialchars($pl_name, ENT_COMPAT);
-	    $pl_shortname	= htmlspecialchars($pl_shortname, ENT_COMPAT);
-	    $pl_urlname		= urlencode($playerdata['lastName']);
-	}
+
+    if (mb_strlen($pl_name, 'UTF-8') > 30) {
+        $pl_name = mb_substr($pl_name, 0, 27, 'UTF-8') . '...';
     }
 
     $game_esc = $db->escape($playerdata['game']);
@@ -414,6 +384,28 @@ if ($player_id > 0) {
 		    $color = array('red' => 0, 'green' => 0, 'blue' => 0);
 		    break;
 }
+
+    // Allow GET parameters to override default background colors
+    if (!empty($_GET['color']) && is_string($_GET['color'])) {
+        $clean_c = trim($_GET['color']);
+        if (preg_match('/^(?:[a-fA-F0-9]{3}|[a-fA-F0-9]{6})$/', $clean_c)) {
+            $color = hex2rgb($clean_c);
+        }
+    }
+
+    if (!empty($_GET['caption_color']) && is_string($_GET['caption_color'])) {
+        $clean_cc = trim($_GET['caption_color']);
+        if (preg_match('/^(?:[a-fA-F0-9]{3}|[a-fA-F0-9]{6})$/', $clean_cc)) {
+            $caption_color = hex2rgb($clean_cc);
+        }
+    }
+
+    if (!empty($_GET['link_color']) && is_string($_GET['link_color'])) {
+        $clean_lc = trim($_GET['link_color']);
+        if (preg_match('/^(?:[a-fA-F0-9]{3}|[a-fA-F0-9]{6})$/', $clean_lc)) {
+            $link_color = hex2rgb($clean_lc);
+        }
+    }
 
     $image			= imagecreatetruecolor(400, 75);
 
@@ -527,13 +519,15 @@ if ($player_id > 0) {
     imagestring($image, 2, 85, 56, $site_url, $link_color);
 
     if (file_exists(IMAGE_PATH.'/watermark.png')) {
-        $watermark = imagecreatefrompng(IMAGE_PATH.'/watermark.png');
-        imagecopymerge_alpha($image, $watermark, 334, 58, 0, 0, 60, 12, 50);
-        imagedestroy($watermark);
+        $watermark = @imagecreatefrompng(IMAGE_PATH.'/watermark.png');
+        if ($watermark) {
+            imagecopymerge_alpha($image, $watermark, 334, 58, 0, 0, 60, 12, 50);
+            imagedestroy($watermark);
+        }
     }
-    
+
     $mod_date = date('D, d M Y H:i:s \G\M\T', time());
-    
+
     @imagepng($image, $cache_file);
 
     if (ob_get_length()) {

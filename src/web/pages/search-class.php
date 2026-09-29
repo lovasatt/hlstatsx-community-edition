@@ -72,7 +72,7 @@ For support and installation notes visit http://www.hlxcommunity.com
 
             $mode = (string)($g_options['Mode'] ?? 'Normal');
             $acclevel = (int)($_SESSION['acclevel'] ?? 0);
-            $scripturl = htmlspecialchars((string)($g_options['scripturl'] ?? ''), ENT_QUOTES, 'UTF-8');
+            $scripturl = htmlspecialchars((string)($g_options['scripturl'] ?? 'hlstats.php'), ENT_QUOTES, 'UTF-8');
 
             if (!is_array($searchtypes))
             {
@@ -133,6 +133,9 @@ For support and installation notes visit http://www.hlxcommunity.com
                                     {
                                         $games[(string)$rowdata[0]] = (string)$rowdata[1];
                                     }
+                                    if ($result) {
+                                        $db->free_result($result);
+                                    }
                                     echo getSelect('game', $games, $this->game);
                                 ?>
                             </td>
@@ -152,8 +155,8 @@ For support and installation notes visit http://www.hlxcommunity.com
         function drawResults ($link_player=-1, $link_clan=-1)
         {
             global $g_options, $db;
-            if ($link_player == -1) $link_player = "mode=playerinfo&amp;player=%k";
-            if ($link_clan == -1) $link_clan = "mode=claninfo&amp;clan=%k";
+            if ($link_player == -1) $link_player = "mode=playerinfo&player=%k";
+            if ($link_clan == -1) $link_clan = "mode=claninfo&clan=%k";
 ?>
 
 <div class="block">
@@ -260,8 +263,14 @@ For support and installation notes visit http://www.hlxcommunity.com
                 ");
                 $row = $db->fetch_row($resultCount);
                 $numitems = ($row) ? (int)$row[0] : 0;
+                if ($resultCount) {
+                    $db->free_result($resultCount);
+                }
 
                 $table->draw($result, $numitems, 95);
+                if ($result) {
+                    $db->free_result($result);
+                }
             }
             elseif ($this->type == 'uniqueid')
             {
@@ -356,8 +365,14 @@ For support and installation notes visit http://www.hlxcommunity.com
 
                 $row = $db->fetch_row($resultCount);
                 $numitems = ($row) ? (int)$row[0] : 0;
+                if ($resultCount) {
+                    $db->free_result($resultCount);
+                }
 
                 $table->draw($result, $numitems, 95);
+                if ($result) {
+                    $db->free_result($result);
+                }
             }
             elseif ($this->type == 'ip')
             {
@@ -471,8 +486,14 @@ For support and installation notes visit http://www.hlxcommunity.com
                 ");
                 $row = $db->fetch_row($resultCount);
                 $numitems = ($row) ? (int)$row[0] : 0;
+                if ($resultCount) {
+                    $db->free_result($resultCount);
+                }
 
                 $table->draw($result, $numitems, 95);
+                if ($result) {
+                    $db->free_result($result);
+                }
             }
             elseif ($this->type == 'clan')
             {
@@ -558,8 +579,14 @@ For support and installation notes visit http://www.hlxcommunity.com
                 ");
                 $row = $db->fetch_row($resultCount);
                 $numitems = ($row) ? (int)$row[0] : 0;
+                if ($resultCount) {
+                    $db->free_result($resultCount);
+                }
 
                 $table->draw($result, $numitems, 95);
+                if ($result) {
+                    $db->free_result($result);
+                }
             }
 ?>
     <br /><br />

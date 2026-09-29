@@ -67,7 +67,7 @@ For support and installation notes visit http://www.hlxcommunity.com
     // Added: Page Header for proper layout
     pageHeader(
         array ($gamename, 'Action Statistics'),
-        array ($gamename=>"%s?game=" . urlencode($game), 'Action Statistics'=>'')
+        array ($gamename => ($g_options['scripturl'] ?? 'hlstats.php') . "?game=" . urlencode($game), 'Action Statistics' => '')
     );
 
     $tblPlayerActions = new Table(
@@ -110,6 +110,7 @@ For support and installation notes visit http://www.hlxcommunity.com
     // PHP 8 Fix: Replace list()
     $row = $db->fetch_row();
     $totalactions = ($row) ? (int)$row[0] : 0;
+    $db->free_result();
 
     $result = $db->query("
         SELECT
@@ -141,7 +142,10 @@ For support and installation notes visit http://www.hlxcommunity.com
     <br /><br />
     <?php
         // PHP 8 Fix: Ensure numeric result for num_rows
-        $num_rows = $db->num_rows($result);
+        $num_rows = ($result) ? (int)$db->num_rows($result) : 0;
         $tblPlayerActions->draw($result, $num_rows, 100);
+        if ($result) {
+            $db->free_result($result);
+        }
     ?>
 </div>

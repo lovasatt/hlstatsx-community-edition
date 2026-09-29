@@ -46,7 +46,7 @@ For support and installation notes visit http://www.hlxcommunity.com
     $game = isset($game) ? (string)$game : '';
     $game_esc = $db->escape($game);
     $game_url = urlencode($game);
-    $scripturl = htmlspecialchars((string)($g_options['scripturl'] ?? ''), ENT_QUOTES, 'UTF-8');
+    $scripturl = htmlspecialchars((string)($g_options['scripturl'] ?? 'hlstats.php'), ENT_QUOTES, 'UTF-8');
 
     // Map Statistics
     $db->query("
@@ -68,7 +68,7 @@ For support and installation notes visit http://www.hlxcommunity.com
 
     pageHeader(
         array ($gamename, 'Map Statistics'),
-        array ($gamename => "%s?game=$game_url", 'Map Statistics' => '')
+        array ($gamename => ($g_options['scripturl'] ?? 'hlstats.php') . "?game=$game_url", 'Map Statistics' => '')
     );
 
     $tblMaps = new Table
@@ -79,7 +79,7 @@ For support and installation notes visit http://www.hlxcommunity.com
             (
                 'map',
                 'Map',
-                'width=20&align=left&link=' . urlencode("mode=mapinfo&amp;map=%k&amp;game=$game_url")
+                'width=20&align=left&link=' . urlencode("mode=mapinfo&map=%k&game=$game_url")
             ),
             new TableColumn
             (
@@ -149,7 +149,9 @@ For support and installation notes visit http://www.hlxcommunity.com
     $row = $db->fetch_row();
     $totalkills     = ($row) ? (int)$row[0] : 0;
     $totalheadshots = ($row) ? (int)$row[1] : 0;
+    $db->free_result();
 
+    // Prevent division by zero in ratios
     $div_realkills     = ($totalkills > 0) ? $totalkills : 1;
     $div_realheadshots = ($totalheadshots > 0) ? $totalheadshots : 1;
 
@@ -159,7 +161,7 @@ For support and installation notes visit http://www.hlxcommunity.com
             hlstats_Maps_Counts.kills,
             ROUND(hlstats_Maps_Counts.kills / $div_realkills * 100, 2) AS kpercent,
             hlstats_Maps_Counts.headshots,
-            ROUND(hlstats_Maps_Counts.headshots / IF(hlstats_Maps_Counts.kills = 0, 1, hlstats_Maps_Counts.kills), 2) AS hpk,
+            IFNULL(ROUND(hlstats_Maps_Counts.headshots / NULLIF(hlstats_Maps_Counts.kills, 0), 2), '-') AS hpk,
             ROUND(hlstats_Maps_Counts.headshots / $div_realheadshots * 100, 2) AS hpercent
         FROM
             hlstats_Maps_Counts
@@ -180,7 +182,13 @@ For support and installation notes visit http://www.hlxcommunity.com
         <div style="clear:both;"></div>
     </div>
     <br /><br />
-    <?php $tblMaps->draw($result, $db->num_rows($result), 95); ?><br /><br />
+    <?php
+        $numitems = ($result) ? $db->num_rows($result) : 0;
+        $tblMaps->draw($result, $numitems, 95);
+        if ($result) {
+            $db->free_result($result);
+        }
+    ?><br /><br />
     <div class="subblock">
         <div style="float:right;">
             Go to: <a href="<?php echo $scripturl . '?game=' . $game_url; ?>"><?php echo htmlspecialchars($gamename, ENT_QUOTES, 'UTF-8'); ?></a>

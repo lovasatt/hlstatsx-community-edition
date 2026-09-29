@@ -50,7 +50,8 @@ For support and installation notes visit http://www.hlxcommunity.com
     $game = isset($game) ? (string)$game : '';
     $game_esc = $db->escape($game);
     $game_url = urlencode($game);
-    $scripturl = htmlspecialchars((string)($g_options['scripturl'] ?? ''), ENT_QUOTES, 'UTF-8');
+    $realgame = function_exists('getRealGame') ? getRealGame($game) : '';
+    $scripturl = htmlspecialchars((string)($g_options['scripturl'] ?? 'hlstats.php'), ENT_QUOTES, 'UTF-8');
 
     $db->query("
         SELECT
@@ -100,12 +101,12 @@ For support and installation notes visit http://www.hlxcommunity.com
 
     $table = new Table(
 	array(
-	    new TableColumn
-	    (
-		'playerName',
-		'Player',
-		'width=45&align=left&flag=1&link=' . urlencode('mode=playerinfo&amp;player=%k')
-	    ),
+            new TableColumn
+            (
+                'playerName',
+                'Player',
+                'width=45&align=left&flag=1&link=' . urlencode('mode=playerinfo&player=%k')
+            ),
 	    new TableColumn
 	    (
 		'numawards',
@@ -191,9 +192,15 @@ if ($special > 0) {
       $resultCount = $db->query("SELECT COUNT(playerId) {$whereClause}");
       $row = $db->fetch_row($resultCount);
       $numitems = ($row) ? (int)$row[0] : 0;
+      if ($resultCount) {
+          $db->free_result($resultCount);
+      }
   } else {
       $resultCount = $db->query("SELECT hlstats_Players.playerId {$whereClause}");
-      $numitems = $db->num_rows($resultCount);
+      $numitems = ($resultCount) ? $db->num_rows($resultCount) : 0;
+      if ($resultCount) {
+          $db->free_result($resultCount);
+      }
   }
 ?>
 
@@ -209,12 +216,22 @@ if ($special > 0) {
     <div style="text-align:center; margin-bottom: 15px;">
 <?php
     if (!empty($image)) {
-        echo '<img src="' . IMAGE_PATH . '/games/' . $game_url . '/ribbons/' . htmlspecialchars($image, ENT_QUOTES, 'UTF-8') . '" alt="" style="vertical-align:middle; margin-right:6px;" />';
+        if (file_exists(IMAGE_PATH . "/games/$game/ribbons/" . $image)) {
+            $image_path = IMAGE_PATH . "/games/$game/ribbons/" . $image;
+        } elseif (!empty($realgame) && file_exists(IMAGE_PATH . "/games/$realgame/ribbons/" . $image)) {
+            $image_path = IMAGE_PATH . "/games/$realgame/ribbons/" . $image;
+        } else {
+            $image_path = IMAGE_PATH . "/award.png";
+        }
+        echo '<img src="' . htmlspecialchars($image_path, ENT_QUOTES, 'UTF-8') . '" alt="" style="vertical-align:middle; margin-right:6px;" />';
     }
     echo '<strong style="font-size:14px; vertical-align:middle;">' . htmlspecialchars($act_name, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</strong>';
 ?>
     </div>
 <?php
     $table->draw($result, $numitems, 95, 'center');
+    if ($result) {
+        $db->free_result($result);
+    }
 ?>
 </div>

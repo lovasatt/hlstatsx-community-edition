@@ -67,32 +67,34 @@ For support and installation notes visit http://www.hlxcommunity.com
        "packet" => chr(255).chr(255)."Z".chr(255)
    );
 
-   function hide_cheaters($query)  {
-     global $db;
-     $result      = $db->query($query);
-     $cheater     = array();
-     $base_query  = "UPDATE hlstats_Players SET last_event = IF(hideranking <> 2, UNIX_TIMESTAMP(), last_event), hideranking = 2 WHERE playerId IN ";
-     $insert_part = "";
-     $first       = 0;
+   if (!function_exists('hide_cheaters')) {
+       function hide_cheaters($query)  {
+         global $db;
+         $result      = $db->query($query);
+         $cheater     = array();
+         $base_query  = "UPDATE hlstats_Players SET last_event = IF(hideranking <> 2, UNIX_TIMESTAMP(), last_event), hideranking = 2 WHERE playerId IN ";
+         $insert_part = "";
+         $first       = 0;
 
-     // PHP 8 Fix: Replace list()
-     while ($row = $db->fetch_row($result))  {
-        $player_id = (int)$row[0];
-        if ($first == 0)
-          $insert_part = "(" . $player_id;
-        else
-          $insert_part .= "," . $player_id;
-        $first++;
-     }
-     if ($first > 0) {
-       echo "<li>Updating <b>$first</b> cheaters... ";
-       $insert_part .= ")";
-       $update_query = $base_query . $insert_part;
-       $db->query($update_query);
-       echo "<b>OK</b></li>\n";
-     }
+         // PHP 8 Fix: Replace list()
+         while ($row = $db->fetch_row($result))  {
+            $player_id = (int)$row[0];
+            if ($first == 0)
+              $insert_part = "(" . $player_id;
+            else
+              $insert_part .= "," . $player_id;
+            $first++;
+         }
+         if ($result) { $db->free_result($result); }
+         if ($first > 0) {
+           echo "<li>Updating <b>$first</b> cheaters... ";
+           $insert_part .= ")";
+           $update_query = $base_query . $insert_part;
+           $db->query($update_query);
+           echo "<b>OK</b></li>\n";
+         }
+       }
    }
-
 
     if (isset($_POST['confirm']))
     {

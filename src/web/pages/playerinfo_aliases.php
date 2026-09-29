@@ -123,17 +123,17 @@ For support and installation notes visit http://www.hlxcommunity.com
     $result = $db->query
     ("
         SELECT
-            hlstats_PlayerNames.name,
+            unhex(replace(hex(hlstats_PlayerNames.name), 'E280AE', '')) AS name,
             hlstats_PlayerNames.connection_time,
             hlstats_PlayerNames.lastuse,
             hlstats_PlayerNames.numuses,
             hlstats_PlayerNames.kills,
             hlstats_PlayerNames.deaths,
-            IFNULL(ROUND(hlstats_PlayerNames.kills / IF(hlstats_PlayerNames.deaths = 0, 1, hlstats_PlayerNames.deaths), 2), '-') AS kpd,
+            IFNULL(ROUND(hlstats_PlayerNames.kills / NULLIF(hlstats_PlayerNames.deaths, 0), 2), '-') AS kpd,
             hlstats_PlayerNames.headshots,
-            IFNULL(ROUND(hlstats_PlayerNames.headshots / IF(hlstats_PlayerNames.kills = 0, 1, hlstats_PlayerNames.kills), 2), '-') AS hpk,
+            IFNULL(ROUND(hlstats_PlayerNames.headshots / NULLIF(hlstats_PlayerNames.kills, 0), 2), '-') AS hpk,
             hlstats_PlayerNames.suicides,
-            IFNULL(ROUND(hlstats_PlayerNames.hits / IF(hlstats_PlayerNames.shots = 0, 1, hlstats_PlayerNames.shots) * 100, 1), 0.0) AS acc
+            IFNULL(ROUND(hlstats_PlayerNames.hits / NULLIF(hlstats_PlayerNames.shots, 0) * 100, 1), 0.0) AS acc
         FROM
             hlstats_PlayerNames
         WHERE
@@ -166,13 +166,13 @@ For support and installation notes visit http://www.hlxcommunity.com
 <div style="clear:both;padding-top:24px;"></div>
 <?php
         printSectionTitle('Aliases');
-        if ($numitems > 0)
-        {
-            $tblAliases->draw($result, $numitems, 95);
-        }
+        $tblAliases->draw($result, $numitems, 95);
 ?>
 <br /><br />
 
 <?php
+    }
+    if ($result) {
+        $db->free_result($result);
     }
 ?>

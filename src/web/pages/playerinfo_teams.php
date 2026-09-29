@@ -111,6 +111,7 @@ For support and installation notes visit http://www.hlxcommunity.com
     // PHP 8 Fix: Replace list()
     $row = $db->fetch_row();
     $numteamjoins = ($row) ? (int)$row[0] : 0;
+    $db->free_result();
 
     if($numteamjoins == 0) {
         $numteamjoins = 1;
@@ -143,7 +144,7 @@ For support and installation notes visit http://www.hlxcommunity.com
             $tblTeams->sort2 $tblTeams->sortorder
     ");
 
-    $numitems = $db->num_rows($result);
+    $numitems = ($result) ? $db->num_rows($result) : 0;
     if ($numitems > 0)
     {
         printSectionTitle('Team Selection *');
@@ -151,6 +152,9 @@ For support and installation notes visit http://www.hlxcommunity.com
 ?>
     <br /><br />
 <?php
+    }
+    if ($result) {
+        $db->free_result($result);
     }
     flush();
     $result = $db->query
@@ -241,10 +245,11 @@ For support and installation notes visit http://www.hlxcommunity.com
     $sql_create_temp_table = "
         CREATE TEMPORARY TABLE hlstats_Frags_as
         (
-            playerId INT(10),
-            kills INT(10),
-            deaths INT(10),
-            role varchar(128) NOT NULL default ''
+            playerId INT(10) UNSIGNED NOT NULL DEFAULT 0,
+            kills INT(10) UNSIGNED NULL,
+            deaths INT(10) UNSIGNED NULL,
+            role varchar(128) NOT NULL default '',
+            KEY `idx_role` (`role`)
         ) DEFAULT CHARSET={$charset} COLLATE={$collate};
     ";
 
@@ -292,9 +297,10 @@ For support and installation notes visit http://www.hlxcommunity.com
     $sql_create_temp_table = "
         CREATE TEMPORARY TABLE hlstats_Frags_as_res
         (
-            killsTotal INT(10),
-            deathsTotal INT(10),
-            role varchar(128) NOT NULL default ''
+            killsTotal INT(10) UNSIGNED NULL,
+            deathsTotal INT(10) UNSIGNED NULL,
+            role varchar(128) NOT NULL default '',
+            KEY `idx_role` (`role`)
         ) DEFAULT CHARSET={$charset} COLLATE={$collate};
     ";
 
@@ -331,6 +337,7 @@ For support and installation notes visit http://www.hlxcommunity.com
     // PHP 8 Fix: Replace list()
     $row = $db->fetch_row();
     $numrolejoins = ($row) ? (int)$row[0] : 0;
+    $db->free_result();
 
     // Prevent division by zero
     $numrolejoins_sql = ($numrolejoins == 0) ? 1 : $numrolejoins;
@@ -344,7 +351,7 @@ For support and installation notes visit http://www.hlxcommunity.com
             ROUND(COUNT(hlstats_Events_ChangeRole.id) / $numrolejoins_sql * 100, 2) AS percent,
             hlstats_Frags_as_res.killsTotal,
             hlstats_Frags_as_res.deathsTotal,
-            ROUND(IFNULL(hlstats_Frags_as_res.killsTotal, 0) / IF(IFNULL(hlstats_Frags_as_res.deathsTotal, 0) = 0, 1, hlstats_Frags_as_res.deathsTotal), 2) AS kpd
+            IFNULL(ROUND(hlstats_Frags_as_res.killsTotal / NULLIF(hlstats_Frags_as_res.deathsTotal, 0), 2), '-') AS kpd
         FROM
             hlstats_Events_ChangeRole
         LEFT JOIN
@@ -372,14 +379,18 @@ For support and installation notes visit http://www.hlxcommunity.com
             $tblRoles->sort $tblRoles->sortorder,
             $tblRoles->sort2 $tblRoles->sortorder
     ");
-    $numitems = $db->num_rows($result);
+    $numitems = ($result) ? $db->num_rows($result) : 0;
     if ($numitems > 0)
     {
         printSectionTitle('Role Selection *');
         $tblRoles->draw($result, $numitems, 95);
 ?>
     <br /><br />
-
 <?php
     }
+    if ($result) {
+        $db->free_result($result);
+    }
+    $db->query("DROP TEMPORARY TABLE IF EXISTS hlstats_Frags_as");
+    $db->query("DROP TEMPORARY TABLE IF EXISTS hlstats_Frags_as_res");
 ?>

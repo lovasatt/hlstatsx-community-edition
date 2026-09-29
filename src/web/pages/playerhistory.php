@@ -51,7 +51,7 @@ For support and installation notes visit http://www.hlxcommunity.com
 
     $db->query("
         SELECT
-            hlstats_Players.lastName,
+            unhex(replace(hex(hlstats_Players.lastName), 'E280AE', '')) AS lastName,
             hlstats_Players.game
         FROM
             hlstats_Players
@@ -65,16 +65,17 @@ For support and installation notes visit http://www.hlxcommunity.com
 
     $playerdata = $db->fetch_array();
     $db->free_result();
-    $pl_name = (string)($playerdata['lastName'] ?? '');
+    $raw_name = (string)($playerdata['lastName'] ?? '');
 
-    if (strlen($pl_name) > 10) {
-        $pl_shortname = substr($pl_name, 0, 8) . '...';
+    // Multi-byte (UTF-8) safe truncation
+    if (mb_strlen($raw_name, 'UTF-8') > 10) {
+        $pl_shortname = mb_substr($raw_name, 0, 8, 'UTF-8') . '...';
     } else {
-        $pl_shortname = $pl_name;
+        $pl_shortname = $raw_name;
     }
 
-    $pl_name = htmlspecialchars($pl_name, ENT_QUOTES, 'UTF-8');
-    $pl_shortname = htmlspecialchars($pl_shortname, ENT_QUOTES, 'UTF-8');
+    $pl_name = htmlspecialchars($raw_name, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    $pl_shortname = htmlspecialchars($pl_shortname, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
     $game = (string)($playerdata['game'] ?? '');
 
     // Security: Escape game variable
@@ -91,6 +92,7 @@ For support and installation notes visit http://www.hlxcommunity.com
 
     if ($db->num_rows() != 1) {
         $gamename = ucfirst($game);
+        $db->free_result();
     } else {
         // PHP 8 Fix: Replace list()
         $row = $db->fetch_row();
@@ -98,17 +100,19 @@ For support and installation notes visit http://www.hlxcommunity.com
         $db->free_result();
     }
 
+    $scripturl = htmlspecialchars((string)($g_options['scripturl'] ?? 'hlstats.php'), ENT_QUOTES, 'UTF-8');
+
     pageHeader
     (
         array ($gamename, 'Event History', $pl_name),
         array
         (
-            $gamename=>($g_options['scripturl'] ?? '') . "?game=" . urlencode($game),
-            'Player Rankings'=>($g_options['scripturl'] ?? '') . "?mode=players&game=" . urlencode($game),
-            'Player Details'=>($g_options['scripturl'] ?? '') . "?mode=playerinfo&player=$player",
-            'Event History'=>''
+            $gamename => $scripturl . "?game=" . urlencode($game),
+            'Player Rankings' => $scripturl . "?mode=players&amp;game=" . urlencode($game),
+            'Player Details' => $scripturl . "?mode=playerinfo&amp;player=$player",
+            'Event History' => ''
         ),
-        $playername = ""
+        ""
     );
     flush();
     $table = new Table
@@ -155,8 +159,13 @@ For support and installation notes visit http://www.hlxcommunity.com
         'sort',
         'sortorder'
     );
-    $surl_esc = $db->escape((string)($g_options['scripturl'] ?? ''));
-    $surl = $surl_esc;
+    $base_script = (string)($g_options['scripturl'] ?? 'hlstats.php');
+    if (!preg_match('~^https?://~i', $base_script)) {
+        $proto = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https://' : 'http://';
+        $host = preg_replace('/[^a-zA-Z0-9.:\[\]-]/', '', (string)($_SERVER['HTTP_HOST'] ?? 'localhost'));
+        $base_script = $proto . $host . '/' . ltrim($base_script, '/');
+    }
+    $surl = $db->escape($base_script);
 // This would be better done with a UNION query, I think, but MySQL doesn't
 // support them yet. (NOTE you need MySQL 3.23 for temporary table support.)
     $db->query("DROP TEMPORARY TABLE IF EXISTS hlstats_EventHistory");
@@ -171,28 +180,33 @@ For support and installation notes visit http://www.hlxcommunity.com
             eventTime DATETIME NOT NULL,
             eventDesc VARCHAR(1000) NOT NULL,
             serverName VARCHAR(255) NOT NULL,
-            map VARCHAR(64) NOT NULL
+            map VARCHAR(64) NOT NULL,
+            KEY `idx_time` (`eventTime`)
         ) DEFAULT CHARSET={$charset} COLLATE={$collate};
     ";
 
     $db->query($sql_create_temp_table);
-    function insertEvents ($table, $select)
-    {
-        global $db;
-        $select = str_replace("<table>", "hlstats_Events_$table", $select);
-        $db->query
-        ("
-            INSERT INTO
-                hlstats_EventHistory
-                (
-                    eventType,
-                    eventTime,
-                    eventDesc,
-                    serverName,
-                    map
-                )
-            $select
-        ");
+
+    // Prevent redeclaration error on multiple includes
+    if (!function_exists('insertEvents')) {
+        function insertEvents ($table, $select)
+        {
+            global $db;
+            $select = str_replace("<table>", "hlstats_Events_$table", $select);
+            $db->query
+            ("
+                INSERT INTO
+                    hlstats_EventHistory
+                    (
+                        eventType,
+                        eventTime,
+                        eventDesc,
+                        serverName,
+                        map
+                    )
+                $select
+            ");
+        }
     }
     insertEvents
     ('TeamBonuses', "
@@ -569,10 +583,14 @@ For support and installation notes visit http://www.hlxcommunity.com
     {
         $table->draw($result, $numitems, 95);
     }
+    if ($result) {
+        $db->free_result($result);
+    }
+    $db->query("DROP TEMPORARY TABLE IF EXISTS hlstats_EventHistory");
 ?><br /><br />
     <div class="subblock">
         <div style="float:right;">
-            Go to: <a href="<?php echo htmlspecialchars((string)($g_options['scripturl'] ?? ''), ENT_QUOTES, 'UTF-8') . "?mode=playerinfo&amp;player=$player"; ?>"><?php echo $pl_name; ?>'s Statistics</a>
+            Go to: <a href="<?php echo htmlspecialchars((string)($g_options['scripturl'] ?? 'hlstats.php'), ENT_QUOTES, 'UTF-8') . "?mode=playerinfo&amp;player=$player"; ?>"><?php echo $pl_name; ?>'s Statistics</a>
         </div>
     </div>
 </div>

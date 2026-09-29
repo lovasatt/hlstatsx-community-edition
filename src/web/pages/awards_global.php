@@ -83,6 +83,12 @@ For support and installation notes visit http://www.hlxcommunity.com
         $cols = 5;
     }
     $colwidth = round(100 / $cols);
+
+    if (!$resultAwards || $db->num_rows($resultAwards) == 0)
+    {
+        echo '<tr class="bg1"><td colspan="' . $cols . '" class="fSmall" style="text-align:center;padding:15px;">No global awards configured or achieved for this game yet.</td></tr>';
+    }
+
     while ($r = $db->fetch_array($resultAwards))
     {
         if ($i == $cols)

@@ -53,7 +53,7 @@ For support and installation notes visit http://www.hlxcommunity.com
     $game_esc = $db->escape($game);
     $game_url = urlencode($game);
     $weapon_esc = $db->escape((string)$weapon);
-    $scripturl = htmlspecialchars((string)($g_options['scripturl'] ?? ''), ENT_QUOTES, 'UTF-8');
+    $scripturl = htmlspecialchars((string)($g_options['scripturl'] ?? 'hlstats.php'), ENT_QUOTES, 'UTF-8');
     $deletedays = (int)($g_options['DeleteDays'] ?? 28);
 
     $db->query("
@@ -69,6 +69,7 @@ For support and installation notes visit http://www.hlxcommunity.com
     if ($db->num_rows() != 1)
     {
         $wep_name = ucfirst((string)$weapon);
+        $db->free_result();
     }
     else
     {
@@ -98,11 +99,11 @@ For support and installation notes visit http://www.hlxcommunity.com
     );
     $table = new Table(
 	array(
-	    new TableColumn(
-		'killerName',
-		'Player',
-		'width=60&align=left&flag=1&link=' . urlencode('mode=playerinfo&amp;player=%k') 
-	    ),
+            new TableColumn(
+                'killerName',
+                'Player',
+                'width=60&align=left&flag=1&link=' . urlencode('mode=playerinfo&player=%k')
+            ),
 	    new TableColumn(
 		'frags',
 		ucfirst($weapon) . ' kills',
@@ -162,14 +163,15 @@ For support and installation notes visit http://www.hlxcommunity.com
         FROM
             hlstats_Events_Frags
         INNER JOIN
-            hlstats_Servers
-            ON hlstats_Servers.serverId = hlstats_Events_Frags.serverId
+            hlstats_Players
+            ON hlstats_Players.playerId = hlstats_Events_Frags.killerId
         WHERE
             hlstats_Events_Frags.weapon = '$weapon_esc'
-            AND hlstats_Servers.game = '$game_esc'
+            AND hlstats_Players.game = '$game_esc'
+            AND hlstats_Players.hideranking = 0
     ");
 
-    $row = $db->fetch_row($resultCount);
+   $row = $db->fetch_row($resultCount);
     if ($row) {
         $numitems       = (int)$row[0];
         $totalkills     = (int)$row[1];
@@ -178,6 +180,9 @@ For support and installation notes visit http://www.hlxcommunity.com
         $numitems = 0;
         $totalkills = 0;
         $totalheadshots = 0;
+    }
+    if ($resultCount) {
+        $db->free_result($resultCount);
     }
 ?>
 
@@ -204,5 +209,10 @@ For support and installation notes visit http://www.hlxcommunity.com
         <div style="clear:both;padding:2px;"></div>
     </div>
     <br /><br />
-    <?php $table->draw($result, $numitems, 95, 'center'); ?>
+    <?php
+        $table->draw($result, $numitems, 95, 'center');
+        if ($result) {
+            $db->free_result($result);
+        }
+    ?>
 </div>

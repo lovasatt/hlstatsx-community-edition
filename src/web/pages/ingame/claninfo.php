@@ -53,8 +53,8 @@ For support and installation notes visit http://www.hlxcommunity.com
 
     $db->query("
         SELECT
-            hlstats_Clans.tag,
-            hlstats_Clans.name,
+            unhex(replace(hex(hlstats_Clans.tag), 'E280AE', '')) AS tag,
+            unhex(replace(hex(hlstats_Clans.name), 'E280AE', '')) AS name,
             hlstats_Clans.homepage,
             hlstats_Clans.game,
             SUM(hlstats_Players.kills) AS kills,
@@ -92,12 +92,14 @@ For support and installation notes visit http://www.hlxcommunity.com
     $game_esc = $db->escape($game);
 
     $db->query("SELECT name FROM hlstats_Games WHERE code='$game_esc'");
-    if ($db->num_rows() != 1)
+    if ($db->num_rows() != 1) {
         $gamename = ucfirst($game);
-    else {
+        $db->free_result();
+    } else {
         // PHP 8 Fix: Replace list()
         $row = $db->fetch_row();
         $gamename = ($row) ? (string)$row[0] : '';
+        $db->free_result();
     }
 
     pageHeader(
@@ -262,14 +264,14 @@ For support and installation notes visit http://www.hlxcommunity.com
     $result = $db->query("
         SELECT
             playerId,
-            lastName,
+            unhex(replace(hex(lastName), 'E280AE', '')) AS lastName,
             country,
             flag,
             skill,
             connection_time,
             kills,
             deaths,
-            IFNULL(kills/deaths, '-') AS kpd,
+            IFNULL(ROUND(kills/NULLIF(deaths, 0), 2), '-') AS kpd,
             (kills/" . $clan_kills_sql . ") * 100 AS percent,
             activity
         FROM
@@ -297,6 +299,10 @@ For support and installation notes visit http://www.hlxcommunity.com
     // PHP 8 Fix: Replace list()
     $row = $db->fetch_row($resultCount);
     $numitems = ($row) ? (int)$row[0] : 0;
+    if ($resultCount) { $db->free_result($resultCount); }
 
     $tblMembers->draw($result, $numitems, 100);
+    if ($result) {
+        $db->free_result($result);
+    }
 ?>
