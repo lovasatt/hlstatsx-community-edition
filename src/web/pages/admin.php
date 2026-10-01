@@ -1313,7 +1313,7 @@ $admintasks['map_regions'] = new AdminTask('Map Regions', 80);
 // Game Settings
 $admintasks['newserver'] = new AdminTask('Add Server', 80, 'game');
 $admintasks['servers'] = new AdminTask('Edit Servers', 80, 'game');
-$admintasks['serversettings'] = new AdminTask('&nbsp;&nbsp;&nbsp;&gt;&gt;&nbsp;Server Details', 80, 'game');
+$admintasks['serversettings'] = new AdminTask('Server Details', 80, 'game');
 $admintasks['actions'] = new AdminTask('Actions', 80, 'game');
 $admintasks['teams'] = new AdminTask('Teams', 80, 'game');
 $admintasks['roles'] = new AdminTask('Roles', 80, 'game');
