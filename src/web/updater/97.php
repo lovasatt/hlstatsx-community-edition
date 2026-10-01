@@ -26,7 +26,7 @@ $tables_to_innodb = array(
     'hlstats_Events_Disconnects', 'hlstats_Events_Entries', 'hlstats_Events_Chat',
     'hlstats_Events_ChangeName', 'hlstats_Events_ChangeRole', 'hlstats_Events_ChangeTeam',
     'hlstats_Events_Latency', 'hlstats_Events_StatsmeLatency', 'hlstats_Events_StatsmeTime',
-    'hlstats_Events_Admin', 'hlstats_Events_Rcon', 'hlstats_Maps_Counts',  'hlstats_Map_Regions', 'hlstats_Heatmap_Config',
+    'hlstats_Events_Admin', 'hlstats_Events_Rcon', 'hlstats_Maps_Counts', 'hlstats_Heatmap_Config',
     'hlstats_server_load', 'hlstats_Players_Awards', 'hlstats_Players_History', 'hlstats_Players_Ribbons',
     'hlstats_Games_Defaults', 'hlstats_Games_Supported', 'hlstats_Mods_Defaults', 'hlstats_Mods_Supported',
     'hlstats_Options_Choices', 'hlstats_HostGroups', 'hlstats_Servers_VoiceComm',
@@ -35,14 +35,14 @@ $tables_to_innodb = array(
 );
 
 foreach ($tables_to_innodb as $tbl) {
-    $res = $db->query("SHOW TABLE STATUS WHERE Name = '$tbl'");
+    $res = $db->query("SHOW TABLE STATUS LIKE '$tbl'");
     if ($res && $row = $db->fetch_array($res)) {
         $is_innodb = (strtoupper((string)$row['Engine']) === 'INNODB');
         $collation = (string)($row['Collation'] ?? '');
         $needs_convert = (!$is_innodb || $collation !== 'utf8mb4_unicode_ci');
 
         if ($needs_convert) {
-            $db->query("ALTER TABLE `$tbl` ENGINE=InnoDB CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+            $db->query("ALTER TABLE `$tbl` ENGINE=InnoDB ROW_FORMAT=DYNAMIC DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
             echo "Converted table '$tbl' to InnoDB and utf8mb4_unicode_ci.<br />";
             if (function_exists('flush')) { @flush(); }
         }
