@@ -1872,6 +1872,7 @@ INSERT INTO `hlstats_Awards` (`awardType`, `game`, `code`, `name`, `verb`) VALUE
 ('W', 'cs2', 'mp5sd', 'MP5-SD', 'kills with mp5sd'),
 ('W', 'cs2', 'inferno', 'Molotov', 'kills with molotov'),
 ('W', 'cs2', 'bayonet', 'Bayonet', 'kills with bayonet'),
+('W', 'cs2', 'm14', 'M14', 'kills with m14'),
 ('O', 'nd', 'headshot', 'Headshot King', 'shots in the head'),
 ('O', 'nd', 'structure_kill', 'Destroyer', 'destroyed structures'),
 ('O', 'nd', 'killed_commander', 'Commander Killer', 'enemy commander kills'),
@@ -4163,36 +4164,42 @@ INSERT INTO `hlstats_Mods_Defaults` (`code`, `parameter`, `value`) VALUES
 ('MANI', 'BroadCastEventsCommand', 'ma_hlx_psay'),
 ('MINISTATS', 'BroadCastEventsCommand', 'ms_psay'),
 ('SOURCEMOD', 'BroadCastEventsCommand', 'hlx_sm_psay'),
+('CSHARP', 'BroadCastEventsCommand', 'hlx_say'),
 ('', 'BroadCastEventsCommandAnnounce', 'say'),
 ('AMXX', 'BroadCastEventsCommandAnnounce', 'hlx_amx_csay'),
 ('BEETLE', 'BroadCastEventsCommandAnnounce', 'hlx_csay'),
 ('MANI', 'BroadCastEventsCommandAnnounce', 'ma_hlx_csay'),
 ('MINISTATS', 'BroadCastEventsCommandAnnounce', 'ms_csay'),
 ('SOURCEMOD', 'BroadCastEventsCommandAnnounce', 'hlx_sm_csay'),
+('CSHARP', 'BroadCastEventsCommandAnnounce', 'hlx_say'),
 ('', 'PlayerEventsAdminCommand', ''),
 ('AMXX', 'PlayerEventsAdminCommand', 'amx_chat'),
 ('BEETLE', 'PlayerEventsAdminCommand', 'admin_chat'),
 ('MANI', 'PlayerEventsAdminCommand', 'ma_chat'),
 ('MINISTATS', 'PlayerEventsAdminCommand', ''),
 ('SOURCEMOD', 'PlayerEventsAdminCommand', 'sm_chat'),
+('CSHARP', 'PlayerEventsAdminCommand', ''),
 ('', 'PlayerEventsCommand', ''),
 ('AMXX', 'PlayerEventsCommand', 'hlx_amx_psay'),
 ('BEETLE', 'PlayerEventsCommand', 'hlx_psay'),
 ('MANI', 'PlayerEventsCommand', 'ma_hlx_psay'),
 ('MINISTATS', 'PlayerEventsCommand', 'ms_psay'),
 ('SOURCEMOD', 'PlayerEventsCommand', 'hlx_sm_psay'),
+('CSHARP', 'PlayerEventsCommand', 'hlx_psay'),
 ('', 'PlayerEventsCommandOSD', ''),
 ('AMXX', 'PlayerEventsCommandOSD', 'hlx_amx_msay'),
 ('BEETLE', 'PlayerEventsCommandOSD', 'hlx_msay'),
 ('MANI', 'PlayerEventsCommandOSD', 'ma_hlx_msay'),
 ('MINISTATS', 'PlayerEventsCommandOSD', 'ms_msay'),
 ('SOURCEMOD', 'PlayerEventsCommandOSD', 'hlx_sm_msay'),
+('CSHARP', 'PlayerEventsCommandOSD', ''),
 ('', 'PlayerEventsCommandHint', ''),
 ('AMXX', 'PlayerEventsCommandHint', 'hlx_amx_hint'),
 ('BEETLE', 'PlayerEventsCommandHint', ''),
 ('MANI', 'PlayerEventsCommandHint', 'ma_hlx_hint'),
 ('MINISTATS', 'PlayerEventsCommandHint', ''),
-('SOURCEMOD', 'PlayerEventsCommandHint', 'hlx_sm_hint');
+('SOURCEMOD', 'PlayerEventsCommandHint', 'hlx_sm_hint'),
+('CSHARP', 'PlayerEventsCommandHint', 'hlx_csay');
 
 
 CREATE TABLE IF NOT EXISTS `hlstats_Mods_Supported` (
@@ -4208,6 +4215,7 @@ CREATE TABLE IF NOT EXISTS `hlstats_Mods_Supported` (
 INSERT INTO `hlstats_Mods_Supported` (`code`, `name`) VALUES
 ('', '(none)'),
 ('SOURCEMOD', 'Sourcemod'),
+('CSHARP', 'CounterStrikeSharp'),
 ('MANI', 'Mani Admin Mod >= 1.2'),
 ('BEETLE', 'BeetlesMod'),
 ('MINISTATS', 'MiniStats'),
@@ -6986,7 +6994,13 @@ INSERT INTO `hlstats_Ribbons` (`awardCode`, `awardCount`, `special`, `game`, `im
 ('knife_twinblade', 12, 0, 'cs2', '3_knife_twinblade.png', 'Silver Twinblade Knife'),
 ('knife_twinblade', 20, 0, 'cs2', '4_knife_twinblade.png', 'Gold Twinblade Knife'),
 ('knife_twinblade', 30, 0, 'cs2', '5_knife_twinblade.png', 'Platinum Twinblade Knife'),
-('knife_twinblade', 50, 0, 'cs2', '6_knife_twinblade.png', 'Supreme Twinblade Knife');
+('knife_twinblade', 50, 0, 'cs2', '6_knife_twinblade.png', 'Supreme Twinblade Knife'),
+('m14', 1, 0, 'cs2', '1_m14.png', 'Award of M14'),
+('m14', 5, 0, 'cs2', '2_m14.png', 'Bronze M14'),
+('m14', 12, 0, 'cs2', '3_m14.png', 'Silver M14'),
+('m14', 20, 0, 'cs2', '4_m14.png', 'Gold M14'),
+('m14', 30, 0, 'cs2', '5_m14.png', 'Platinum M14'),
+('m14', 50, 0, 'cs2', '6_m14.png', 'Supreme M14');
 
 
 -- --------------------------------------------------------
@@ -8501,4 +8515,5 @@ INSERT INTO `hlstats_Weapons` (`game`, `code`, `name`, `modifier`) VALUES
 ('cs2', 'knife_outdoor', 'Nomad Knife', 2.00),
 ('cs2', 'knife_css', 'Classic Knife', 2.00),
 ('cs2', 'knife_kukri', 'Kukri Knife', 2.00),
-('cs2', 'knife_twinblade', 'Twinblade Knife', 2.00);
+('cs2', 'knife_twinblade', 'Twinblade Knife', 2.00),
+('cs2', 'm14', 'M14', 1.00);
