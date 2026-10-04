@@ -124,6 +124,17 @@
         padding: 0 !important;
     }
 
+   /* Fluid auto-scaling for header banner */
+    img[alt="Banner"] {
+        width: auto !important;
+        max-width: 100% !important;
+        height: auto !important;
+        display: block !important;
+        margin: 0 auto 10px auto !important;
+        padding: 0 !important;
+        border-radius: 4px;
+    }
+
     /* Preserve Discord brand color for invite and connect links */
     a[href*="discord.gg"], a[href*="discord.com"] {
         color: #5865F2 !important;

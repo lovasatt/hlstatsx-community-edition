@@ -50,7 +50,7 @@ if (ob_get_level() == 0) {
 foreach ($_SERVER as $key => $entry) {
     // PHP 8 Fix: Ensure entry is string
     if ($key !== 'HTTP_COOKIE' && is_string($entry)) {
-        $search_pattern  = array('/<script>/i', '/<\/script>/i', '/[^A-Za-z0-9.\-\/=:;_?#&~]/');
+        $search_pattern  = array('/<script>/i', '/<\/script>/i', '/[^A-Za-z0-9.\-\/=:;_?#&~%]/');
         $replace_pattern = array('', '', '');
         $entry = preg_replace($search_pattern, $replace_pattern, $entry);
 
@@ -61,6 +61,7 @@ foreach ($_SERVER as $key => $entry) {
                     ($last_segment !== '/show_graph.php') &&
                     ($last_segment !== '/sig.php') &&
                     ($last_segment !== '/sig2.php') &&
+                    (!preg_match('/^\/sig-[0-9]+(-[a-z0-9]+)?\.png$/i', $last_segment)) &&
                     ($last_segment !== '/index.php') &&
                     ($last_segment !== '/status.php') &&
                     ($last_segment !== '/top10.php') &&
@@ -104,14 +105,14 @@ function imagecopymerge_alpha($dst_im, $src_im, $dst_x, $dst_y, $src_x, $src_y, 
     $w = imagesx($src_im);
     // getting the watermark height
     $h = imagesy($src_im);
-     
+
     // creating a cut resource
     $cut = imagecreatetruecolor($src_w, $src_h);
     // copying that section of the background to the cut
     imagecopy($cut, $dst_im, 0, 0, $dst_x, $dst_y, $src_w, $src_h);
     // inverting the opacity
     $opacity = 100 - $opacity;
-     
+
     // placing the watermark now
     imagecopy($cut, $src_im, 0, 0, $src_x, $src_y, $src_w, $src_h);
     // PHP 8 Fix: Cast opacity to int
@@ -143,6 +144,8 @@ if (!function_exists('f_num')) {
     $player_id = 0;  
     if (isset($_GET['player_id'])) {
 	$player_id = valid_request((int)$_GET['player_id'], true);
+    } elseif (isset($_GET['player'])) {
+        $player_id = valid_request((int)$_GET['player'], true);
     } elseif (isset($_GET['steam_id']) && isset($_GET['game'])) {
 	$steam_id = valid_request((string)$_GET['steam_id'], false);
 	$steam_id = preg_replace('/^STEAM_\d+?\:/i','',$steam_id);
@@ -190,7 +193,7 @@ if (!function_exists('f_num')) {
             $db->free_result();
         }
     }
-    
+
     $update_interval = defined('IMAGE_UPDATE_INTERVAL') ? IMAGE_UPDATE_INTERVAL : 3600;
 
     $show_flags = isset($g_options['countrydata']) ? $g_options['countrydata'] : 0;
@@ -219,7 +222,13 @@ if (!function_exists('f_num')) {
         @mkdir($cache_dir, 0755, true);
     }
 
-    $cache_file = $cache_dir . '/sig_' . $player_id . '_' . $background . '.png';
+
+// Cache key based on all display parameters to avoid collisions
+    $cache_hash = md5($player_id . '_' . $background . '_' . $show_flags . '_' . ($_GET['color'] ?? '') . '_' . ($_GET['caption_color'] ?? '') . '_' . ($_GET['link_color'] ?? ''));
+    $cache_file = $cache_dir . '/sig_' . $player_id . '_' . $cache_hash . '.png';
+
+//    $cache_file = $cache_dir . '/sig_' . $player_id . '_' . $background . '.png';
+
     if (file_exists($cache_file)) {
         $file_timestamp = @filemtime($cache_file);
         if ($file_timestamp && ($file_timestamp + $update_interval > time())) {
@@ -319,19 +328,24 @@ if ($player_id > 0) {
 	$skill_change = $playerdata['last_skill_change'];
     else if ($playerdata['last_skill_change'] < 0)
 	$skill_change = $playerdata['last_skill_change'];  
-    
+
+    $realgame = function_exists('getRealGame') ? getRealGame($playerdata['game']) : '';
+
     $hlx_sig_image = getImage('/games/'.$playerdata['game'].'/sig/'.$background);
     if ($hlx_sig_image)
     {
 	$hlx_sig = $hlx_sig_image['path'];
     }
-    elseif (isset($realgame) && $realgame && ($hlx_sig_image = getImage('/games/'.$realgame.'/sig/'.$background)))
+    elseif (!empty($realgame) && ($hlx_sig_image = getImage('/games/'.$realgame.'/sig/'.$background)))
     {
 	$hlx_sig = $hlx_sig_image['path'];
     }
     else
     {
 	$hlx_sig = IMAGE_PATH."/sig/$background.png";
+        if (!file_exists($hlx_sig)) {
+            $hlx_sig = IMAGE_PATH."/sig/1.png";
+        }
     }
 
     switch ($background) {
@@ -481,16 +495,22 @@ if ($player_id > 0) {
     } else {
         $trend = false;
     }
-    
-    if(function_exists('imagettftext') && file_exists(IMAGE_PATH.'/sig/font/DejaVuSans.ttf'))
+
+    $font_file = realpath(IMAGE_PATH . '/sig/font/DejaVuSans.ttf');
+    $ttf_rendered = false;
+
+    if ($font_file && file_exists($font_file) && function_exists('imagettftext'))
     {
-        $font = IMAGE_PATH.'/sig/font/DejaVuSans.ttf';
         $name_x = ($show_flags > 0 && !empty($player_flag)) ? 30 : 10;
-        imagettftext($image, 10, 0, $name_x, 15, $caption_color, $font, $pl_name);
+        $bbox = @imagettftext($image, 10, 0, $name_x, 15, $caption_color, $font_file, $pl_name);
+        if ($bbox !== false) {
+            $ttf_rendered = true;
+        }
     }
-    else
+
+    if (!$ttf_rendered)
     {
-	imagestring($image, 5, $start_header_name, 2, $playerdata['lastName'], $caption_color);
+        imagestring($image, 5, $start_header_name, 2, $pl_name, $caption_color);
     }
 
     imagestring($image, 2, 15, 22, 'Position ', $font_color);

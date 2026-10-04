@@ -788,7 +788,9 @@ sub doEvent_Suicide
 	my $player = lookupPlayer($s_addr, $playerId, $playerUniqueId);
 	my $playerstr = &getPlayerInfoString($player, $playerId);
 
-	$player->set("is_dead", "1");
+	if ($player) {
+	    $player->set("is_dead", "1");
+	}
 
 	# CS2 / Source 2 Console Quit & Post-Disconnect Ghost Guard:
 	# If a player dies to "world" with an empty or unassigned team, it represents a post-disconnect ghost suicide

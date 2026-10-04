@@ -299,7 +299,7 @@ sub get_game_mod_opts
 
 sub format_userid {
         my($self, $userid) = @_;
-        if ($self->{mod} eq "AMXX") {
+        if ($self->{mod} eq "AMXX" || uc($self->{mod}) eq "CSHARP") {
                 return "#".$userid;
         }
         return "\"".$userid."\"";
@@ -1429,7 +1429,12 @@ sub messageAll
 
         if ($self->{broadcasting_events} == 1 || $force == 1)
         {
-                if ($self->{mod} eq "SOURCEMOD" || $self->{mod} eq "AMXX")
+                if (uc($self->{mod}) eq "CSHARP")
+                {
+                        my $cmd = $self->{broadcasting_command_announce} || $self->{broadcasting_command} || "hlx_say";
+                        $self->dorcon("$cmd \"" . $msg . "\"");
+                }
+                elsif ($self->{mod} eq "SOURCEMOD" || $self->{mod} eq "AMXX")
                 {
                         my @userlist;
 
@@ -1459,7 +1464,20 @@ sub messageMany
         my($self, $msg, $toall, @userlist) = @_;
         if (scalar(@userlist) > 0)
         {
-                if ($self->{mod} eq "SOURCEMOD")
+                if (uc($self->{mod}) eq "CSHARP")
+                {
+                        if ($toall > 0) {
+                                my $cmd = $self->{broadcasting_command_announce} || $self->{broadcasting_command} || "hlx_say";
+                                $self->dorcon("$cmd \"" . $msg . "\"");
+                        } else {
+                                my $rcmd = $self->{player_command} || "hlx_psay";
+                                foreach (@userlist)
+                                {
+                                        $self->dorcon(sprintf("%s %s %s", $rcmd, $self->format_userid($_), $self->quoteparam($msg)));
+                                }
+                        }
+                }
+                elsif ($self->{mod} eq "SOURCEMOD")
                 {
                         my $usersendlist = "";
                         foreach (@userlist)

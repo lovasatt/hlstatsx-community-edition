@@ -47,7 +47,7 @@ public class HLXSession
 public class HLStatsX_CS2 : BasePlugin, IPluginConfig<HLXConfig>
 {
     public override string ModuleName => "HLStatsX Modern Interface";
-    public override string ModuleVersion => "1.2";
+    public override string ModuleVersion => "1.3";
     public override string ModuleAuthor => "lovasatt";
     public override string ModuleDescription => "Integrates HLStatsX with CS2 for viewing and updating player stats via in-game menu.";
 
@@ -55,11 +55,16 @@ public class HLStatsX_CS2 : BasePlugin, IPluginConfig<HLXConfig>
     private readonly ConcurrentDictionary<int, HLXSession> _activeSessions = new();
     private readonly ConcurrentDictionary<ulong, (string Field, DateTime Time)> _waitingForInput = new();
     private readonly ConcurrentDictionary<ulong, DateTime> _lastInputUsage = new();
+    private bool _isCenterMessageActive = false;
+    private string _activeCenterHtml = string.Empty;
+    private DateTime _centerMessageEndTime = DateTime.MinValue;
 
     public void OnConfigParsed(HLXConfig config) => Config = config;
 
     public override void Load(bool hotReload)
     {
+        RegisterListener<Listeners.OnTick>(OnTick);
+
         AddTimer(1.0f, () =>
         {
             var now = DateTime.Now;
@@ -167,7 +172,7 @@ public class HLStatsX_CS2 : BasePlugin, IPluginConfig<HLXConfig>
                     return;
                 if (stats == null)
                 {
-                    p.PrintToChat(Localizer["error.name"]);
+                    p.PrintToChat(Localizer["error.general"]);
                     return;
                 }
                 stats.LastActivity = DateTime.Now;
@@ -181,7 +186,7 @@ public class HLStatsX_CS2 : BasePlugin, IPluginConfig<HLXConfig>
             Server.NextFrame(() =>
             {
                 if (player.IsValid)
-                    player.PrintToChat("An error occurred, please try again!");
+                    player.PrintToChat(Localizer["error.general"]);
             });
         }
     }
@@ -189,6 +194,14 @@ public class HLStatsX_CS2 : BasePlugin, IPluginConfig<HLXConfig>
     private HookResult OnPlayerSay(CCSPlayerController? player, CommandInfo info)
     {
         if (player == null || !player.IsValid) return HookResult.Continue;
+
+        string text = info.ArgString.Trim().Trim('"');
+
+        if (HandleChatCommands(player, text))
+        {
+            return HookResult.Handled;
+        }
+
         if (_waitingForInput.TryGetValue(player.SteamID, out var input))
         {
             RefreshActivity(player);
@@ -204,7 +217,7 @@ public class HLStatsX_CS2 : BasePlugin, IPluginConfig<HLXConfig>
                 }
             }
 
-            string text = info.ArgString.Trim().Trim('"');
+            text = info.ArgString.Trim().Trim('"');
             if (text.Length > 512)
             {
                 player.PrintToChat(Localizer["error.too_long"]);
@@ -344,7 +357,7 @@ public class HLStatsX_CS2 : BasePlugin, IPluginConfig<HLXConfig>
             await conn.OpenAsync();
             string sql = @"
                 SELECT p.playerId, p.skill, p.last_skill_change, p.kills, p.deaths, p.headshots, p.fullName, p.homepage, p.hideranking,
-                (SELECT IFNULL(ROUND((SUM(hits) / NULLIF(SUM(shots),0)) * 100, 2) ,0) FROM hlstats_Events_Statsme WHERE playerId = p.playerId) AS accuracy,
+                IFNULL(ROUND((p.hits / NULLIF(p.shots, 0)) * 100, 2), 0) AS accuracy,
                 (SELECT COUNT(*) FROM hlstats_Players WHERE game = 'cs2' AND hideranking = 0 AND skill > p.skill) + 1 AS rank_pos,
                 (SELECT rankName FROM hlstats_Ranks WHERE game = 'cs2' AND minKills <= p.kills ORDER BY minKills DESC LIMIT 1) AS rank_name
                 FROM hlstats_Players p
@@ -384,7 +397,7 @@ public class HLStatsX_CS2 : BasePlugin, IPluginConfig<HLXConfig>
         const int maxRows = 6;
         if (items.Count == 0)
         {
-            items.Add("<font color='gray'>No data available.</font>");
+            items.Add(Localizer["menu.nodata"]);
         }
         int totalItems = items.Count;
 
@@ -441,7 +454,11 @@ public class HLStatsX_CS2 : BasePlugin, IPluginConfig<HLXConfig>
             await conn.OpenAsync();
             using var cmd = new MySqlCommand("SELECT lastName, skill FROM hlstats_Players WHERE game = 'cs2' AND hideranking = 0 ORDER BY skill DESC LIMIT 10", conn);
             using var r = await cmd.ExecuteReaderAsync();
-            while (await r.ReadAsync()) topList.Add($"{r.GetString(0)}|{System.Convert.ToInt32(r[1])}");
+            while (await r.ReadAsync())
+            {
+                string name = r.IsDBNull(0) ? "Unknown" : r.GetString(0);
+                topList.Add($"{name}|{System.Convert.ToInt32(r[1])}");
+            }
         }
         catch (Exception ex)
         {
@@ -451,7 +468,7 @@ public class HLStatsX_CS2 : BasePlugin, IPluginConfig<HLXConfig>
                 Server.NextFrame(() => {
                     var targetPlayer = Utilities.GetPlayerFromSlot(slot);
                     if (targetPlayer != null && targetPlayer.IsValid)
-                        targetPlayer.PrintToChat("An error occurred, please try again!");
+                        targetPlayer.PrintToChat(Localizer["error.general"]);
                 });
             }
             return;
@@ -481,11 +498,11 @@ public class HLStatsX_CS2 : BasePlugin, IPluginConfig<HLXConfig>
             using var conn = new MySqlConnection(GetConnString());
             await conn.OpenAsync();
             using var cmd = new MySqlCommand(
-                @"SELECT f.weapon, COUNT(*) AS kills
+                @"SELECT COALESCE(w.name, f.weapon) AS weaponName, COUNT(*) AS kills
                   FROM hlstats_Events_Frags f
-                  LEFT JOIN hlstats_Weapons w ON w.code = f.weapon
-                  WHERE f.killerId = @id AND (w.game = 'cs2' OR w.weaponId IS NULL)
-                  GROUP BY f.weapon ORDER BY kills DESC LIMIT 10",
+                  LEFT JOIN hlstats_Weapons w ON (w.code = f.weapon AND w.game = 'cs2')
+                  WHERE f.killerId = @id
+                  GROUP BY f.weapon, w.name ORDER BY kills DESC LIMIT 10",
                 conn);
             cmd.Parameters.AddWithValue("@id", session.PlayerId);
             using var r = await cmd.ExecuteReaderAsync();
@@ -499,7 +516,7 @@ public class HLStatsX_CS2 : BasePlugin, IPluginConfig<HLXConfig>
                 Server.NextFrame(() => {
                     var targetPlayer = Utilities.GetPlayerFromSlot(slot);
                     if (targetPlayer != null && targetPlayer.IsValid)
-                        targetPlayer.PrintToChat("An error occurred, please try again!");
+                        targetPlayer.PrintToChat(Localizer["error.general"]);
                 });
             }
             return;
@@ -539,7 +556,11 @@ public class HLStatsX_CS2 : BasePlugin, IPluginConfig<HLXConfig>
                 conn);
             cmd.Parameters.AddWithValue("@id", session.PlayerId);
             using var r = await cmd.ExecuteReaderAsync();
-            while (await r.ReadAsync()) victims.Add($"{r.GetString(0)}|{System.Convert.ToInt32(r[1])}");
+            while (await r.ReadAsync())
+            {
+                string name = r.IsDBNull(0) ? "Unknown" : r.GetString(0);
+                victims.Add($"{name}|{System.Convert.ToInt32(r[1])}");
+            }
         }
         catch (Exception ex)
         {
@@ -549,7 +570,7 @@ public class HLStatsX_CS2 : BasePlugin, IPluginConfig<HLXConfig>
                 Server.NextFrame(() => {
                     var targetPlayer = Utilities.GetPlayerFromSlot(slot);
                     if (targetPlayer != null && targetPlayer.IsValid)
-                        targetPlayer.PrintToChat("An error occurred, please try again!");
+                        targetPlayer.PrintToChat(Localizer["error.general"]);
                 });
             }
             return;
@@ -580,6 +601,25 @@ public class HLStatsX_CS2 : BasePlugin, IPluginConfig<HLXConfig>
             uint targetId = pId;
             if (slot != -1 && _activeSessions.TryGetValue(slot, out var session)) targetId = session.PlayerId;
 
+            // Fallback: Resolve PlayerId directly from DB via SteamID if session does not exist yet
+            if (targetId == 0 && slot != -1)
+            {
+                var p = Utilities.GetPlayerFromSlot(slot);
+                if (p != null && p.IsValid)
+                {
+                    ulong steamId64 = p.SteamID;
+                    string steam2Id = $"{(steamId64 - 76561197960265728) % 2}:{(steamId64 - 76561197960265728) / 2}";
+                    using var findCmd = new MySqlCommand("SELECT playerId FROM hlstats_PlayerUniqueIds WHERE uniqueId = @sid AND game = 'cs2' LIMIT 1", conn);
+                    findCmd.Parameters.AddWithValue("@sid", steam2Id);
+                    var pidObj = await findCmd.ExecuteScalarAsync();
+                    if (pidObj != null && Convert.ToUInt32(pidObj) > 0)
+                    {
+                        targetId = Convert.ToUInt32(pidObj);
+                    }
+                }
+            }
+
+            if (targetId == 0) return;
             string sql = field switch
             {
                 "fullName" => "UPDATE hlstats_Players SET fullName = @v WHERE playerId = @id",
@@ -649,7 +689,7 @@ public class HLStatsX_CS2 : BasePlugin, IPluginConfig<HLXConfig>
                 {
                     var targetPlayer = Utilities.GetPlayerFromSlot(slot);
                     if (targetPlayer != null && targetPlayer.IsValid)
-                        targetPlayer.PrintToChat("An error occurred, please try again!");
+                        targetPlayer.PrintToChat(Localizer["error.general"]);
                 });
             }
         }
@@ -754,4 +794,402 @@ public class HLStatsX_CS2 : BasePlugin, IPluginConfig<HLXConfig>
     private string Trunc(string s, int l) => s.Length > l ? s[..(l - 2)] + ".." : s;
     private void RefreshActivity(CCSPlayerController player) { if (_activeSessions.TryGetValue(player.Slot, out var s)) s.LastActivity = DateTime.Now; }
     private string Escape(string s) => System.Net.WebUtility.HtmlEncode(s);
+
+    // ON-TICK PERSISTENT CENTER MESSAGE
+    private void OnTick()
+    {
+        if (_isCenterMessageActive)
+        {
+            if (DateTime.UtcNow >= _centerMessageEndTime)
+            {
+                _isCenterMessageActive = false;
+                _centerMessageEndTime = DateTime.MinValue;
+                _activeCenterHtml = string.Empty;
+
+                foreach (var p in Utilities.GetPlayers())
+                {
+                    if (p != null && p.IsValid && !p.IsBot && !p.IsHLTV)
+                    {
+                        p.PrintToCenterHtml(" ");
+                    }
+                }
+            }
+            else
+            {
+                foreach (var p in Utilities.GetPlayers())
+                {
+                    if (p != null && p.IsValid && !p.IsBot && !p.IsHLTV && !_activeSessions.ContainsKey(p.Slot))
+                    {
+                        p.PrintToCenterHtml(_activeCenterHtml);
+                    }
+                }
+            }
+        }
+    }
+
+    // HLstatsX RCON COMMANDS: hlx_say (broadcast) & hlx_psay (targeted)
+    [ConsoleCommand("hlx_say", "Send colored broadcast or targeted message")]
+    public void CommandHlxSay(CCSPlayerController? caller, CommandInfo info)
+    {
+        if (caller != null || string.IsNullOrWhiteSpace(info.ArgString)) return;
+
+        string raw = info.ArgString.Trim();
+        string cleanMessage = ParseIncomingHlxMessage(raw, out string targetStr);
+
+        if (!string.IsNullOrEmpty(cleanMessage))
+        {
+            DeliverHlxChatMessage(targetStr, cleanMessage);
+        }
+    }
+
+    [ConsoleCommand("hlx_psay", "Send private or broadcast colored message")]
+    public void CommandHlxPsay(CCSPlayerController? caller, CommandInfo info)
+    {
+        if (caller != null || string.IsNullOrWhiteSpace(info.ArgString)) return;
+
+        string raw = info.ArgString.Trim();
+        string cleanMessage = ParseIncomingHlxMessage(raw, out string targetStr);
+
+        if (!string.IsNullOrEmpty(cleanMessage))
+        {
+            DeliverHlxChatMessage(targetStr, cleanMessage);
+        }
+    }
+
+    // Shared intelligent delivery: routes to target player privately if specified, or broadcasts to all
+    private void DeliverHlxChatMessage(string targetStr, string cleanMessage)
+    {
+        string formattedMessage = FormatHlxChatMessage(cleanMessage);
+
+        if (string.IsNullOrWhiteSpace(targetStr))
+        {
+            Server.PrintToChatAll(formattedMessage);
+            return;
+        }
+
+        bool isTargetedPlayer = targetStr.StartsWith('#');
+        if (isTargetedPlayer)
+        {
+            targetStr = targetStr[1..];
+        }
+
+        CCSPlayerController? targetPlayer = null;
+
+        if (int.TryParse(targetStr, out int targetId))
+        {
+            targetPlayer = Utilities.GetPlayerFromUserid(targetId);
+
+            if (targetPlayer == null && targetId >= 0 && targetId < 64)
+            {
+                targetPlayer = Utilities.GetPlayerFromSlot(targetId);
+            }
+        }
+
+        if (targetPlayer != null && targetPlayer.IsValid)
+        {
+            targetPlayer.PrintToChat(formattedMessage);
+        }
+        else if (!isTargetedPlayer)
+        {
+            Server.PrintToChatAll(formattedMessage);
+        }
+    }
+
+    [ConsoleCommand("hlx_csay", "Send center screen announcement to all players")]
+    public void CommandHlxCsay(CCSPlayerController? caller, CommandInfo info)
+    {
+        if (caller != null || string.IsNullOrWhiteSpace(info.ArgString)) return;
+
+        string raw = info.ArgString.Trim();
+        string cleanMessage = ParseIncomingHlxMessage(raw, out _);
+
+        if (string.IsNullOrEmpty(cleanMessage)) return;
+
+        string htmlBody = ResolveCenterHtmlColors(cleanMessage);
+        if (htmlBody.StartsWith("</font>"))
+        {
+            htmlBody = htmlBody.Substring(7);
+        }
+
+        _activeCenterHtml = $"<font color='#2ecc71' size='30'><b>[HLstatsX]</b></font><br>" +
+                            $"<font color='#ffffff' size='22'>{htmlBody}</font>";
+
+        _isCenterMessageActive = true;
+        _centerMessageEndTime = DateTime.UtcNow.AddSeconds(4);
+    }
+
+    // Helper: Completely removes the leading target ('0', '#14') and any legacy dummy quotes ('""', '" "', "''", "' '")
+    private string ParseIncomingHlxMessage(string rawArgString, out string target)
+    {
+        target = "";
+        string text = rawArgString.Trim();
+
+        // Regex matches:
+        // 1. Optional target (e.g. '0', '14', '#14')
+        // 2. Any dummy quote parameters (e.g. '""', '" "', "''", "' '")
+        // 3. The actual message content
+        var match = Regex.Match(text, @"^(?:[""']?(?<target>#\d+)[""']?\s*)?(?:[""']\s*[""']\s*)*(?<message>.*)$", RegexOptions.Singleline);
+
+        if (match.Success)
+        {
+            target = match.Groups["target"].Value.Trim();
+            text = match.Groups["message"].Value.Trim();
+        }
+
+        text = StripOuterQuotes(text);
+
+        text = Regex.Replace(text, @"^0\s*[""']\s*[""']\s*", "").Trim();
+        text = StripOuterQuotes(text);
+
+        return text;
+    }
+
+    private string StripOuterQuotes(string str)
+    {
+        str = str.Trim();
+        while (str.Length >= 2 && ((str.StartsWith("\"") && str.EndsWith("\"")) || (str.StartsWith("'") && str.EndsWith("'"))))
+        {
+            str = str.Substring(1, str.Length - 2).Trim();
+        }
+        return str;
+    }
+
+    // Helper: Formats chat message with rich CS2 colors (fixed hyphen boundary collision)
+    private string FormatHlxChatMessage(string message)
+    {
+        string formatted = ResolveChatColors(message);
+
+        formatted = Regex.Replace(formatted, @"\b(Counter-Terrorists?|CT|Terrorists?)\b", m =>
+        {
+            string val = m.Value;
+            if (val.StartsWith("Counter-", StringComparison.OrdinalIgnoreCase) || val.Equals("CT", StringComparison.OrdinalIgnoreCase))
+            {
+                return $"{ChatColors.LightBlue}{val}{ChatColors.Default}";
+            }
+            return $"{ChatColors.Gold}{val}{ChatColors.Default}";
+        }, RegexOptions.IgnoreCase);
+
+        formatted = Regex.Replace(formatted, @"\b([0-9,]+)\s+(points?)\b", $"{ChatColors.Green}$1 $2{ChatColors.Default}", RegexOptions.IgnoreCase);
+        formatted = Regex.Replace(formatted, @"(\([0-9,]+\s*points?\))", $"{ChatColors.Green}$1{ChatColors.Default}", RegexOptions.IgnoreCase);
+        formatted = Regex.Replace(formatted, @"\b(connected from|has connected from)\b", $"{ChatColors.LightBlue}$1{ChatColors.Default}", RegexOptions.IgnoreCase);
+
+        return $" {ChatColors.Green}[HLstatsX]{ChatColors.Default} {formatted}";
+    }
+
+    // HLstatsX IN-GAME CHAT COMMANDS (/hlx_set, /hlx_hideranking, !hlx)
+    private bool HandleChatCommands(CCSPlayerController player, string text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return false;
+
+        string cmd = text;
+        if (cmd.StartsWith("/") || cmd.StartsWith("!"))
+            cmd = cmd.Substring(1);
+
+        cmd = cmd.Trim();
+
+        // 1. Dashboard trigger via chat (!hlx, /hlx, hlx)
+        if (cmd.Equals("hlx", StringComparison.OrdinalIgnoreCase) || cmd.Equals("hlstats", StringComparison.OrdinalIgnoreCase))
+        {
+            OnHlxCommand(player, null!);
+            return true;
+        }
+
+        // 2. Hide Ranking toggle (/hlx_hideranking)
+        if (cmd.Equals("hlx_hideranking", StringComparison.OrdinalIgnoreCase))
+        {
+            HandleHlxHideRankingChat(player);
+            return true;
+        }
+
+        // 3. Profile setting (/hlx_set option value)
+        if (cmd.StartsWith("hlx_set", StringComparison.OrdinalIgnoreCase))
+        {
+            HandleHlxSetChat(player, cmd);
+            return true;
+        }
+
+        return false;
+    }
+
+    private void HandleHlxHideRankingChat(CCSPlayerController player)
+    {
+        _ = HandleHlxHideRankingChatAsync(player);
+    }
+
+    private async Task HandleHlxHideRankingChatAsync(CCSPlayerController player)
+    {
+        ulong steamId64 = player.SteamID;
+        int slot = player.Slot;
+        string steam2Id = $"{(steamId64 - 76561197960265728) % 2}:{(steamId64 - 76561197960265728) / 2}";
+
+        try
+        {
+            using var conn = new MySqlConnection(GetConnString());
+            await conn.OpenAsync();
+
+            uint playerId = 0;
+            int currentHidden = 0;
+
+            string selectSql = @"
+                SELECT p.playerId, p.hideranking 
+                FROM hlstats_Players p
+                JOIN hlstats_PlayerUniqueIds u ON p.playerId = u.playerId
+                WHERE u.uniqueId = @sid AND u.game = 'cs2' LIMIT 1";
+
+            using (var selectCmd = new MySqlCommand(selectSql, conn))
+            {
+                selectCmd.Parameters.AddWithValue("@sid", steam2Id);
+                using var reader = await selectCmd.ExecuteReaderAsync();
+                if (await reader.ReadAsync())
+                {
+                    playerId = reader.GetUInt32("playerId");
+                    currentHidden = reader.GetInt32("hideranking");
+                }
+            }
+
+            if (playerId == 0) return;
+
+            int newHidden = currentHidden == 1 ? 0 : 1;
+
+            using (var updateCmd = new MySqlCommand("UPDATE hlstats_Players SET hideranking = @v WHERE playerId = @id", conn))
+            {
+                updateCmd.Parameters.AddWithValue("@v", newHidden);
+                updateCmd.Parameters.AddWithValue("@id", playerId);
+                await updateCmd.ExecuteNonQueryAsync();
+            }
+
+            if (_activeSessions.TryGetValue(slot, out var session) && session != null)
+            {
+                session.IsHidden = newHidden;
+            }
+
+            Server.NextFrame(() =>
+            {
+                var p = Utilities.GetPlayerFromSlot(slot);
+                if (p != null && p.IsValid)
+                {
+                    string statusText = newHidden == 1 
+                        ? $"\u0007{Localizer["label.hidden"]}" 
+                        : $"\u0004{Localizer["label.visible"]}";
+
+                    p.PrintToChat(Localizer["chat.hideranking.status", statusText]);
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[HLStatsX_CS2] HideRanking error: {ex.Message}");
+        }
+    }
+
+    private void HandleHlxSetChat(CCSPlayerController player, string fullCommand)
+    {
+        if (_lastInputUsage.TryGetValue(player.SteamID, out var lastUsed))
+        {
+            var diff = DateTime.Now - lastUsed;
+            if (diff.TotalSeconds < Config.CooldownSeconds)
+            {
+                int remaining = Config.CooldownSeconds - (int)diff.TotalSeconds;
+                player.PrintToChat(Localizer["error.input_cooldown", remaining]);
+                return;
+            }
+        }
+
+        string[] parts = fullCommand.Split(' ', 3, StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length < 3)
+        {
+            player.PrintToChat(Localizer["chat.set.syntax"]);
+            return;
+        }
+
+        string option = parts[1].ToLowerInvariant();
+        string value = parts[2].Trim();
+
+        string dbField;
+        string validatedValue;
+
+        switch (option)
+        {
+            case "realname":
+                dbField = "fullName";
+                validatedValue = SanitizeText(value, 100);
+                if (string.IsNullOrWhiteSpace(validatedValue))
+                {
+                    player.PrintToChat(Localizer["error.name"]);
+                    return;
+                }
+                break;
+
+            case "email":
+                dbField = "email";
+                if (!IsValidEmail(value))
+                {
+                    player.PrintToChat(Localizer["error.email"]);
+                    return;
+                }
+                validatedValue = value.Length > 64 ? value[..64] : value;
+                break;
+
+            case "homepage":
+                dbField = "homepage";
+                if (!IsValidHomepage(value, out var cleanUrl))
+                {
+                    player.PrintToChat(Localizer["error.homepage"]);
+                    return;
+                }
+                validatedValue = cleanUrl.Length > 64 ? cleanUrl[..64] : cleanUrl;
+                break;
+
+            default:
+                player.PrintToChat(Localizer["chat.set.unknown", option]);
+                return;
+        }
+
+        _ = UpdateDbField(0, dbField, validatedValue, player.Slot);
+        _lastInputUsage[player.SteamID] = DateTime.Now;
+        player.PrintToChat(Localizer["chat.set.success", option, validatedValue]);
+    }
+
+    private string ResolveChatColors(string message)
+    {
+        return message
+            .Replace("{DEFAULT}", $"{ChatColors.Default}")
+            .Replace("{WHITE}", $"{ChatColors.White}")
+            .Replace("{RED}", $"{ChatColors.Red}")
+            .Replace("{LIGHTRED}", $"{ChatColors.LightRed}")
+            .Replace("{DARKRED}", $"{ChatColors.DarkRed}")
+            .Replace("{GREEN}", $"{ChatColors.Green}")
+            .Replace("{LIME}", $"{ChatColors.Lime}")
+            .Replace("{OLIVE}", $"{ChatColors.Olive}")
+            .Replace("{BLUE}", $"{ChatColors.Blue}")
+            .Replace("{DARKBLUE}", $"{ChatColors.DarkBlue}")
+            .Replace("{PURPLE}", $"{ChatColors.Purple}")
+            .Replace("{MAGENTA}", $"{ChatColors.Magenta}")
+            .Replace("{GOLD}", $"{ChatColors.Gold}")
+            .Replace("{YELLOW}", $"{ChatColors.Yellow}")
+            .Replace("{GREY}", $"{ChatColors.Grey}")
+            .Replace("{GRAY}", $"{ChatColors.Grey}");
+    }
+
+    private string ResolveCenterHtmlColors(string message)
+    {
+        return message
+            .Replace("{DEFAULT}", "</font><font color='#ffffff' size='22'>")
+            .Replace("{WHITE}", "</font><font color='#ffffff' size='22'>")
+            .Replace("{GREEN}", "</font><font color='#2ecc71' size='22'>")
+            .Replace("{LIME}", "</font><font color='#a4d007' size='22'>")
+            .Replace("{LIGHTGREEN}", "</font><font color='#a4d007' size='22'>")
+            .Replace("{RED}", "</font><font color='#e74c3c' size='22'>")
+            .Replace("{LIGHTRED}", "</font><font color='#ff6b6b' size='22'>")
+            .Replace("{DARKRED}", "</font><font color='#990000' size='22'>")
+            .Replace("{BLUE}", "</font><font color='#3498db' size='22'>")
+            .Replace("{LIGHTBLUE}", "</font><font color='#66c0f4' size='22'>")
+            .Replace("{DARKBLUE}", "</font><font color='#1e3799' size='22'>")
+            .Replace("{PURPLE}", "</font><font color='#9b59b6' size='22'>")
+            .Replace("{MAGENTA}", "</font><font color='#e056fd' size='22'>")
+            .Replace("{GOLD}", "</font><font color='#f1c40f' size='22'>")
+            .Replace("{YELLOW}", "</font><font color='#f1c40f' size='22'>")
+            .Replace("{GREY}", "</font><font color='#aaaaaa' size='22'>")
+            .Replace("{GRAY}", "</font><font color='#aaaaaa' size='22'>");
+    }
 }

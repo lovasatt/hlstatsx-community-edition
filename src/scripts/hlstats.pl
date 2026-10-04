@@ -2595,7 +2595,11 @@ while ($loop = &getLine()) {
 				$g_servers{$s_addr}->set("mod", $s_cfg{"Mod"});
 				
 				if ($s_cfg{"Mod"} ne "") {
+				    if (uc($s_cfg{"Mod"}) eq "CSHARP") {
+					&printEvent("SERVER", "CounterStrikeSharp integration active (hlx_say/hlx_psay)", 1);
+				    } else {
 					&printEvent("SERVER", "Using plugin ".$s_cfg{"Mod"}." for internal functions!", 1);
+				    }
 				}
 				if ($s_cfg{"ConnectAnnounce"} == 1) {
 					$g_servers{$s_addr}->set("connect_announce", $s_cfg{"ConnectAnnounce"});

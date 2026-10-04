@@ -891,16 +891,19 @@ For support and installation notes visit http://www.hlxcommunity.com
                                 $script_path = $protocol . $host . rtrim(str_replace('\\', '/', dirname($_SERVER['PHP_SELF'] ?? '')), '/');
                             }
 
+                            $bg_choice = htmlspecialchars((string)($g_options['sigbackground'] ?? 'random'), ENT_QUOTES, 'UTF-8');
+                            $bg_raw    = (string)($g_options['sigbackground'] ?? 'random');
+
+                            $imglink = "sig.php?player_id=$player&amp;background=" . $bg_choice;
+
                             if (($g_options['modrewrite'] ?? 0) == 0)
                             {
-                                $imglink = "sig.php?player_id=$player&amp;background=" . htmlspecialchars((string)($g_options['sigbackground'] ?? 'random'), ENT_QUOTES, 'UTF-8');
-                                $jimglink = $script_path . "/sig.php?player_id=$player&background=" . ($g_options['sigbackground'] ?? 'random');
-                                $forum_imglink = $script_path . "/sig.php?player_id=$player&amp;background=" . htmlspecialchars((string)($g_options['sigbackground'] ?? 'random'), ENT_QUOTES, 'UTF-8');
+                                $jimglink      = $script_path . "/sig.php?player_id=$player&background=" . $bg_raw;
+                                $forum_imglink = $script_path . "/sig.php?player_id=$player&amp;background=" . $bg_choice;
                             }
                             else
                             {
-                                $imglink = "sig-$player-" . htmlspecialchars((string)($g_options['sigbackground'] ?? 'random'), ENT_QUOTES, 'UTF-8') . ".png";
-                                $jimglink = $script_path . "/sig-$player-" . ($g_options['sigbackground'] ?? 'random') . ".png";
+                                $jimglink      = $script_path . "/sig-$player-" . $bg_raw . ".png";
                                 $forum_imglink = $jimglink;
                             }
 
