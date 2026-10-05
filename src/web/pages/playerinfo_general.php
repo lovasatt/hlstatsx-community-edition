@@ -1211,3 +1211,4 @@ For support and installation notes visit http://www.hlxcommunity.com
 <?php
     }
 ?>
+<div style="clear:both;padding-top:24px;"></div>
