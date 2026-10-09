@@ -162,7 +162,16 @@ When adding your game server via the web interface, set the Daemon IP/Hostname t
    ```
 2. **Rebuild containers:** Restart the stack and rebuild images to apply changes.
    ```bash
-   docker compose up -d --build
+    Standard Update (Fast):
+    Rebuilds your containers with code changes in seconds using Docker cache:
+
+    docker compose up -d --build
+
+    Full Security & System Update (Recommended periodically):
+    Pulls the latest base images (PHP / Debian / MariaDB) and forces a clean rebuild with all fresh OS security patches:
+
+    docker compose build --pull --no-cache
+    docker compose up -d
    ```
 3. **Database Migration:** Login to the **Web Admin Panel.** If a schema update is required, a notice will appear. Click the HLX:CE Database Updater button to finish the upgrade.
 

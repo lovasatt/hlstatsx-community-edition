@@ -1,6 +1,7 @@
 FROM php:8.4-apache
 
-RUN apt-get update && apt-get install -y \
+RUN export DEBIAN_FRONTEND=noninteractive && \
+    apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
     libpng-dev \
     libjpeg-dev \
     libfreetype6-dev \
@@ -11,7 +12,9 @@ RUN apt-get update && apt-get install -y \
     libonig-dev \
     unzip \
     git \
-    && rm -rf /var/lib/apt/lists/*
+    && apt-get clean \
+    && apt-get autoclean \
+    && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /var/cache/apt/archives/*
 
 RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
     && docker-php-ext-install -j$(nproc) \
@@ -45,9 +48,9 @@ RUN find /var/www -type f -name "*.php" -exec sed -i 's/\r$//' {} + && \
 
 WORKDIR /var/www/
 
-CMD sed -i "s/defineVar(\"DB_ADDR\", '[^']*');/defineVar(\"DB_ADDR\", 'hlx-db');/" /var/www/config.php && \
-    sed -i "s/defineVar(\"DB_USER\", '[^']*');/defineVar(\"DB_USER\", '$DB_USER');/" /var/www/config.php && \
-    sed -i "s/defineVar(\"DB_PASS\", '[^']*');/defineVar(\"DB_PASS\", '$DB_PASS');/" /var/www/config.php && \
-    sed -i "s/defineVar(\"DB_NAME\", '[^']*');/defineVar(\"DB_NAME\", '$DB_NAME');/" /var/www/config.php && \
-    sed -i "s/name=\"masterserver\" value=\"[^\"]*\"/name=\"masterserver\" value=\"$DAEMON_HOST\"/" /var/www/pages/admintasks/tools_perlcontrol.php && \
-    apache2-foreground
+CMD sed -i "s|defineVar(\"DB_ADDR\", '[^']*');|defineVar(\"DB_ADDR\", 'hlx-db');|g" /var/www/config.php && \
+    sed -i "s|defineVar(\"DB_USER\", '[^']*');|defineVar(\"DB_USER\", '$DB_USER');|g" /var/www/config.php && \
+    sed -i "s|defineVar(\"DB_PASS\", '[^']*');|defineVar(\"DB_PASS\", '$DB_PASS');|g" /var/www/config.php && \
+    sed -i "s|defineVar(\"DB_NAME\", '[^']*');|defineVar(\"DB_NAME\", '$DB_NAME');|g" /var/www/config.php && \
+    sed -i "s|name=\"masterserver\" value=\"[^\"]*\"|name=\"masterserver\" value=\"$DAEMON_HOST\"|g" /var/www/pages/admintasks/tools_perlcontrol.php && \
+    exec apache2-foreground
