@@ -1,14 +1,215 @@
-HLstatsX Community Edition
-Heatmap Generation Installation Instructions
+# HLstatsX:CE - High-Performance Heatmap Generation Engine
 
-WARNING: Heatmap generation will consume alot of processor time.  Please be sure to plan accordingly!
-300k kills on one map will take ~10min to generate on one 2.4Ghz core processor.
+Modernized, high-performance Heatmap generation subsystem for **HLstatsX Community Edition**, featuring native support for **Counter-Strike 2 (CS2)**, Source engine games (CS:S, TF2, DoD:S, CS:GO), and custom Steam Workshop maps under **PHP 8.x**.
 
-Install:
-	- change user, password, database and path to your "web" folder in config.inc.php
-	- download the appropriate heatmap pack from the dev branch /extras/HeatmapPack/  and put into "src"
+---
 
-To generate heatmaps:
-	- run: php generate.php
+## 1. Overview & Architecture
 
-report problems to hlx forums or irc
+### How Heatmaps Work
+1. **Event Coordinate Ingestion:**
+   During gameplay, server-side loggers (such as *CounterStrikeSharp* for CS2 or *SourceMod* for Source 1) record the 3D in-game positions (`pos_x`, `pos_y`, `pos_z`) of player frags and teamkills into `hlstats_Events_Frags` and `hlstats_Events_Teamkills`.
+2. **2D Canvas Projection:**  
+   The heatmap generator retrieves these world coordinates and projects them onto a 2D top-down map radar texture using affine transformation parameters stored in `hlstats_Heatmap_Config`.
+3. **Density Accumulation & Color Grading:**  
+   Each kill is rendered onto an alpha-blended overlay using radial gradient brushes (`brush_small.png` / `brush_large.png`). Concentrated kill zones dynamically transition across a color gradient: **Blue (low density) -> Green (medium density) -> Yellow / Red (high density / chokepoints)**.
+4. **HUD Stamping & Web Output:**
+   The resulting canvas is stamped with map metadata, date ranges, tier titles, and floor-specific kill totals. Images and thumbnails are published atomically into the public web directory: primary levels as `<map>-kill.jpg` / `<map>-kill-thumb.jpg`, and secondary vertical tiers as `<map>_<section>-kill.jpg` / `<map>_<section>-kill-thumb.jpg` alongside a web-facing `<map>_sections.json` gallery manifest.
+
+---
+
+## 2. Directory Layout
+
+```text
+heatmaps/
+├── import/                    # Drop-in folder for new map .txt and .png assets
+├── src/                       # Master source radar backgrounds (1024x1024 *.jpg)
+│   ├── brush_large.png        # Large radial gradient brush
+│   ├── brush_small.png        # Small radial gradient brush
+│   └── cs2/                   # Master radar images & dynamic descriptors (e.g. de_nuke_sections.json)
+├── config.inc.php             # Engine configuration (DB credentials, web paths)
+├── DejaVuSans.ttf             # Primary TrueType font for HUD (system/GD fallbacks supported)
+├── heatmapper.php             # Conversion tool (converts assets & updates DB)
+├── heatmap.class.php          # Core rendering and database abstraction engine
+├── generate.php               # CLI runner and batch processing script
+└── README.md                  # This documentation
+```
+
+---
+
+## 3. System Requirements & Configuration
+
+### Requirements & Prerequisites
+* **PHP 8.0 or newer** (PHP 8.1, 8.2, 8.3+ supported).
+* **PHP GD Extension** with TrueType (`FreeType`) and JPEG/PNG support (`php-gd`).
+* **PHP MySQLi Extension** (`php-mysqli`).
+* **Memory Limit:** At least **256MB** (recommended: **512MB**).
+* **Core Assets:** Radial brushes (`brush_small.png`, `brush_large.png`) must exist in `src/`. While `DejaVuSans.ttf` is bundled and recommended, the engine features an automated multi-tier font fallback (bundled -> system sans-serif fonts -> GD built-in raster font) preventing crashes even on minimal headless environments.
+* **Database Prerequisite:** Ensure Counter-Strike 2 is registered in your `hlstats_Games` table with `code = 'cs2'`, `realgame = 'cs2'`, and `hidden = '0'` (otherwise the engine skips map loading).
+* **Note:** Use `which php` in your terminal to verify the PHP CLI path. If it returns `/usr/local/bin/php`, use that path in your cron jobs instead of `/usr/bin/php`.
+
+### Configuration (`config.inc.php`)
+Update the following directives before running the generator:
+
+```php
+// Set your server timezone (crucial for accurate HUD generation timestamps)
+date_default_timezone_set('Europe/Budapest'); // Change to your local timezone
+
+// Increase memory limit for processing high-resolution canvas layers
+iniSet("memory_limit", "512M");
+iniSet("max_execution_time", "0");
+
+// Database credentials
+defineVar('DB_HOST',    'localhost');
+defineVar('DB_USER',    'your_db_user');
+defineVar('DB_PASS',    'your_db_password');
+defineVar('DB_NAME',    'your_hlstats_db');
+defineVar('DB_PREFIX',  'hlstats');
+
+// Absolute filesystem path to your HLstatsX web root directory
+defineVar('HLXCE_WEB',  '/var/www');
+
+// Public URL stamped on the HUD header
+defineVar('HUD_URL',    'http://www.hlxcommunity.com');
+
+// Batch pagination chunk limit
+defineVar('KILL_LIMIT', 10000);
+
+// Verbosity level: 1 = normal, 2 = detailed debug events
+defineVar('DEBUG', 1);
+```
+
+---
+
+## 4. Coordinate Transformation Formula
+
+Valve's engine overview definition (`resource/overviews/<map>.txt`) stores three parameters:
+* `pos_x`: The in-game X coordinate mapped to the left edge.
+* `pos_y`: The in-game Y coordinate mapped to the top edge.
+* `scale`: World-to-pixel ratio.
+
+HLstatsX maps these via the following affine formula:
+
+```text
+Pixel X = (World X + xoffset) / scale
+Pixel Y = (yoffset - World Y) / scale
+```
+
+### Converting Valve Values to HLstatsX Config
+| Parameter | Valve Overview (`.txt`) | HLstatsX (`hlstats_Heatmap_Config`) | Rule |
+| :--- | :--- | :--- | :--- |
+| **X Offset** | `pos_x` (e.g. `-2476`) | `xoffset = -1 * pos_x` (e.g. `2476`) | **Always invert the sign** |
+| **Y Offset** | `pos_y` (e.g. `3239`) | `yoffset = pos_y` (e.g. `3239`) | **Keep unchanged** |
+| **Scale** | `scale` (e.g. `4.4`) | `scale = scale` (e.g. `4.4`) | **Keep unchanged** |
+| **Flip X** | N/A | `0` (Normal) or `1` (Mirrored maps) | Inverts horizontal axis |
+| **Flip Y** | N/A | `1` | Valve Y-axis points up, image points down |
+| **Rotate** | N/A | `0` (Normal) or `1` (90° swap, e.g. `ar_baggage`) | Swaps X and Y coordinates |
+
+---
+
+## 5. Adding Custom & Workshop Maps with `heatmapper.php`
+
+Official CS2 map radars are pre-configured. To add new community or Steam Workshop maps, use `heatmapper.php`.
+
+### Step 1: Prepare Assets
+1. Export the map radar texture (`<map>.png` or `<map>_radar_psd.png` or `<map>_radar_tga.png`) and overview definitions (`<map>.txt`) using **Source 2 Viewer**.
+2. Place these files into the `/heatmaps/import/` directory.
+
+### Step 2: Run the Pipeline
+Execute the heatmapper:
+```bash
+php heatmapper.php
+```
+
+`heatmapper.php` performs the following automated steps:
+* Parses `pos_x`, `pos_y`, `scale`, and `rotate` using a recursive Valve KeyValues (VDF) tokenizer.
+* Resamples the radar texture into a standardized 1024x1024 JPEG and writes it directly to src/cs2/<map>.jpg.
+* Automatically performs an UPSERT operation on the hlstats_Heatmap_Config database table.
+* Generates update_heatmaps.sql containing universal UPSERT statements for backup.
+
+---
+
+## 6. Deterministic Full-Window Engine
+
+Unlike legacy incremental overlay systems that suffered from stale kill accumulation, this engine uses a **Deterministic Full-Window Rebuild Engine**:
+
+1. **Sliding Time Window:**
+   * On every execution, the exact time window is determined directly from the database: `DATE_SUB(NOW(), INTERVAL $days DAY)` to `NOW()`.
+   * Expired events naturally drop off, ensuring the map and HUD accurately reflect the configured rolling timeframe (default: 30 days).
+2. **Automated Stale Image Cleanup:**
+   * If zero kills occurred within the active time window, any stale published images (`<map>-kill.jpg` and `<map>-kill-thumb.jpg`) are automatically unlinked to avoid misleading players on the web interface.
+3. **Deterministic Keyset Pagination:**
+   * Large kill volumes (> 10,000 kills) are paginated in memory-safe chunks using a unique 3-tuple cursor (`eventTime`, `killtype`, `id`). This guarantees zero dropped kills and zero duplicate points.
+4. **Multi-Level Vertical Tier Dispatching (Source 2 / CS2):**
+   * Multi-floor maps (`de_nuke`, `de_vertigo`, `de_train`, `de_boulder`) are processed in a single SQL stream. In-flight events are routed into floor-specific in-memory canvases using Valve overview altitude bounds (`pos_z >= min_z AND pos_z < max_z`).
+   * Generates independent full-size heatmaps and thumbnails for every active tier, while publishing web-synchronized `<map>_sections.json` descriptors for seamless GLightbox carousel navigation.
+5. **Advisory Process Locking:**
+   * Per-map non-blocking advisory file locks (`.lock`) prevent overlapping cron executions from conflicting.
+6. **Atomic Publishing:**
+   * Images and manifests are rendered into temporary files (`.tmp`) and atomically renamed into place only after complete success.
+
+### CLI Commands
+* **Process all active, non-hidden games and maps:**
+```bash
+php generate.php
+```
+* **Process all enabled maps for a specific game:**
+```bash
+php generate.php --game=cs2
+```
+* **Process a single map:**
+```bash
+php generate.php --game=cs2 --map=de_dust2
+```
+
+---
+## 7. Automated Production Scheduling (Cron)
+
+Heatmap generation should be scheduled to run automatically under the web server user (`www-data`).
+
+### 1. Fix Permissions
+Ensure `www-data` has write privileges:
+
+```bash
+sudo chown -R www-data:www-data /var/www/hlstatsimg/games
+sudo chmod -R 775 /var/www/hlstatsimg/games
+```
+
+### 2. Configure Cron Task
+Create a dedicated cron drop-in file at /etc/cron.d/hlstatsx-heatmaps:
+```bash
+sudo nano /etc/cron.d/hlstatsx-heatmaps
+```
+
+Add the following schedule:
+# Run HLstatsX:CE Heatmap generation every 30 minutes under www-data
+```bash
+*/30 * * * * root su -s /bin/sh www-data -c "cd /usr/local/hlstatsx/heatmaps/ && /usr/bin/php generate.php" >/dev/null 2>&1
+
+```
+
+Set appropriate file permissions:
+```bash
+sudo chmod 644 /etc/cron.d/hlstatsx-heatmaps
+```
+
+---
+
+## 8. Troubleshooting & Common Pitfalls
+
+### Points are shifted or clustered in a corner
+* **Inflated Hammer scale:** If the overview text contains `"autogenerated_tga" "1"` with an unusually high scale (e.g. `8.77`), Hammer included the 3D skybox in its calculation while your radar image is cropped to the playable area. Use the standard layout scale (e.g. `5.0` for Mirage layouts).
+* **Sign error:** Verify that `xoffset` is positive when `pos_x` is negative.
+
+### `imagecolorat(): X, Y is out of bounds`
+* Caused by players dying outside the radar bounding box (void falls, out-of-bounds spectator kills). The engine includes automated coordinate boundary clamping (`0 <= x < 1024`, `0 <= y < 1024`) to discard invalid coordinates cleanly.
+
+### `Couldn't create outputfolder`
+* Ensure the target directory `/hlstatsimg/games/<game>/heatmaps` is writable by the executing user (`www-data`). Verify that recursive directory creation is enabled (`@mkdir($path, 0775, true)`).
+
+### `Game: cs2 doesn't exists, escaping` or script silently finishes
+* Verify that Counter-Strike 2 is present and visible in the `hlstats_Games` database table:
+  ```sql
+  SELECT code, realgame, hidden FROM hlstats_Games WHERE code = 'cs2';
+  ```
+Ensure realgame is set to 'cs2' and hidden is set to '0'.

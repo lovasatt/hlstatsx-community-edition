@@ -356,16 +356,69 @@ class Table
 		    case 'bargraph':
 			$cellbody .= '<meter min="0" max="100" low="25" high="50" optimum="75" value="'.(float)$colval.'"></meter>';
 			break;
-		    case 'heatmap':
-			$heatmap = getImage("/games/$game/heatmaps/$colval-kill");
-			$heatmapthumb = getImage("/games/$game/heatmaps/$colval-kill-thumb");
+                    case 'heatmap':
+                        $heatmap = getImage("/games/$game/heatmaps/$colval-kill");
+                        $heatmapthumb = getImage("/games/$game/heatmaps/$colval-kill-thumb");
+                        if ($heatmap && $heatmapthumb) {
+                            $base_img_path = defined('IMAGE_PATH') ? IMAGE_PATH : 'hlstatsimg';
+                            $fs_manifest_dir = is_dir($base_img_path) ? realpath($base_img_path) : realpath(dirname(__DIR__) . '/' . $base_img_path);
+                            $web_manifest = ($fs_manifest_dir) ? $fs_manifest_dir . "/games/$game/heatmaps/{$colval}_sections.json" : '';
+                            $sub_layers = array();
 
-			if ($heatmap && $heatmapthumb) {
-			    $cellbody .= "<span style=\"text-align: center;\"><a href=\"" . $heatmap['url'] . "\" rel=\"boxed\"><img width=\"20\" height=\"16\" src=\"" . $heatmapthumb['url'] . "\" /></a></span>";
-			} else {
-			    $cellbody .= "&nbsp;";
-			}
-			break;
+                            if (!empty($web_manifest) && is_file($web_manifest)) {
+                                $raw_sec = @file_get_contents($web_manifest);
+                                if ($raw_sec) {
+                                    $decoded = json_decode($raw_sec, true);
+                                    $sec_list = is_array($decoded) ? $decoded : [];
+                                    foreach ($sec_list as $sItem) {
+                                        $sSuffix = (string)($sItem['suffix'] ?? '');
+                                        if ($sSuffix === '') continue; // Skip default layer as primary anchor
+                                        $sTitle = (string)($sItem['title'] ?? ucfirst(trim($sSuffix, '_')) . ' Level');
+                                        $sub_img = getImage("/games/$game/heatmaps/{$colval}{$sSuffix}-kill");
+                                        if ($sub_img && !empty($sub_img['url'])) {
+                                            $sub_layers[] = array(
+                                                'url'   => $sub_img['url'],
+                                                'title' => "Heatmap: $colval ($sTitle)"
+                                            );
+                                        }
+                                    }
+                                }
+                            }
+
+                            $has_gallery = !empty($sub_layers);
+                            $gallery_attr = $has_gallery ? ' data-gallery="heatmap-' . htmlspecialchars((string)$colval, ENT_QUOTES, 'UTF-8') . '"' : '';
+
+                            $primary_layer_title = '';
+                            if ($has_gallery && isset($sec_list) && is_array($sec_list)) {
+                                foreach ($sec_list as $sItem) {
+                                    if (($sItem['suffix'] ?? '') === '') {
+                                        $primary_layer_title = !empty($sItem['title'])
+                                            ? (string)$sItem['title'] 
+                                            : 'Default Level';
+                                        break;
+                                    }
+                                }
+                            }
+
+                            $main_title = ($has_gallery && $primary_layer_title !== '') 
+                                ? "Heatmap: $colval ($primary_layer_title)" 
+                                : "Heatmap: $colval";
+
+                            $cellbody .= "<span style=\"text-align: center;\">"
+                                      . "<a href=\"" . $heatmap['url'] . "\" class=\"glightbox\"$gallery_attr data-glightbox=\"title: " . htmlspecialchars($main_title, ENT_QUOTES, 'UTF-8') . "\">"
+                                      . "<img width=\"20\" height=\"16\" src=\"" . $heatmapthumb['url'] . "\" alt=\"$colval\" />"
+                                      . "</a>";
+
+                            // Hidden secondary slides for GLightbox carousel
+                            foreach ($sub_layers as $layer) {
+                                $cellbody .= "<a href=\"" . $layer['url'] . "\" class=\"glightbox\"$gallery_attr data-glightbox=\"title: " . htmlspecialchars($layer['title'], ENT_QUOTES, 'UTF-8') . "\" style=\"display:none;\"></a>";
+                            }
+
+                            $cellbody .= "</span>";
+                        } else {
+                            $cellbody .= "&nbsp;";
+                        }
+                        break;
 		    default:
 			if ($this->showranking && $rank == 1 && $i == 1)
 			    $cellbody .= '<b>';

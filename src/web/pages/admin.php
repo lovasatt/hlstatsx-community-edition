@@ -91,39 +91,44 @@ function hlstats_csrf_token(): string
 
 function hlstats_get_client_ip(): string
 {
-    $remote_ip = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+    $remote_ip = (string)($_SERVER['REMOTE_ADDR'] ?? '0.0.0.0');
 
-    $trust_proxy = defined('TRUST_PROXY_HEADERS') ? (bool)TRUST_PROXY_HEADERS : false;
-
-    if (!defined('TRUST_PROXY_HEADERS') && !filter_var($remote_ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE)) {
-        $trust_proxy = true;
+    if (!filter_var($remote_ip, FILTER_VALIDATE_IP)) {
+        return '0.0.0.0';
     }
 
-    if ($trust_proxy) {
-        if (!empty($_SERVER['HTTP_CF_CONNECTING_IP'])) {
-            $ip = trim($_SERVER['HTTP_CF_CONNECTING_IP']);
-            if (filter_var($ip, FILTER_VALIDATE_IP)) {
-                return $ip;
-            }
-        }
+    $trusted_proxies = defined('HLX_TRUSTED_PROXIES') && is_array(HLX_TRUSTED_PROXIES)
+        ? HLX_TRUSTED_PROXIES
+        : ['127.0.0.1', '::1'];
 
-        if (!empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
-            $ip_list = explode(',', $_SERVER['HTTP_X_FORWARDED_FOR']);
-            $candidate = trim($ip_list[0]);
-            if (filter_var($candidate, FILTER_VALIDATE_IP)) {
+    if (!in_array($remote_ip, $trusted_proxies, true)) {
+        return $remote_ip;
+    }
+
+    if (!empty($_SERVER['HTTP_CF_CONNECTING_IP'])) {
+        $ip = trim((string)$_SERVER['HTTP_CF_CONNECTING_IP']);
+        if (filter_var($ip, FILTER_VALIDATE_IP)) {
+            return $ip;
+        }
+    }
+
+    if (!empty($_SERVER['HTTP_X_REAL_IP'])) {
+        $ip = trim((string)$_SERVER['HTTP_X_REAL_IP']);
+        if (filter_var($ip, FILTER_VALIDATE_IP)) {
+            return $ip;
+        }
+    }
+
+    if (!empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
+        $ip_list = array_map('trim', explode(',', (string)$_SERVER['HTTP_X_FORWARDED_FOR']));
+        foreach (array_reverse($ip_list) as $candidate) {
+            if (filter_var($candidate, FILTER_VALIDATE_IP) && !in_array($candidate, $trusted_proxies, true)) {
                 return $candidate;
             }
         }
-
-        if (!empty($_SERVER['HTTP_X_REAL_IP'])) {
-            $ip = trim($_SERVER['HTTP_X_REAL_IP']);
-            if (filter_var($ip, FILTER_VALIDATE_IP)) {
-                return $ip;
-            }
-        }
     }
 
-    return filter_var($remote_ip, FILTER_VALIDATE_IP) ? $remote_ip : '0.0.0.0';
+    return $remote_ip;
 }
 
 function hlstats_ip_rate_limit(bool $record_failure = false, bool $reset = false): bool
@@ -137,13 +142,16 @@ function hlstats_ip_rate_limit(bool $record_failure = false, bool $reset = false
     }
 
     $handle = @fopen($file, 'c+');
+
     if ($handle === false) {
-        return true;
+        error_log('HLX Security: Rate limit storage unavailable.');
+        return false;
     }
 
     if (!flock($handle, LOCK_EX)) {
         fclose($handle);
-        return true;
+        error_log('HLX Security: Rate limit lock failed.');
+        return false;
     }
 
     $contents = stream_get_contents($handle);
@@ -155,26 +163,33 @@ function hlstats_ip_rate_limit(bool $record_failure = false, bool $reset = false
         }
     }
 
-    if (time() - (int)$data['time'] > 900) {
+    $now = time();
+
+    if ($now - (int)$data['time'] >= 900) {
         $data['attempts'] = 0;
+        $data['time'] = $now;
     }
 
     $allowed = ((int)$data['attempts'] < 5);
 
     if ($record_failure) {
+        if ((int)$data['attempts'] === 0) {
+            $data['time'] = $now;
+        }
+
         $data['attempts'] = (int)$data['attempts'] + 1;
-        $data['time'] = time();
+
         ftruncate($handle, 0);
         rewind($handle);
         fwrite($handle, json_encode($data));
         fflush($handle);
+        }
+
+        flock($handle, LOCK_UN);
+        fclose($handle);
+
+        return $record_failure ? true : $allowed;
     }
-
-    flock($handle, LOCK_UN);
-    fclose($handle);
-
-    return $record_failure ? true : $allowed;
-}
 
 function hlstats_verify_csrf(): bool
 {
@@ -206,9 +221,10 @@ class Auth
         global $db;
 
         if (session_status() === PHP_SESSION_NONE) {
+            $trusted_proxies = defined('HLX_TRUSTED_PROXIES') && is_array(HLX_TRUSTED_PROXIES) ? HLX_TRUSTED_PROXIES : ['127.0.0.1', '::1'];
             $is_https = (!empty($_SERVER['HTTPS']) && strtolower($_SERVER['HTTPS']) !== 'off') ||
-            (!empty($_SERVER['HTTP_X_FORWARDED_PROTO']) && strtolower($_SERVER['HTTP_X_FORWARDED_PROTO']) === 'https') ||
-            ((int)($_SERVER['SERVER_PORT'] ?? 0) === 443);
+            ((int)($_SERVER['SERVER_PORT'] ?? 0) === 443) ||
+            (!empty($_SERVER['HTTP_X_FORWARDED_PROTO']) && strtolower($_SERVER['HTTP_X_FORWARDED_PROTO']) === 'https' && in_array($_SERVER['REMOTE_ADDR'] ?? '', $trusted_proxies, true));
 
             session_set_cookie_params([
                 'lifetime' => 0,
@@ -250,6 +266,7 @@ class Auth
                 hlstats_ip_rate_limit(false, true);
 
                 session_regenerate_id(true);
+                $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
                 unset($_SESSION['login_failed_attempts']);
                 $_SESSION['username'] = $this->username;
                 $_SESSION['authsessionStart'] = time();
@@ -392,7 +409,7 @@ class Auth
         {
             $db->free_result();
             // Equalize response latency against timing attacks when username does not exist
-            password_verify((string)$this->password, '$argon2id$v=19$m=65536,t=4,p=1$dummyhashdummyhash$dummyhashdummyhashdummyhashdummyhashdummyhash');
+            password_verify((string)$this->password, '$argon2id$v=19$m=65536,t=4,p=1$c29tZXNhbHQxMjM0NTY3OA$9vY9qgQ6H7nE7+1u0x8p+3k2Q1gR6uQvY8k7nE7+1u0');
             $this->ok = false;
             $this->error = 'Invalid username or password.';
             $this->printAuth();
@@ -402,9 +419,10 @@ class Auth
 
     function doCookies()
     {
+        $trusted_proxies = defined('HLX_TRUSTED_PROXIES') && is_array(HLX_TRUSTED_PROXIES) ? HLX_TRUSTED_PROXIES : ['127.0.0.1', '::1'];
         $is_https = (!empty($_SERVER['HTTPS']) && strtolower($_SERVER['HTTPS']) !== 'off') ||
-                    (!empty($_SERVER['HTTP_X_FORWARDED_PROTO']) && strtolower($_SERVER['HTTP_X_FORWARDED_PROTO']) === 'https') ||
-                    ((int)($_SERVER['SERVER_PORT'] ?? 0) === 443);
+        ((int)($_SERVER['SERVER_PORT'] ?? 0) === 443) ||
+        (!empty($_SERVER['HTTP_X_FORWARDED_PROTO']) && strtolower($_SERVER['HTTP_X_FORWARDED_PROTO']) === 'https' && in_array($_SERVER['REMOTE_ADDR'] ?? '', $trusted_proxies, true));
 
         $cookie_options = array(
             'expires'  => time() + 31536000,
@@ -858,7 +876,13 @@ class EditList
 
         if ($i == 0 && !$new)
         {
-    echo '<input type="hidden" name="rows[]" value="' . htmlspecialchars((string)$keyval) . '" />';
+    echo '<input type="hidden" name="rows[]" value="' .
+        htmlspecialchars(
+            (string)$keyval,
+            ENT_QUOTES | ENT_SUBSTITUTE,
+            'UTF-8'
+        ) .
+        '" />';
         }
 
         if ($col->maxlength < 1)
@@ -1194,7 +1218,11 @@ class PropertyPage_Property
 ?>
 <tr style="vertical-align:middle;">
     <td class="bg1" style="width:45%;"><?php
-    echo $this->title . ':';
+    echo htmlspecialchars(
+        (string)$this->title,
+        ENT_QUOTES | ENT_SUBSTITUTE,
+        'UTF-8'
+    ) . ':';
 ?></td>
     <td class="bg1" style="width:55%;"><?php
     switch ($this->type)
@@ -1280,14 +1308,24 @@ $mode = isset($_GET['mode']) ? valid_request($_GET['mode'], false) : '';
 <tr valign="top">
     <td><?php
 
-    $version_out = isset($g_options['version']) ? $g_options['version'] : 'Unknown';
-    $dbversion_out = isset($g_options['dbversion']) ? $g_options['dbversion'] : 0;
+    $version_out = htmlspecialchars(
+        (string)($g_options['version'] ?? 'Unknown'),
+        ENT_QUOTES | ENT_SUBSTITUTE,
+        'UTF-8'
+    );
+
+    $dbversion_number = (int)($g_options['dbversion'] ?? 0);
+    $dbversion_out = htmlspecialchars(
+        (string)$dbversion_number,
+        ENT_QUOTES | ENT_SUBSTITUTE,
+        'UTF-8'
+    );
 
 $updateDbHtml = "<div>
         Current Version: <span style=\"color: #C40000;font-weight:bold\">{$version_out}</span><br />
         Current DB version: <span style=\"color: #C40000;font-weight:bold\">{$dbversion_out}</span><br />";
 if (file_exists('./updater') && $mode != 'updater') {
-    if (file_exists("./updater/" . ($dbversion_out + 1) . ".php")) {
+    if (file_exists("./updater/" . ($dbversion_number + 1) . ".php")) {
     $updateDbHtml .= "
         <div class=\"block\">
         <div class=\"warning\">

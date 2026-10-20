@@ -211,7 +211,8 @@ For support and installation notes visit http://www.hlxcommunity.com
                         'de_dust2', 'de_mirage', 'de_inferno', 'de_nuke', 'de_overpass',
                         'de_ancient', 'de_ancient_night', 'de_anubis', 'de_vertigo', 'de_train',
                         'de_cache', 'de_debris', 'cs_office', 'cs_italy',
-                        'ar_baggage', 'ar_pool_day', 'ar_shoots', 'ar_shoots_night'
+                        'ar_baggage', 'ar_pool_day', 'ar_shoots', 'ar_shoots_night',
+                        'rush_001'
                     ]
                     // Future Source 2 games/mods can be cleanly registered here:
                     // 'newmod' => ['map_a', 'map_b']
@@ -227,10 +228,62 @@ For support and installation notes visit http://www.hlxcommunity.com
                     echo "<p style=\"margin-top:10px;\"><a href=\"" . htmlspecialchars($map_dlurl, ENT_QUOTES, 'UTF-8') . "\" target=\"_blank\" rel=\"noopener noreferrer\" style=\"font-weight:bold;\">" . htmlspecialchars($link_text, ENT_QUOTES, 'UTF-8') . "</a></p>";
                 }
             }
-
+            // Check if heatmap exists and render clean single thumbnail with dynamic GLightbox gallery
             if ($heatmap && !empty($heatmap['url']) && $heatmapthumb && !empty($heatmapthumb['url']))
             {
-                echo "<a href=\"" . htmlspecialchars((string)$heatmap['url'], ENT_QUOTES, 'UTF-8') . "\" rel=\"boxed\" title=\"Heatmap: " . htmlspecialchars($map, ENT_QUOTES, 'UTF-8') . "\"><br /><img src=\"" . htmlspecialchars((string)$heatmapthumb['url'], ENT_QUOTES, 'UTF-8') . "\" alt=\"" . htmlspecialchars($map, ENT_QUOTES, 'UTF-8') . "\" style=\"max-width:100%; height:auto;\" /></a>";
+                // Robust server-side filesystem path resolution for sections manifest
+                $base_img_path = defined('IMAGE_PATH') ? IMAGE_PATH : 'hlstatsimg';
+                $fs_manifest_dir = is_dir($base_img_path) ? realpath($base_img_path) : realpath(dirname(__DIR__) . '/' . $base_img_path);
+                $web_manifest = ($fs_manifest_dir) ? $fs_manifest_dir . "/games/$game_url/heatmaps/{$map}_sections.json" : '';
+
+                $sections = [];
+                if (!empty($web_manifest) && is_file($web_manifest)) {
+                    $raw_sec = @file_get_contents($web_manifest);
+                    if ($raw_sec) {
+                        $decoded = json_decode($raw_sec, true);
+                        $sections = is_array($decoded) ? $decoded : [];
+                    }
+                }
+
+                $gallery_id = "heatmap-" . htmlspecialchars((string)$map, ENT_QUOTES, 'UTF-8');
+                $has_multilevel = (count($sections) > 1);
+
+                // Dynamically extract primary layer title from the manifest (e.g. Upper Level instead of Default Level)
+                $primary_title = (string)$map;
+                if ($has_multilevel) {
+                    foreach ($sections as $sItem) {
+                        if (($sItem['suffix'] ?? '') === '') {
+                            $layer_title = !empty($sItem['title'])
+                                ? (string)$sItem['title']
+                                : 'Default Level';
+                            $primary_title .= ' (' . $layer_title . ')';
+                            break;
+                        }
+                    }
+                }
+
+                // Visible primary thumbnail with clean multi-level subtitle
+                echo "<div style=\"margin-top:10px; text-align:center;\">
+                        <a href=\"" . htmlspecialchars((string)$heatmap['url'], ENT_QUOTES, 'UTF-8') . "\" class=\"glightbox\" data-gallery=\"$gallery_id\" data-glightbox=\"title: " . htmlspecialchars($primary_title, ENT_QUOTES, 'UTF-8') . "\">
+                            <img src=\"" . htmlspecialchars((string)$heatmapthumb['url'], ENT_QUOTES, 'UTF-8') . "\" alt=\"" . htmlspecialchars($map, ENT_QUOTES, 'UTF-8') . "\" style=\"max-width:100%; height:auto; border:1px solid #444; border-radius:3px;\" />
+                        </a>
+                        " . ($has_multilevel ? "<div class=\"fSmall\" style=\"margin-top:6px; font-weight:bold;\">Multi-Level Radar - Click to browse</div>" : "") . "
+                      </div>";
+
+                // Hidden slides for secondary levels (auto-discovered by GLightbox for carousel navigation)
+                if ($has_multilevel) {
+                    foreach ($sections as $sItem) {
+                        $sSuffix = (string)($sItem['suffix'] ?? '');
+                        if ($sSuffix === '') continue; // Skip default layer as it is already the primary visible link
+
+                        $sTitle = (string)($sItem['title'] ?? ucfirst(trim($sSuffix, '_')) . ' Level');
+                        $l_heat = getImage("/games/$game_url/heatmaps/{$map}{$sSuffix}-kill");
+
+                        if ($l_heat && !empty($l_heat['url'])) {
+                            echo "<a href=\"" . htmlspecialchars((string)$l_heat['url'], ENT_QUOTES, 'UTF-8') . "\" class=\"glightbox\" data-gallery=\"$gallery_id\" data-glightbox=\"title: " . htmlspecialchars($map . ' (' . $sTitle . ')', ENT_QUOTES, 'UTF-8') . "\" style=\"display:none;\"></a>";
+                        }
+                    }
+                }
             }
 ?>
         </div>

@@ -13,6 +13,7 @@ RUN export DEBIAN_FRONTEND=noninteractive && \
     netcat-openbsd \
     cron \
     gosu \
+    tzdata \
     && apt-get clean \
     && apt-get autoclean \
     && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /var/cache/apt/archives/*
@@ -36,6 +37,7 @@ CMD cd /home/hlstats/scripts && \
     sed -i "s|^DBUsername .*|DBUsername \"$DB_USER\"|" hlstats.conf && \
     sed -i "s|^DBPassword .*|DBPassword \"$DB_PASS\"|" hlstats.conf && \
     sed -i "s|^DBName .*|DBName \"$DB_NAME\"|" hlstats.conf && \
+    chown hlstats:hlstats hlstats.conf && \
     cron && \
     until nc -z hlx-db 3306; do echo "Waiting for DB..."; sleep 2; done; \
     exec gosu hlstats perl hlstats.pl --port 27500

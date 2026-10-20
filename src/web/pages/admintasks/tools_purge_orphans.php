@@ -52,6 +52,16 @@ if (isset($_POST['confirm']))
     if ($result_servers) { $db->free_result($result_servers); }
     if ($result_players) { $db->free_result($result_players); }
 
+    // Gather configured heatmap maps per game code (mapping realgame to code for directory alignment)
+    $configured_heatmaps = array();
+    $result_hm = $db->query("SELECT g.code, hc.map FROM hlstats_Heatmap_Config AS hc INNER JOIN hlstats_Games AS g ON g.realgame = hc.game");
+    while ($row = $db->fetch_row($result_hm)) {
+        if (isset($row[0], $row[1])) {
+            $configured_heatmaps[(string)$row[0]][(string)$row[1]] = true;
+        }
+    }
+    if ($result_hm) { $db->free_result($result_hm); }
+
     // 2. DATABASE PURGE
     echo "<li>Cleaning Table: hlstats_Trend ... ";
     if (!empty($active_games)) {
@@ -83,9 +93,9 @@ if (isset($_POST['confirm']))
     echo "OK</li>\n";
 
     // FIX: Only purge Heatmap Configs for games that do NOT exist in hlstats_Games at all.
-    // Do NOT delete configs for temporarily hidden games, as map coordinates would be permanently lost.
+    // Query checks realgame column since Heatmap_Config stores realgame identifiers.
     echo "<li>Cleaning Table: hlstats_Heatmap_Config (orphaned games only) ... ";
-    $db->query("DELETE FROM hlstats_Heatmap_Config WHERE game NOT IN (SELECT code FROM hlstats_Games)");
+    $db->query("DELETE FROM hlstats_Heatmap_Config WHERE game NOT IN (SELECT realgame FROM hlstats_Games)");
     echo "OK</li>\n";
 
     // Clean MySQL Player Steam Cache (removes stale player profiles older than 30 days)
@@ -189,7 +199,147 @@ if (isset($_POST['confirm']))
     }
     echo "OK ($del_count_cache expired files removed)</li>\n";
 
+    // Helper: Execute an action only while holding an exclusive non-blocking lock on the target map
+    $withMapLock = static function (string $dir, string $map, callable $action): bool {
+        if (!preg_match('/\A[A-Za-z0-9_-]+\z/D', $map)) {
+            return false;
+        }
+
+        $path = $dir . '/.' . $map . '-kill.lock';
+
+        // Create lock file if missing, exactly as the generator does.
+        $fp = @fopen($path, 'c');
+        if (!$fp) {
+            return false;
+        }
+
+        if (!flock($fp, LOCK_EX | LOCK_NB)) {
+            fclose($fp);
+            return false;
+        }
+
+        try {
+            return (bool)$action();
+        } finally {
+            flock($fp, LOCK_UN);
+            fclose($fp);
+        }
+    };
+
+    // 5. HEATMAP FILESYSTEM PURGE (Manifest-Verified Whitelist with In-Flight Lock Holding)
+    echo "<li>Cleaning Heatmap images for hidden games and orphaned maps ... ";
+    $del_count_hm = 0;
+    $base_games_path = IMAGE_PATH . '/games';
+    $games_base_dir  = is_dir($base_games_path) ? $base_games_path : realpath($base_games_path);
+
+    if ($games_base_dir && is_dir($games_base_dir) && ($ghandle = opendir($games_base_dir))) {
+        $now = time();
+        while (false !== ($gdir = readdir($ghandle))) {
+            if ($gdir == "." || $gdir == "..") continue;
+
+            $hm_dir = $games_base_dir . '/' . $gdir . '/heatmaps';
+            if (!is_dir($hm_dir)) continue;
+
+            $is_game_active = isset($active_games[$gdir]);
+
+            // Build precise whitelist of authorized prefixes using database maps and verified section manifests
+            $allowed_file_prefixes = [];
+            $configured_map_keys   = ($is_game_active && isset($configured_heatmaps[$gdir])) ? array_keys($configured_heatmaps[$gdir]) : [];
+
+            if ($is_game_active) {
+                foreach ($configured_map_keys as $active_map) {
+                    $allowed_file_prefixes[$active_map . '-kill'] = $active_map;
+
+                    // Read verified sections manifest if present to whitelist genuine sub-tiers
+                    $m_file = $hm_dir . '/' . $active_map . '_sections.json';
+                    if (is_file($m_file)) {
+                        $raw_m = @file_get_contents($m_file);
+                        if ($raw_m) {
+                            $decoded_m = json_decode($raw_m, true);
+                            $s_data = is_array($decoded_m) ? $decoded_m : [];
+                            foreach ($s_data as $sRow) {
+                                if (!is_array($sRow)) {
+                                    continue;
+                                }
+
+                                $sSuf = $sRow['suffix'] ?? '';
+
+                                if (!is_string($sSuf) || !preg_match('/\A_[A-Za-z0-9_-]+\z/D', $sSuf)) {
+                                    continue;
+                                }
+                                if ($sSuf !== '') {
+                                    $allowed_file_prefixes[$active_map . $sSuf . '-kill'] = $active_map;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            if ($hm_handle = opendir($hm_dir)) {
+                while (false !== ($hm_file = readdir($hm_handle))) {
+                    if ($hm_file == "." || $hm_file == "..") continue;
+                    $full_hm_path = $hm_dir . '/' . $hm_file;
+
+                    // A: Clean stranded temporary files older than 1h under exclusive lock
+                    if (str_ends_with($hm_file, '.tmp')) {
+                        $mtime = @filemtime($full_hm_path);
+                        if ($mtime !== false && $mtime < ($now - 3600)) {
+                            if (preg_match('/^(.+)_sections\.json\.[a-f0-9]{16}\.tmp$/', $hm_file, $m)) {
+                                $base_map = $m[1];
+                            } elseif (preg_match('/^(.+)-kill(?:-thumb)?\.jpg\.[a-f0-9]{16}\.tmp$/', $hm_file, $m)) {
+                                $base_map = preg_replace('/_(lower|higher\d*|upper|basement)$/', '', $m[1]);
+                            } else {
+                                continue;
+                            }
+                            $base_map = preg_replace('/_(lower|higher\d*|upper|basement)$/', '', $base_map);
+
+                            $deleted = $withMapLock($hm_dir, $base_map, static function () use ($full_hm_path) {
+                                return @unlink($full_hm_path);
+                            });
+                            if ($deleted) $del_count_hm++;
+                        }
+                    }
+                    // B: Preserve advisory lock files to prevent breaking coordination with running generators
+                    elseif (str_ends_with($hm_file, '.lock')) {
+                        // Preserved intentionally
+                    }
+                    // C: Clean published sections manifest safely under lock if orphaned
+                    elseif (str_ends_with($hm_file, '_sections.json')) {
+                        $manifest_map = substr($hm_file, 0, -strlen('_sections.json'));
+                        if (!$is_game_active || !in_array($manifest_map, $configured_map_keys, true)) {
+                            $deleted = $withMapLock($hm_dir, $manifest_map, static function () use ($full_hm_path) {
+                                return @unlink($full_hm_path);
+                            });
+                            if ($deleted) $del_count_hm++;
+                        }
+                    }
+                    // D: Clean JPG heatmaps and thumbnails using strict manifest prefix matching under lock
+                    elseif (str_ends_with($hm_file, '.jpg')) {
+                        $base_prefix = str_replace(array('-thumb.jpg', '.jpg'), '', $hm_file);
+                        $is_authorized = ($is_game_active && isset($allowed_file_prefixes[$base_prefix]));
+
+                        if (!$is_authorized) {
+                            $map_lock_target = preg_replace('/-kill$/', '', $base_prefix);
+                            $map_lock_target = preg_replace('/_(lower|higher\d*|upper|basement)$/', '', $map_lock_target);
+
+                            $deleted = $withMapLock($hm_dir, $map_lock_target, static function () use ($full_hm_path) {
+                                return @unlink($full_hm_path);
+                            });
+                            if ($deleted) $del_count_hm++;
+                        }
+                    }
+                }
+                closedir($hm_handle);
+            }
+        }
+        closedir($ghandle);
+        echo "OK ($del_count_hm files removed)</li>\n";
+    } else {
+        echo "Skipped (Games directory not found)</li>\n";
+    }
     echo "</ul>\n";
+
     echo "Done.<br /><br />";
 }
 else
@@ -210,6 +360,7 @@ else
                     <li>Clean up player signatures and expired cache files.</li>
                     <li>Purge stale player Steam profile caches older than 30 days from MySQL.</li>
                     <li>Clean up expired Voice Server and Steam Group viewer cache files.</li>
+                    <li>Purge generated heatmap images for games set to <strong>Hidden</strong> and orphaned maps.</li>
                 </ul>
                 <br /><br />
                 <strong>Note:</strong> This process is irreversible. Due to the high volume of database and filesystem records, the cleanup may take up to 1 minute to complete. Please do not navigate away until the 'Done' message appears.<br /><br />

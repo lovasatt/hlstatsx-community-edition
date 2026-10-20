@@ -1,0 +1,4 @@
+SHELL=/bin/sh
+PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
+
+*/30 * * * * root su -s /bin/sh www-data -c "cd /opt/heatmaps && /usr/local/bin/php /opt/heatmaps/generate.php" > /proc/1/fd/1 2>&1

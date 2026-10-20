@@ -21,7 +21,7 @@ fi
 if [ ! -z "$HLX_PROXY_KEY" ]; then
     echo "Updating proxy key in the database: $HLX_PROXY_KEY"
     mariadb -u root -p"$MYSQL_ROOT_PASSWORD" "$MYSQL_DATABASE" <<-EOSQL
-        UPDATE hlstats_Options SET value = '$HLX_PROXY_KEY' WHERE keyname = 'proxy_key';
+        UPDATE hlstats_Options SET value = '$HLX_PROXY_KEY' WHERE keyname = 'Proxy_Key';
 EOSQL
 else
     echo "WARNING: HLX_PROXY_KEY environment variable is not set, key not updated."

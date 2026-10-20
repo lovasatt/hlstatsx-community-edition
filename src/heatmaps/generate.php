@@ -1,20 +1,30 @@
 #!/usr/bin/php
 <?php
 error_reporting(E_ALL);
-ini_set("memory_limit", "32M");
 
-require_once 'config.inc.php';
-require_once 'heatmap.class.php';
+require_once __DIR__ . '/config.inc.php';
+require_once __DIR__ . '/heatmap.class.php';
 
-$heat = new Heatmap();
-$heat->init();
+Heatmap::init();
 
-// PHP 8 Fix: Ensure mapinfo is iterable (prevent TypeError if null)
-foreach ((Env::get('mapinfo') ?? []) as $game => $gameconf) {
-        foreach ($gameconf as $map => $data) {
-	$heat->generate($game, $map, "kill");
+$mapinfo = Env::get('mapinfo') ?? [];
+$success = 0;
+$skipped = 0;
+$failed = 0;
+
+foreach ($mapinfo as $game => $gameconf) {
+    foreach ($gameconf as $map => $data) {
+        $res = Heatmap::generate($game, $map, "kill");
+        if ($res === Heatmap::STATUS_SUCCESS) {
+            $success++;
+        } elseif ($res === Heatmap::STATUS_SKIPPED) {
+            $skipped++;
+        } else {
+            $failed++;
+        }
     }
 }
 
-show::Event("CREATE", "Heatmap creation done.", 1);
-?>
+show::Event("SUMMARY", "Done! Generated: $success, Skipped/Empty: $skipped, Errors: $failed.", 1);
+
+exit($failed > 0 ? 1 : 0);

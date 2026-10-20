@@ -90,8 +90,30 @@ For support and installation notes visit http://www.hlxcommunity.com
     <link rel="stylesheet" type="text/css" href="styles/<?php echo htmlspecialchars((string)$style, ENT_QUOTES, 'UTF-8'); ?>" />
 
     <!-- Modern Responsive Adapter for In-game scaling -->
-    <link rel="stylesheet" type="text/css" href="styles/modern-responsive.css?v=1.3" />
+    <link rel="stylesheet" type="text/css" href="styles/modern-responsive.css?v=1.4" />
 
+    <!-- GLightbox: Load local files using system path -->
+    <link rel="stylesheet" type="text/css" href="css/glightbox.min.css" />
+    <script type="text/javascript" src="<?php echo INCLUDE_PATH; ?>/js/glightbox.min.js"></script>
+    <script type="text/javascript">
+        window.addEventListener('DOMContentLoaded', () => {
+            const lightbox = GLightbox({
+                selector: '.glightbox',
+                keyboardNavigation: true,
+                closeButton: true,
+                closeOnOutsideClick: true,
+                touchNavigation: true,
+                zoomable: true,
+                draggable: true,
+                loop: true
+            });
+            window.addEventListener('keydown', function(e) {
+                if (e.key === "Escape") {
+                    lightbox.close();
+                }
+            }, true);
+        });
+    </script>
     <title>HLstatsX</title>
 </head>
 <body style="margin:0px;padding:0px;" id="ingame">

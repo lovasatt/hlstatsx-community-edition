@@ -1,0 +1,16 @@
+[
+    {
+        "section": "default",
+        "suffix": "",
+        "title": "Upper Level",
+        "min_z": -495,
+        "max_z": 10000
+    },
+    {
+        "section": "lower",
+        "suffix": "_lower",
+        "title": "Lower Level",
+        "min_z": -10000,
+        "max_z": -495
+    }
+]

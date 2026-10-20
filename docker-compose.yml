@@ -40,6 +40,7 @@ services:
       DB_PASS: "${DB_PASS:-hlstatsx_password}"
       DB_HOST: "hlx-db"
       DAEMON_HOST: "${DAEMON_HOST:-hlx-daemon}"
+      HUD_URL: "${HUD_URL:-http://localhost}"
       TZ: "${TZ:-Europe/Budapest}"
 
   daemon:

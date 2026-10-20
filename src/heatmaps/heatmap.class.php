@@ -1,647 +1,636 @@
 <?php
-
-/**
-* This class holds Environmental vars that can be used anywhere in the code
-* For example the database object to perform mysql stuff
-*/
+/** HLstatsX:CE heatmap generator - deterministic full-window rebuild with multi-level Z dispatching (PHP 8+) */
 class Env {
-        private static $data = array();
-
-        /**
-        * Add the specified key=>value to the environmental data array
-        *
-        * @param string $key this is the identifier of the value you are adding
-        * @param string $value The value to add into the array
-        */
-        public static function set($key, $value) {
-                self::$data[$key] = $value;
-        }
-
-        /**
-        * Gets the current value from the data array
-        *
-        * @param string $key The key to lookup in the array
-        * @throws SteambansException if the variable cannot be found
-        * @return mixed null if the key cannot be found, or the value that was stored in the array
-        */
-        public static function get($key) {
-                return array_key_exists($key, self::$data) ? self::$data[$key] : null;
-        }
+    private static array $data = [];
+    public static function set(string $key, $value): void { self::$data[$key] = $value; }
+    public static function get(string $key) { return self::$data[$key] ?? null; }
 }
 
-/**
-* Heatmap API to generate/add/update/delete content for heatmaps.
-*
-*/
-
 class Heatmap {
-        public $version = "0.1";
+    public string $version = '1.1';
+    public const STATUS_SUCCESS = 'success';
+    public const STATUS_SKIPPED = 'skipped';
+    public const STATUS_ERROR = 'error';
 
-        /**
-        * Stuff we want to fire when we start.
-        *
-        */
-        public static function init () {
-	    global $argv;
-	DB::connect();
-	self::mapinfo();
-	self::parseArguments($argv);
+    public static function init(): void {
+        if (!extension_loaded('gd') || !extension_loaded('mysqli')) {
+            throw new RuntimeException('Required PHP extensions: gd and mysqli');
+        }
+        global $argv;
+        DB::connect();
+        self::mapinfo();
+        self::parseArguments($argv ?? []);
+    }
+
+    public static function mapinfo(): void {
+        $sql = 'SELECT g.code, hc.* FROM `' . DB::table('Games') . '` AS g '
+             . 'INNER JOIN `' . DB::table('Heatmap_Config') . '` AS hc ON hc.game = g.realgame '
+             . 'ORDER BY g.code, hc.game, hc.map';
+        $result = DB::doQuery($sql);
+        if ($result === false) { throw new RuntimeException('Cannot load heatmap configuration'); }
+        $maps = [];
+        while ($row = $result->fetch_assoc()) { $maps[$row['code']][$row['map']] = $row; }
+        $result->free();
+        Env::set('mapinfo', $maps);
+    }
+
+    private static function validName(string $name): bool {
+        return (bool)preg_match('/\A[a-zA-Z0-9_\-]+\z/D', $name);
+    }
+
+    private static function queryParts(string $code, string $map, string $start, string $end): array {
+        $m = DB::escape($map);
+        $g = DB::escape($code);
+        $start = DB::escape($start);
+        $end = DB::escape($end);
+        $filter = Env::get('ignore_infected') ? " AND f.victimRole <> 'infected'" : '';
+
+        $frags = "SELECT f.id, 'frag' AS killtype, f.eventTime, f.pos_x, f.pos_y, f.pos_z "
+               . 'FROM `' . DB::table('Events_Frags') . '` f '
+               . 'INNER JOIN `' . DB::table('Servers') . '` s ON s.serverId = f.serverId '
+               . "WHERE s.game = '$g' AND f.map = '$m' AND f.pos_x IS NOT NULL AND f.pos_y IS NOT NULL "
+               . "AND f.eventTime >= '$start' AND f.eventTime <= '$end'" . $filter;
+
+        $teamkills = "SELECT t.id, 'teamkill' AS killtype, t.eventTime, t.pos_x, t.pos_y, t.pos_z "
+                   . 'FROM `' . DB::table('Events_Teamkills') . '` t '
+                   . 'INNER JOIN `' . DB::table('Servers') . '` s ON s.serverId = t.serverId '
+                   . "WHERE s.game = '$g' AND t.map = '$m' AND t.pos_x IS NOT NULL AND t.pos_y IS NOT NULL "
+                   . "AND t.eventTime >= '$start' AND t.eventTime <= '$end'";
+
+        return [$frags, $teamkills];
+    }
+
+    public static function buildQuery(string $code, string $map, string $start, string $end,
+                                      ?array $cursor = null): string {
+        $effectiveStart = ($cursor !== null) ? $cursor['time'] : $start;
+        [$frags, $teamkills] = self::queryParts($code, $map, $effectiveStart, $end);
+        $where = '';
+        if ($cursor !== null) {
+            $t = DB::escape($cursor['time']);
+            $kind = DB::escape($cursor['type']);
+            $id = (int)$cursor['id'];
+            $where = "WHERE (e.eventTime > '$t' OR (e.eventTime = '$t' AND e.killtype > '$kind') "
+                   . "OR (e.eventTime = '$t' AND e.killtype = '$kind' AND e.id > $id))";
+        }
+        return "SELECT e.id, e.killtype, e.eventTime, e.pos_x, e.pos_y, e.pos_z FROM ($frags UNION ALL $teamkills) e "
+             . "$where ORDER BY e.eventTime ASC, e.killtype ASC, e.id ASC LIMIT " . max(1, (int)KILL_LIMIT);
+    }
+
+    private static function countEvents(string $code, string $map, string $start, string $end) {
+        [$frags, $teamkills] = self::queryParts($code, $map, $start, $end);
+        $sql = "SELECT (SELECT COUNT(*) FROM ($frags) f1) + (SELECT COUNT(*) FROM ($teamkills) t1) AS total";
+        $res = DB::doQuery($sql);
+        if ($res === false) { return false; }
+        $row = $res->fetch_assoc();
+        $res->free();
+        return (int)($row['total'] ?? 0);
+    }
+
+    private static function prepareBrush($brush, int $opacity): void {
+        if (!imageistruecolor($brush)) {
+            imagepalettetotruecolor($brush);
+        }
+        imagealphablending($brush, false);
+        imagesavealpha($brush, true);
+        $w = imagesx($brush); $h = imagesy($brush); $min = 127;
+        for ($y=0; $y<$h; $y++) for ($x=0; $x<$w; $x++) {
+            $min = min($min, (imagecolorat($brush, $x, $y) >> 24) & 127);
+        }
+        $pct = $opacity / 100;
+        for ($y=0; $y<$h; $y++) for ($x=0; $x<$w; $x++) {
+            $c = imagecolorat($brush, $x, $y);
+            $a = ($c >> 24) & 127;
+            $newA = $min !== 127 ? 127 + 127*$pct*($a-127)/(127-$min) : $a+127*$pct;
+            $color = imagecolorallocatealpha($brush, ($c>>16)&255, ($c>>8)&255, $c&255,
+                                             max(0, min(127, (int)$newA)));
+            imagesetpixel($brush, $x, $y, $color);
+        }
+        imagealphablending($brush, true);
+    }
+
+    private static function colorize($img, $overlay): void {
+        $w = min(imagesx($img), imagesx($overlay));
+        $h = min(imagesy($img), imagesy($overlay));
+        for ($y=0; $y<$h; $y++) for ($x=0; $x<$w; $x++) {
+            $rgb = imagecolorat($overlay, $x, $y);
+            $red = ($rgb >> 16) & 255;
+            if ($red === 0) continue;
+            if ($red < 128) {
+                $r=0; $g=(int)round($red/127*255); $b=(int)round((127-$red)/127*255);
+            } else {
+                $r=(int)round(($red-128)/127*255);
+                $g=(int)round((255-$red)/127*255); $b=0;
+            }
+            $color = imagecolorallocatealpha($img, max(0,min(255,$r)), max(0,min(255,$g)),
+                                            max(0,min(255,$b)), max(0,min(127,127-(int)($red/2))));
+            imagesetpixel($img, $x, $y, $color);
+        }
+    }
+
+    /**
+     * Resolves an available TrueType font path across local and system directories.
+     */
+    private static function resolveFont(): ?string {
+        // 1. Primary bundled font in project root
+        $bundled = __DIR__ . '/DejaVuSans.ttf';
+        if (is_file($bundled)) {
+            return $bundled;
         }
 
-        /**
-        * Function that builds the maplist from db elements.
-        *
-        */
-        public static function mapinfo () {
-                $mapinfo = array(); // Initialize variable to prevent issues if DB is empty
-                $query = 'SELECT
-                                g.code,
-		hc.game,
-                                hc.map,
-                                hc.xoffset,
-                                hc.yoffset,
-                                hc.flipx,
-                                hc.flipy,
-	hc.rotate,
-                                hc.days,
-                                hc.brush,
-                                hc.scale,
-                                hc.font,
-                                hc.thumbw,
-                                hc.thumbh,
-                                hc.cropx1,
-                                hc.cropx2,
-                                hc.cropy1,
-                                hc.cropy2
-                        FROM
-                                ' . DB_PREFIX . '_Games AS g
-                        INNER JOIN
-                                ' . DB_PREFIX . '_Heatmap_Config AS hc
-                        ON
-                                hc.game = g.realgame
-                        WHERE 1=1
-                        ORDER BY code ASC, game ASC, map ASC';
+        // 2. Standard system sans-serif locations (Debian, Ubuntu, RHEL, CentOS, Alpine, macOS)
+        $systemFonts = [
+            '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
+            '/usr/share/fonts/dejavu/DejaVuSans.ttf',
+            '/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf',
+            '/usr/share/fonts/liberation-sans/LiberationSans-Regular.ttf',
+            '/usr/share/fonts/truetype/freefont/FreeSans.ttf',
+            '/usr/share/fonts/TTF/DejaVuSans.ttf',
+            '/Library/Fonts/Arial.ttf',
+            '/System/Library/Fonts/Supplemental/Arial.ttf'
+        ];
 
-                $result = DB::doQuery($query);
-                
-                // Check if result is valid object before calling numRows
-                if ($result && DB::numRows($result)) {
-                        while ($row = DB::getAssoc($result)) {
-                                foreach ($row as $key => $val) {
-                                        $mapinfo[$row['code']][$row['map']][$key] = $val;
-                                }
-                        }
-                        
-                }
-                Env::set('mapinfo', $mapinfo);
+        // 3. Standard Windows font locations
+        $winDir = getenv('WINDIR') ?: 'C:\\Windows';
+        $systemFonts[] = $winDir . '\\Fonts\\arial.ttf';
+        $systemFonts[] = $winDir . '\\Fonts\\segoeui.ttf';
+        $systemFonts[] = $winDir . '\\Fonts\\tahoma.ttf';
+
+        foreach ($systemFonts as $fontPath) {
+            if (is_file($fontPath)) {
+                return $fontPath;
+            }
         }
 
-        private static function printHeatDot($dst_im, $src_im, $dst_x, $dst_y, $src_x, $src_y, $src_w, $src_h, $pct){
-                if(!isset($pct)){
-                        return false;
-                }
-                $pct /= 100;
+        return null;
+    }
 
-                // Get image width and height
-                $w = imagesx( $src_im );
-                $h = imagesy( $src_im );
+    private static function drawHud($img, string $mapTitle, array $cfg, int $count, string $start, string $end): void {
+        $font = self::resolveFont();
+        $fontSize = max(1, (int)$cfg['font']);
+        $text = [
+            strtoupper($mapTitle) . ' - HLX:CE HEATMAP - TOTAL KILLS: ' . $count,
+            date('m/d/y', strtotime($start)) . ' - ' . date('m/d/y', strtotime($end)),
+            'Generated: ' . date('Y-m-d H:i:s'),
+            HUD_URL
+        ];
 
-                // Turn alpha blending off
-                imagealphablending( $src_im, false );
+        // Calculate dynamic HUD banner height based on rendering engine
+        $lineHeight = ($font !== null) ? ($fontSize + 4) : 16;
+        $h = min(imagesy($img), $lineHeight * (count($text) + 1) + 8);
 
-                // Find the most opaque pixel in the image (the one with the smallest alpha value)
-                $minalpha = 127;
-                for( $x = 0; $x < $w; $x++ ) {
-                        for( $y = 0; $y < $h; $y++ ){
-                                $alpha = ( imagecolorat( $src_im, $x, $y ) >> 24 ) & 0xFF;
-                                if( $alpha < $minalpha ){
-                                        $minalpha = $alpha;
-                                }
-                        }
-                }
-
-                //loop through image pixels and modify alpha for each
-                for( $x = 0; $x < $w; $x++ ){
-                        for( $y = 0; $y < $h; $y++ ){
-                                //get current alpha value (represents the TANSPARENCY!)
-                                $colorxy = imagecolorat( $src_im, $x, $y );
-                                $alpha = ( $colorxy >> 24 ) & 0xFF;
-
-                                //calculate new alpha
-                                if( $minalpha !== 127 ){
-                                        $alpha = 127 + 127 * $pct * ( $alpha - 127 ) / ( 127 - $minalpha );
-                                } else {
-                                        $alpha += 127 * $pct;
-                                }
-
-                                //get the color index with new alpha
-                                // PHP 8 Fix: Cast float arguments to int
-                                $alphacolorxy = imagecolorallocatealpha( $src_im, (int)(( $colorxy >> 16 ) & 0xFF), (int)(( $colorxy >> 8 ) & 0xFF), (int)($colorxy & 0xFF), (int)$alpha );
-
-                                //set pixel with the new color + opacity
-                                if( !imagesetpixel( $src_im, $x, $y, $alphacolorxy ) ){
-                                        return false;
-                                }
-                        }
-                }
-
-                // The image copy
-                // PHP 8 Fix: Cast arguments to int
-                imagecopy($dst_im, $src_im, (int)$dst_x, (int)$dst_y, (int)$src_x, (int)$src_y, (int)$src_w, (int)$src_h);
-        }
-
-    public static function generate($code, $map, $mode) {
-        // generatemap($map, $code, "Total Kills", "HlstatsX:CE")
-        self::buildQuery($code, $map);
-        
-        
-        $mapinfo = Env::get('mapinfo');
-        $map_query = Env::get('map_query');
-        $disable_cache = Env::get('disable_cache');
-
-        // Safety check: ensure map config exists
-        if (!isset($mapinfo[$code][$map])) {
-            show::Event("ERROR", "Configuration for Game: $code, Map: $map not found.", 1);
-            return false;
-        }
-
-        // See if we need to rotate the map or not.
-        $rotate = $mapinfo[$code][$map]['rotate'];
-
-        
-        $timestamp = time();
-
-        // Fix the last part of your path.
-        $path = HLXCE_WEB . "/hlstatsimg/games/" . $mapinfo[$code][$map]['code'] . "/heatmaps";
-        show::Event("PATH", $path, 3);
-
-        // Does the source image exists? else there is no idea to spend resources on it.
-        if (!file_exists(dirname(__FILE__) . "/src/" . $mapinfo[$code][$map]['game'] . "/" . $map . ".jpg")) {
-	show::Event("FILE", dirname(__FILE__) . "/src/" . $mapinfo[$code][$map]['game'] . "/" . $map . ".jpg doesn't exists", 3);
-	return false;
-        }
-		    
-        // Check that the dir exists, else try to create it.
-        if (!is_dir($path)) {
-	if (!@mkdir($path)) {
-	    show::Event("PREPARE", "Couln't create outputfolder: $path", 1);
-	}
-        }
-            
-        $cache_file = null;
-        $obsolite_cache = false; // Initialize to avoid warning
-
-        // Check if we have cached info, then we should work from that instead.
-        if (is_dir(CACHE_DIR . "/$code")) {
-        if ($handle = opendir(CACHE_DIR. "/$code")) {
-	while (false !== ($file = readdir($handle))) {
-            // PHP 8.2 Fix: Use {$map} syntax instead of ${map}
-	    if ($file != "." && $file != ".." && preg_match(str_replace("\$","\\\$","/{$map}_(\d+).png/i"), $file, $matches)) {
-	    $cache_file = CACHE_DIR . "/$code/$file";
-	    $oldtimestamp = $matches[1];
-
-	    // unless it's over 30 days old cache file, then we delete it and go from 0 again.
-	    if (floor((time() - $oldtimestamp) / 86400 > 30)) {
-	    $obsolite_cache = true;
-	    show::Event("CACHE", "Cache file is obsolite, " . floor((time() - $oldtimestamp) / 86400) . " days old. Generating from scratch", 1);
-	    }
-	    
-	    // If we called with --disable-cache we want to clean up and then regen from our start.
-	    if ($disable_cache || $obsolite_cache) {
-	    $disable_cache = true;
-	    if (file_exists($cache_file)) {
-	        unlink($cache_file);
-	    }
-	    } else {
-	    show::Event("CACHE","Found cached file ($file), we will use timestamp $oldtimestamp instead", 1);
-	    $find = '/.*AND hef.eventTime >= FROM_UNIXTIME\([0-9]+\).*/i';
-	    $replace = '			AND hef.eventTime > FROM_UNIXTIME(' . $oldtimestamp . ')';
-	    $map_query = preg_replace($find, $replace, $map_query);
-	    }
-	    }
-	}
-	closedir($handle);
-	}
-        } else {
-	if (!@mkdir(CACHE_DIR . "/$code")) {
-	    show::Event("CACHE", "Can't create cache_dir: " . CACHE_DIR . "/$code", 1);
-	}
-        }
-
-        $result = DB::doQuery($map_query);
-        $num_kills = DB::numRows($result);
-
-        if (!$num_kills) {
-	show::Event("IGNORE", "Game: $code, Map: $map, Kills: $num_kills, (to few kills)", 1);
-	return false;
-        }
-
-        $firstdata = time();
-
-        $img = imagecreatefromjpeg("./src/" . $mapinfo[$code][$map]['game'] . "/" . $map . ".jpg");
         imagealphablending($img, true);
-        imagesavealpha($img, true);
+        $bannerBg = imagecolorallocatealpha($img, 0, 0, 0, 50);
+        imagefilledrectangle($img, 0, 0, imagesx($img) - 1, $h, $bannerBg);
 
-        if (isset($cache_file) && $cache_file && !$disable_cache && file_exists($cache_file)) {
-	$overlay = imagecreatefrompng($cache_file);
+        $white = imagecolorallocate($img, 255, 255, 255);
+
+        if ($font !== null && function_exists('imagettftext')) {
+            // TrueType rendering using bundled or equivalent system sans-serif font
+            foreach ($text as $i => $line) {
+                imagettftext($img, $fontSize, 0, 10, ($fontSize + 4) * ($i + 1) + 8, $white, $font, $line);
+            }
         } else {
-	$overlay = imagecreatetruecolor(imagesx($img), imagesy($img));
+            // Zero-dependency GD raster fallback if no system TTF exists anywhere
+            foreach ($text as $i => $line) {
+                imagestring($img, 4, 10, ($i * 16) + 8, $line, $white);
+            }
         }
-
-        imagealphablending($overlay, true);
-        imagesavealpha($overlay, true);
-
-        $brush = imagecreatefrompng("./src/brush_" . $mapinfo[$code][$map]['brush'] . ".png");
-        $brushsize = ($mapinfo[$code][$map]['brush'] == "large") ? 33 : 17;
-
-        $white = imagecolorallocate($overlay, 255, 255, 255);
-        $black = imagecolorallocate($overlay, 0, 0, 0);
-
-        imagefill($overlay, 0, 0, $black);
-        imagecolortransparent($overlay, $black);
-
-        $num_kills = ($num_kills) ? $num_kills : 1;
-
-        show::Event("CREATE", "Game: $code, Map: $map, Kills: $num_kills", 1);
-        $opacity = intval((500 / $num_kills) * 100);
-
-      
-      if ($opacity > 40) $opacity = 40;
-      if ($opacity < 1) $opacity = 2;
-
-
-      $max_red = 0;
-      $i = 0;
-      while ($row = DB::getAssoc($result)) {
-              if ($row['eventTime'] < $firstdata) $firstdata = $row['eventTime'];
-
-              if ($mapinfo[$code][$map]['flipx']) $row['pos_x'] = $row['pos_x'] * -1;
-              if ($mapinfo[$code][$map]['flipy']) $row['pos_y'] = $row['pos_y'] * -1;
-
-              $x = ($row['pos_x'] + $mapinfo[$code][$map]['xoffset']) / $mapinfo[$code][$map]['scale'];
-              $y = ($row['pos_y'] + $mapinfo[$code][$map]['yoffset']) / $mapinfo[$code][$map]['scale'];
-
-              // PHP 8 Fix: Cast coordinates to int
-              $rgb = imagecolorat($overlay, (int)$x, (int)$y);
-              $colors = imagecolorsforindex($overlay, $rgb);
-
-              if ($colors['red'] > $max_red) $max_red = $colors['red'];
-
-              if ($colors['red'] <= 200) {
-                      // Rotate the image
-                      if ($rotate) {
-                              // PHP 8 Fix: Cast calculations to int
-                              self::printHeatDot($overlay, $brush, (int)($y - ($brushsize / 2)), (int)($x - ($brushsize / 2)), 0, 0, $brushsize, $brushsize, $opacity);
-                      } else {
-                              self::printHeatDot($overlay, $brush, (int)($x - ($brushsize / 2)), (int)($y - ($brushsize / 2)), 0, 0, $brushsize, $brushsize, $opacity);
-                      }
-              }
-      }
-
-        imagedestroy($brush);
-
-        $colorarr = array();
-        $colors = array(0, 0, 255);
-
-        for ($line = 0; $line < 128; ++$line) {
-	$colors = array(0, $colors[1] + 2, $colors[2] -2);
-	$colorarr[$line] = $colors;
-        }
-
-        for ($line = 128; $line < 255; ++$line) {
-	$colors = array($colors[0] + 2, $colors[1] -2, 0);
-	$colorarr[$line] = $colors;
-        }
-
-        for ($x = 0; $x < imagesx($overlay); ++$x) {
-	for ($y = 0; $y < imagesy($overlay); ++$y) {
-	    $index = imagecolorat($overlay, $x, $y);
-	    $rgb = imagecolorsforindex($overlay, $index);
-	    // $alpha = ( imagecolorat( $overlay, $x, $y ) >> 24 ) & 0xFF; // Unused variable removed
-
-            // PHP 8 Fix: Cast to int
-	    $color = imagecolorallocatealpha($img, $colorarr[$rgb['red']][0], $colorarr[$rgb['red']][1], $colorarr[$rgb['red']][2], 127 - (int)($rgb['red'] / 2));
-	if (!imagesetpixel($img, $x, $y, $color)) echo ".";
-	}
-        }
-
-        if ($mapinfo[$code][$map]['cropy2'] > 0 && $mapinfo[$code][$map]['cropy2'] > 0) {
-	$temp = imagecreatetruecolor($mapinfo[$code][$map]['cropx2'], $mapinfo[$code][$map]['cropy2']);
-	imagecopy($temp, $img, 0, 0, $mapinfo[$code][$map]['cropx1'], $mapinfo[$code][$map]['cropy1'], $mapinfo[$code][$map]['cropx2'], $mapinfo[$code][$map]['cropy2']);
-	imagedestroy($img);
-
-	$img = imagecreatetruecolor(imagesx($temp), imagesy($temp));
-	imagecopy($img, $temp, 0, 0, 0, 0, imagesx($temp), imagesy($temp));
-	imagedestroy($temp);
-        }
-
-        if ($mapinfo[$code][$map]['thumbw'] > 0 && $mapinfo[$code][$map]['thumbh'] > 0) {
-	$thumb = imagecreatetruecolor(imagesx($img) * $mapinfo[$code][$map]['thumbw'], imagesy($img) * $mapinfo[$code][$map]['thumbh']);
-	imagecopyresampled($thumb, $img, 0, 0, 0, 0, imagesx($thumb), imagesy($thumb), imagesx($img), imagesy($img));
-	imagejpeg($thumb, $path . "/" . $map . "-" . $mode . "-thumb.jpg", 100);
-	imagedestroy($thumb);
-        }
-
-        $img = self::drawHud($img, $map,  "HLX:CE", "Total Kills", $num_kills, $firstdata);
-	    
-        $return = false;
-        if (imagejpeg($img, $path . "/" . $map . "-" . $mode . ".jpg", 100)) $return = true;
-        
-        // PHP 8.2 Fix: Use {$map} syntax
-        if (imagepng($overlay, CACHE_DIR . "/$code/{$map}_{$timestamp}.png", 9)) $return = true;
-        imagedestroy($overlay);
-
-        // Clean upc cache file
-        if (isset($cache_file) && file_exists($cache_file) && isset($oldtimestamp)) {
-        // PHP 8.2 Fix: Use {$map} syntax
-	unlink(CACHE_DIR . "/$code/{$map}_{$oldtimestamp}.png");
-        }
-        
-        
-        imagedestroy($img);
-
-        return $return;
-    }
-    
-    public static function buildQuery ($code, $map) {
-        // Security Fix: Escape inputs to prevent SQL Injection
-        $safe_map = DB::escape($map);
-        $safe_code = DB::escape($code);
-
-        $mapinfo = Env::get('mapinfo');
-        Env::set('code', $code);
-        $ignore_infected = Env::get('ignore_infected');
-        $timescope = (time() - 60*60*24*$mapinfo[$code][$map]['days']);
-
-        $map_query = 'SELECT
-	        "frag" AS killtype,
-	     hef.id,
-	        hef.map,
-	        hs.game,
-	        hef.eventTime,
-	        hef.pos_x,
-	        hef.pos_y
-	    FROM
-	        hlstats_Events_Frags as hef,
-	        hlstats_Servers as hs
-	    WHERE 1=1
-	    AND hef.map = "' . $safe_map . '"
-	    AND hs.serverId = hef.serverId
-	    AND hs.game = "' . $safe_code. '"
-	    AND hef.pos_x IS NOT NULL
-	    AND hef.pos_y IS NOT NULL
-	    AND hef.eventTime >= FROM_UNIXTIME(' . $timescope . ')
-';
-        if ($ignore_infected) {
-	    $map_query.= '                      AND hef.victimRole != "infected"
-';
-        }
-	    $map_query.= '                      LIMIT ' . KILL_LIMIT . '
-
-	    UNION ALL
-
-	    SELECT
-	        "teamkill" AS killtype,
-	        hef.id,
-	        hef.map,
-	        hs.game,
-	        hef.eventTime,
-	        hef.pos_x,
-	        hef.pos_y
-	    FROM
-	        hlstats_Events_Teamkills as hef,
-	        hlstats_Servers as hs
-	    WHERE 1=1
-	    AND hef.map = "' . $safe_map . '"
-	    AND hs.serverId = hef.serverId
-	    AND hs.game = "' . $safe_code. '"
-	    AND hef.pos_x IS NOT NULL
-	    AND hef.pos_y IS NOT NULL
-	    AND hef.eventTime >= FROM_UNIXTIME(' . $timescope . ')
-	    LIMIT ' . KILL_LIMIT . '
-        ';
-        
-        Env::set('map_query', $map_query);
-        show::Event("SQL", $map_query, 3);
-
     }
 
-    private static function drawHud ($img, $map, $heatmapname, $method, $num_kills, $firstdata) {
-        $mapinfo = Env::get('mapinfo');
-        $code = Env::get('code');
-        
-        
-        // Resize the image according to your  settings
-        $img = self::resize($img);
+    public static function generate(string $code, string $map, string $mode): string {
+        $maps = Env::get('mapinfo') ?? [];
+        if (!isset($maps[$code][$map]) || !self::validName($code) || !self::validName($map)
+            || !self::validName($mode)) { show::Event('ERROR', "Invalid map: $code/$map", 1); return self::STATUS_ERROR; }
+        $cfg = $maps[$code][$map];
+        if ((int)KILL_LIMIT < 1) { show::Event('ERROR', 'KILL_LIMIT must be positive', 1); return self::STATUS_ERROR; }
+        if (!self::validName((string)$cfg['game']) || !in_array($cfg['brush'], ['small','large'], true)
+            || (float)$cfg['scale'] <= 0) { show::Event('ERROR', 'Invalid map configuration', 1); return self::STATUS_ERROR; }
 
-        $hudText = array(
-	    strtoupper($map) . " - " . strtoupper($heatmapname) . " HEATMAP - " . strtoupper($method),
-	    date("m/d/y", intval(time() - 60*60*24*30)) . " - " . date("m/d/y", time()),
-	    "Generated: " . date("Y-m-d H:i:s"),
-	    HUD_URL
-	);
-	
-        show::Event("HUD", "Creating Overlay HUD", 2);
-
-        $hudx = imagesx($img);
-        $hudy = intval(intval($mapinfo[$code][$map]['font'] + 4) * intval(count($hudText) + 1) + 8);
-
-        $hud = imagecreatetruecolor(imagesx($img), imagesy($img));
-        if (!$hud) die('Cannot Initialize new GD image stream'); // Check for failure
-        imagesavealpha($hud, true);
-
-        $trans_colour = imagecolorallocatealpha($hud, 0, 0, 0, 127);
-        $black = imagecolorallocatealpha($hud, 0, 0, 0, 90);
-
-        imagefill($hud, 0, 0, $trans_colour);
-        imagefilledrectangle($hud, 0, 0, imagesx($img) - 1, imagesy($img) - 1, $black);
-
-        $font = "./DejaVuSans.ttf";
-
-        // Copy the hud to the top of the image.
-        imagecopy($img, $hud, 0, 0, 0, 0, $hudx, $hudy);
-
-        //array imagettftext  ( resource $image  , float $size  , float $angle  , int $x  , int $y  , int $color  , string $fontfile  , string $text  )
-        $i = 1;
-        foreach ($hudText as $text) {
-        imagettftext(	$img, 
-	    (float)$mapinfo[$code][$map]['font'], // PHP 8 Fix: Cast to float
-	    0.0, // PHP 8 Fix: Cast to float
-	    10, 
-	    intval(intval($mapinfo[$code][$map]['font'] + 4) * $i + 8), 
-	    imagecolorallocate($img, 255, 255, 255), 
-	    $font, 
-	    $text
-	);
-        $i++;
+        $outDir = rtrim(HLXCE_WEB, '/\\') . '/hlstatsimg/games/' . $code . '/heatmaps';
+        if ((!is_dir($outDir) && !@mkdir($outDir, 0775, true)) || !is_writable($outDir)) {
+            show::Event('ERROR', 'Output directory not writable: ' . $outDir, 1);
+            return self::STATUS_ERROR;
         }
 
-        imagedestroy($hud);
+        // Advisory lock per map to prevent overlapping generation
+        $lock = @fopen($outDir . '/.' . $map . '-' . $mode . '.lock', 'c');
+        if (!$lock || !flock($lock, LOCK_EX | LOCK_NB)) {
+            if ($lock) fclose($lock);
+            show::Event('ERROR', "Another generation is running for $map", 1);
+            return self::STATUS_ERROR;
+        }
 
-        show::Event("HUD", "Done...", 2);
-        return $img;
+        $temps = [];
+        $layers = [];
+        $brush = null;
+        try {
+            $days = max(1, (int)$cfg['days']);
+            $bounds = DB::doQuery("SELECT DATE_FORMAT(DATE_SUB(NOW(), INTERVAL $days DAY), '%Y-%m-%d %H:%i:%s') AS start_time, "
+                                . "DATE_FORMAT(NOW(), '%Y-%m-%d %H:%i:%s') AS end_time");
+            if ($bounds === false) throw new RuntimeException('Cannot determine database time window');
+            $window = $bounds->fetch_assoc(); $bounds->free();
+            $start = $window['start_time']; $end = $window['end_time'];
+
+            // Query total events once for the whole map
+            $total = self::countEvents($code, $map, $start, $end);
+            if ($total === false) throw new RuntimeException('Cannot count events');
+
+            // Detect multi-level radar configuration
+            $sections_file = __DIR__ . '/src/' . $cfg['game'] . '/' . $map . '_sections.json';
+            $sections = [];
+
+            if (is_file($sections_file)) {
+                $raw_sec = @file_get_contents($sections_file);
+
+                if ($raw_sec === false) {
+                    throw new RuntimeException(
+                        'Cannot read sections manifest: ' . $sections_file
+                    );
+                }
+
+                try {
+                    $sections = json_decode($raw_sec, true, 512, JSON_THROW_ON_ERROR);
+                } catch (JsonException $e) {
+                    throw new RuntimeException(
+                        'Invalid sections manifest: ' . $sections_file,
+                        0,
+                        $e
+                    );
+                }
+
+                if (!is_array($sections) || empty($sections)) {
+                    throw new RuntimeException(
+                        'Empty or invalid sections manifest: ' . $sections_file
+                    );
+                }
+            }
+
+            // Fallback for single-level maps and legacy Source 1 games
+            if (empty($sections)) {
+                $sections = [
+                    [
+                        'section' => 'default',
+                        'suffix'  => '',
+                        'title'   => '',
+                        'min_z'   => null,
+                        'max_z'   => null
+                    ]
+                ];
+            }
+
+            // Cleanup stale published images if map has zero kills
+            if ($total === 0) {
+                foreach ($sections as $sec) {
+                    $s_suffix = (string)($sec['suffix'] ?? '');
+                    $s_base = $outDir . '/' . $map . $s_suffix . '-' . $mode;
+                    @unlink($s_base . '.jpg');
+                    @unlink($s_base . '-thumb.jpg');
+                }
+                // The web must not advertise levels without generated heatmaps.
+                $publishedManifest = $outDir . '/' . $map . '_sections.json';
+
+                if (is_file($publishedManifest) && !@unlink($publishedManifest)) {
+                    throw new RuntimeException(
+                        'Cannot remove empty-map manifest: ' . $publishedManifest
+                    );
+                }
+                return self::STATUS_SKIPPED;
+            }
+
+            // Capture the previously published manifest (if any) so we can prune
+            // image files for sections that no longer exist once this run succeeds.
+            $previousManifestPath = $outDir . '/' . $map . '_sections.json';
+            $previousSuffixes = [];
+            if (is_file($previousManifestPath)) {
+                $prevRaw = @file_get_contents($previousManifestPath);
+                if ($prevRaw !== false) {
+                    $prevDecoded = json_decode($prevRaw, true);
+                    if (is_array($prevDecoded)) {
+                        foreach ($prevDecoded as $prevSec) {
+                            if (isset($prevSec['suffix'])) {
+                                $previousSuffixes[] = (string)$prevSec['suffix'];
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Initialize image layers for each verified section
+            foreach ($sections as $sec) {
+                $sec_name   = (string)$sec['section'];
+                $sec_suffix = (string)($sec['suffix'] ?? '');
+                $source     = __DIR__ . '/src/' . $cfg['game'] . '/' . $map . $sec_suffix . '.jpg';
+
+                if (!is_file($source)) {
+                    throw new RuntimeException(
+                        'Required radar source missing: ' . $source
+                    );
+                }
+
+                $img = @imagecreatefromjpeg($source);
+                if (!$img) throw new RuntimeException('Cannot load source JPEG: ' . $source);
+                imagealphablending($img, true);
+
+                $overlay = imagecreatetruecolor(imagesx($img), imagesy($img));
+                $black = imagecolorallocate($overlay, 0, 0, 0);
+                imagefill($overlay, 0, 0, $black);
+                imagecolortransparent($overlay, $black);
+                imagealphablending($overlay, true);
+
+                $layers[$sec_name] = [
+                    'config'   => $sec,
+                    'source'   => $source,
+                    'img'      => $img,
+                    'overlay'  => $overlay,
+                    'rendered' => 0
+                ];
+            }
+
+            if (empty($layers) || !isset($layers['default'])) {
+                throw new RuntimeException('No valid radar layers available for rendering');
+            }
+
+            // Prepare brush once for the entire map
+            $brush = @imagecreatefrompng(__DIR__ . '/src/brush_' . $cfg['brush'] . '.png');
+            if (!$brush) throw new RuntimeException('Cannot load brush');
+
+            $opacity = max(2, min(40, (int)(50000 / max(1, $total))));
+            self::prepareBrush($brush, $opacity);
+            $brushSize = $cfg['brush'] === 'large' ? 33 : 17;
+
+            // Single query stream: dispatch events to appropriate floor in memory
+            $cursor = null;
+            $processed = 0;
+            $is_multilevel = (count($layers) > 1);
+            $missing_z_count = 0;
+            $out_of_bounds_z_count = 0;
+
+            do {
+                $res = DB::doQuery(self::buildQuery($code, $map, $start, $end, $cursor));
+                if ($res === false) throw new RuntimeException('Event query failed');
+                $count = $res->num_rows;
+
+                while ($row = $res->fetch_assoc()) {
+                    $next = ['time' => $row['eventTime'], 'type' => $row['killtype'], 'id' => (int)$row['id']];
+                    if ($cursor !== null && ($next['time'] < $cursor['time'] ||
+                        ($next['time'] === $cursor['time'] && strcmp($next['type'], $cursor['type']) < 0) ||
+                        ($next['time'] === $cursor['time'] && $next['type'] === $cursor['type'] && $next['id'] <= $cursor['id']))) {
+                        throw new RuntimeException('Pagination cursor did not advance');
+                    }
+                    $cursor = $next;
+                    $processed++;
+
+                    $px = (float)$row['pos_x'] * (!empty($cfg['flipx']) ? -1 : 1);
+                    $py = (float)$row['pos_y'] * (!empty($cfg['flipy']) ? -1 : 1);
+                    $x = ($px + (float)$cfg['xoffset']) / (float)$cfg['scale'];
+                    $y = ($py + (float)$cfg['yoffset']) / (float)$cfg['scale'];
+                    $tx = (int)(!empty($cfg['rotate']) ? $y : $x);
+                    $ty = (int)(!empty($cfg['rotate']) ? $x : $y);
+
+                    // Determine target section based on Z coordinate
+                    $targetSec = 'default';
+
+                    if ($is_multilevel) {
+                        if ($row['pos_z'] === null) {
+                            $missing_z_count++;
+                            continue;
+                        }
+
+                        $pz = (float)$row['pos_z'];
+                        $matched = false;
+
+                        foreach ($layers as $sName => $layerData) {
+                            $sConf = $layerData['config'];
+
+                            if (
+                                $sConf['min_z'] !== null &&
+                                $sConf['max_z'] !== null &&
+                                $pz >= (float)$sConf['min_z'] &&
+                                $pz < (float)$sConf['max_z']
+                            ) {
+                                $targetSec = $sName;
+                                $matched = true;
+                                break;
+                            }
+                        }
+
+                        if (!$matched) {
+                            $out_of_bounds_z_count++;
+                            continue;
+                        }
+                    }
+
+                    if (!isset($layers[$targetSec])) continue;
+
+                    $targetOverlay = $layers[$targetSec]['overlay'];
+                    if ($tx < 0 || $ty < 0 || $tx >= imagesx($targetOverlay) || $ty >= imagesy($targetOverlay)) {
+                        continue;
+                    }
+
+                    // Count every valid event assigned to this radar layer.
+                    $layers[$targetSec]['rendered']++;
+
+                    $red = (imagecolorat($targetOverlay, $tx, $ty) >> 16) & 255;
+                    if ($red <= 200) {
+                        imagecopy($targetOverlay, $brush, (int)($tx - $brushSize / 2), (int)($ty - $brushSize / 2),
+                                  0, 0, $brushSize, $brushSize);
+                    }
+                }
+                $res->free();
+            } while ($count >= max(1, (int)KILL_LIMIT));
+
+            imagedestroy($brush);
+            $brush = null;
+
+            // Log Z coordinate anomalies if any occurred on multi-level maps
+            if ($is_multilevel && ($missing_z_count > 0 || $out_of_bounds_z_count > 0)) {
+                show::Event(
+                    'INFO',
+                    "Map: $map Z anomalies -> Missing Z: $missing_z_count, Out-of-bounds Z: $out_of_bounds_z_count (skipped)",
+                    2
+                );
+            }
+
+            // Finalize, crop, draw HUD, and atomically publish full-size heatmaps and thumbnails for all layers
+            $total_rendered = 0;
+            foreach ($layers as $sName => $lData) {
+                $lImg     = $lData['img'];
+                $lOverlay = $lData['overlay'];
+                $lConf    = $lData['config'];
+                $lSuffix  = (string)($lConf['suffix'] ?? '');
+                $lTitle   = (string)($lConf['title'] ?? '');
+                $lRend    = (int)$lData['rendered'];
+                $total_rendered += $lRend;
+
+                self::colorize($lImg, $lOverlay);
+                imagedestroy($lOverlay);
+
+                if ((int)$cfg['cropx2'] > 0 && (int)$cfg['cropy2'] > 0) {
+                    $cw = (int)$cfg['cropx2']; $ch = (int)$cfg['cropy2'];
+                    $cropped = imagecreatetruecolor($cw, $ch);
+                    imagecopy($cropped, $lImg, 0, 0, (int)$cfg['cropx1'], (int)$cfg['cropy1'], $cw, $ch);
+                    imagedestroy($lImg);
+                    $lImg = $cropped;
+                }
+
+                $base = $outDir . '/' . $map . $lSuffix . '-' . $mode;
+                $token = bin2hex(random_bytes(8));
+                $jpgTmp = $base . '.jpg.' . $token . '.tmp';
+                $temps[] = $jpgTmp;
+                $thumbTmp = null;
+
+                // Generate clean thumbnail for every layer
+                if ((float)$cfg['thumbw'] > 0 && (float)$cfg['thumbh'] > 0) {
+                    $tw = max(1, (int)(imagesx($lImg) * (float)$cfg['thumbw']));
+                    $th = max(1, (int)(imagesy($lImg) * (float)$cfg['thumbh']));
+                    $thumb = imagecreatetruecolor($tw, $th);
+                    imagecopyresampled($thumb, $lImg, 0, 0, 0, 0, $tw, $th, imagesx($lImg), imagesy($lImg));
+                    $thumbTmp = $base . '-thumb.jpg.' . $token . '.tmp';
+                    $temps[] = $thumbTmp;
+                    $ok = imagejpeg($thumb, $thumbTmp, 95);
+                    imagedestroy($thumb);
+                    if (!$ok) {
+                        imagedestroy($lImg);
+                        throw new RuntimeException('Cannot save thumbnail for ' . $base);
+                    }
+                }
+
+                // Draw HUD header with layer title and floor-specific kill count
+                $hud_title = !empty($lTitle) ? $map . ' (' . $lTitle . ')' : $map;
+                self::drawHud($lImg, $hud_title, $cfg, $lRend, $start, $end);
+
+                if (!imagejpeg($lImg, $jpgTmp, 95)) {
+                    imagedestroy($lImg);
+                    throw new RuntimeException('Cannot save JPEG for ' . $base);
+                }
+                imagedestroy($lImg);
+
+                // Publish layer files atomically
+                if ($thumbTmp !== null && !@rename($thumbTmp, $base . '-thumb.jpg')) {
+                    throw new RuntimeException('Cannot publish thumbnail for ' . $base);
+                }
+                if (!@rename($jpgTmp, $base . '.jpg')) {
+                    throw new RuntimeException('Cannot publish heatmap for ' . $base);
+                }
+            }
+
+            // Publish validated multi-level manifest for the web interface.
+            $publishedManifest = $outDir . '/' . $map . '_sections.json';
+
+            if ($is_multilevel) {
+                $manifestTmp = $publishedManifest . '.' .
+                               bin2hex(random_bytes(8)) . '.tmp';
+
+                $temps[] = $manifestTmp;
+
+                $json = json_encode(
+                    $sections,
+                    JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR
+                );
+
+                if (file_put_contents($manifestTmp, $json, LOCK_EX) === false) {
+                    throw new RuntimeException(
+                        'Cannot write sections manifest: ' . $manifestTmp
+                    );
+                }
+
+                if (!@rename($manifestTmp, $publishedManifest)) {
+                    throw new RuntimeException(
+                        'Cannot publish sections manifest: ' . $publishedManifest
+                    );
+                }
+            } elseif (is_file($publishedManifest)) {
+                // A map that is now single-level must not retain an old manifest.
+                if (!@unlink($publishedManifest)) {
+                    throw new RuntimeException(
+                        'Cannot remove obsolete sections manifest: ' . $publishedManifest
+                    );
+                }
+            }
+
+            // Prune image files for sections that existed in the previous run but are
+            // no longer part of this map's configuration (e.g. a floor was removed).
+            $currentSuffixes = array_map(static fn($s) => (string)($s['suffix'] ?? ''), $sections);
+            foreach (array_diff($previousSuffixes, $currentSuffixes) as $staleSuffix) {
+                $staleBase = $outDir . '/' . $map . $staleSuffix . '-' . $mode;
+                @unlink($staleBase . '.jpg');
+                @unlink($staleBase . '-thumb.jpg');
+            }
+
+            show::Event('CREATE', "Game: $code Map: $map Total Events: $processed Total Drawn: $total_rendered", 1);
+            return self::STATUS_SUCCESS;
+        } catch (Throwable $e) {
+            show::Event('ERROR', "$code/$map: " . $e->getMessage(), 1);
+            return self::STATUS_ERROR;
+        } finally {
+            foreach ($temps as $tmp) if (is_file($tmp)) @unlink($tmp);
+            if ($brush instanceof GdImage) imagedestroy($brush);
+            foreach ($layers as $lData) {
+                if (isset($lData['img']) && $lData['img'] instanceof GdImage) imagedestroy($lData['img']);
+                if (isset($lData['overlay']) && $lData['overlay'] instanceof GdImage) imagedestroy($lData['overlay']);
+            }
+            flock($lock, LOCK_UN); fclose($lock);
+        }
     }
-    
-    private static function resize ($img) {
-        switch (OUTPUT_SIZE) {
-	case "small":
-	    $newwidth = 800;
-	    $newheight = 600;
-	    break;
-	case "medium":
-	    $newwidth = 1024;
-	    $newheight = 768;
-	    break;
-	case "large":
-	    $newwidth = 1280;
-	    $newheight = 1024;
-	    // As for now we don't do anything since this is default size
-	    return $img;
-	    break;
-	default:
-	    $newwidth = 1024;
-	    $newheight = 768;
-        }
-        
-        show::Event("RESIZE", "Adjusting Heatmap to current setting: " . OUTPUT_SIZE, 2);
 
-        $resized = imagecreatetruecolor($newwidth, $newheight);
-        imagecopyresized($resized, $img, 0, 0, 0, 0, $newwidth, $newheight, imagesx($img), imagesy($img));
-
-        imagedestroy($img);
-
-        show::Event("RESIZE", "Done...", 2);
-        return $resized;
-    }		
-
-    private static function arguments($argv) {
-        $_ARG = array();
+    private static function arguments(array $argv): array {
+        $args = [];
         foreach ($argv as $arg) {
-	if (preg_match('/\-\-[a-zA-Z0-9]*=.*/', $arg)) {
-	    $str = explode('=', $arg);
-	    $arg = '';
-	    $key = preg_replace('/\-\-/', '', $str[0]);
-	    for ( $i = 1; $i < count($str); $i++ ) {
-	    $arg .= $str[$i];
-	    }
-	    $_ARG[$key] = $arg;
-	} elseif(preg_match('/\-[a-zA-Z0-9]/', $arg)) {
-	    $arg = preg_replace('/\-/', '', $arg);
-	    $_ARG[$arg] = 'true';
-	}
+            if (preg_match('/^--([a-zA-Z0-9_-]+)(?:=(.*))?$/', $arg, $m)) {
+                $args[str_replace('-', '', strtolower($m[1]))] = $m[2] ?? 'true';
+            }
         }
-        return $_ARG;
+        return $args;
     }
-    
-    public static function parseArguments($argv) {
-        $mapinfo = Env::get('mapinfo');
-        $cache = false;
+
+    public static function parseArguments(array $argv): void {
+        $maps = Env::get('mapinfo') ?? [];
         $args = self::arguments($argv);
-        $tmp = array(); // Initialize temp array
-
         if (isset($args['game'])) {
-	if (!isset($mapinfo[$args['game']])) {
-	    show::Event("ERROR", "Game: " . $args['game'] . " doesn't exists, escaping", 1);
-	    exit;
-	}
-	
-	if (isset($args['map'])) {
-	    if (!isset($mapinfo[$args['game']][$args['map']])) {
-	    show::Event("ERROR", "Game: " . $args['game'] . " Map: " . $args['map'] . " doesn't exists, escaping", 1);
-	    exit;
-	    }
-	    
-	    $tmp[$args['game']][$args['map']] = $mapinfo[$args['game']][$args['map']];
-	    show::Event("ARGS", "--game=" . $args['game'], 2);
-	    show::Event("ARGS", "--map=" . $args['map'], 2);
-	} else {
-	    $tmp[$args['game']] = $mapinfo[$args['game']];
-	    show::Event("ARGS", "--game=" . $args['game'], 2);
-	}
+            $game = $args['game'];
+            if (!isset($maps[$game])) throw new InvalidArgumentException('Unknown game: ' . $game);
+            if (isset($args['map'])) {
+                if (!isset($maps[$game][$args['map']])) throw new InvalidArgumentException('Unknown map');
+                $maps = [$game => [$args['map'] => $maps[$game][$args['map']]]];
+            } else { $maps = [$game => $maps[$game]]; }
         } else {
-	$visible = '';
-	$query = "SELECT code FROM hlstats_Games WHERE hidden='0'";
-	$result = DB::doQuery($query);
-	if ($result && DB::numRows($result)) { // Check $result validity
-	    while ($row = DB::getAssoc($result)) {
-	    foreach ($row as $key => $val) {
-	        if (isset($mapinfo[$val])) {
-		$visible .= "$val, ";	
-		$tmp[$val] = $mapinfo[$val];
-	        }
-	    }
-	    }
-	}
-	show::Event("GAMES", substr($visible, 0, -2), 2);
+            $res = DB::doQuery('SELECT code FROM `' . DB::table('Games') . "` WHERE hidden='0'");
+            if ($res === false) throw new RuntimeException('Cannot load visible games');
+            $visible = [];
+            while ($row = $res->fetch_assoc()) if (isset($maps[$row['code']])) $visible[$row['code']] = $maps[$row['code']];
+            $res->free(); $maps = $visible;
         }
-        
-        if (!empty($tmp)) { 
-	$mapinfo = $tmp; 
-        }
-
-        if (isset($args['disablecache'])) {
-	$cache = true;
-	show::Event("ARGS", "--disable-cache=true", 2);
-        } else {
-	$cache = false;
-	show::Event("ARGS", "--disable-cache=false", 2);
-        }
-        
-        if (isset($args['ignoreinfected'])) {
-	$ignore_infected = true;
-	show::Event("ARGS", "--ignore-infected=true", 2);
-        } else {
-	$ignore_infected = false;
-	show::Event("ARGS", "--ignore-infected=false", 2);
-        }
-
-        Env::set('mapinfo', $mapinfo);
-        Env::set('disable_cache', $cache);
-        Env::set('ignore_infected', $ignore_infected);
+        Env::set('mapinfo', $maps);
+        Env::set('ignore_infected', in_array(strtolower($args['ignoreinfected'] ?? 'false'), ['true','1'], true));
     }
-
-// End of Heat Class
 }
 
 class DB {
-    public static $connect; // PHP 8 requires explicit public declaration
-    public static function connect () {
-    self::$connect = mysqli_connect(DB_HOST, DB_USER, DB_PASS);
-    mysqli_select_db(self::$connect, DB_NAME);
-
-    show::Event("DB", "Connected to " . DB_NAME . " as " . DB_USER . "@" . DB_HOST, 1);
+    public static mysqli $connect;
+    public static function table(string $suffix): string {
+        $name = DB_PREFIX . '_' . $suffix;
+        if (!preg_match('/\A[A-Za-z0-9_]+\z/D', $name)) throw new InvalidArgumentException('Invalid DB prefix');
+        return $name;
     }
-
-    // Security Feature: Escape string wrapper
-    public static function escape($str) {
-        return mysqli_real_escape_string(self::$connect, $str);
+    public static function connect(): void {
+        mysqli_report(MYSQLI_REPORT_OFF);
+        $db = @new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);
+        if ($db->connect_errno) throw new RuntimeException('Database connection failed: ' . $db->connect_error);
+        if (!$db->set_charset('utf8mb4')) throw new RuntimeException('Cannot set utf8mb4');
+        self::$connect = $db;
     }
-
-    public static function doQuery ($query) {
-    return mysqli_query(self::$connect, $query);
+    public static function escape(string $str): string { return self::$connect->real_escape_string($str); }
+    public static function doQuery(string $sql) {
+        $res = self::$connect->query($sql);
+        if ($res === false) show::Event('SQL ERROR', self::$connect->error, 1);
+        return $res;
     }
-
-    public static function getAssoc ($result) {
-    if ($result instanceof mysqli_result) { // PHP 8 Guard
-        return mysqli_fetch_assoc($result);
-    }
-    return false;
-    }
-
-    public static function numRows ($result) {
-    if ($result instanceof mysqli_result) { // PHP 8 Guard
-        return mysqli_num_rows($result);
-    }
-    return 0;
-    }
+    public static function getAssoc($result) { return $result instanceof mysqli_result ? $result->fetch_assoc() : false; }
+    public static function numRows($result): int { return $result instanceof mysqli_result ? $result->num_rows : 0; }
 }
 
 class show {
-    public static function Event ($type, $text, $runlevel) {
-    if ($runlevel <= DEBUG) {	
-        print date("Y-m-d H:i:s") . "\t\t$type: $text\n";
-    }     
+    public static function Event(string $type, string $text, int $level): void {
+        if ($level <= (int)DEBUG) echo date('Y-m-d H:i:s') . "\t$type: $text\n";
     }
 }
-
-?>

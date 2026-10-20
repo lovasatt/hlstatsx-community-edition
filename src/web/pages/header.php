@@ -132,7 +132,30 @@ For support and installation notes visit http://www.hlxcommunity.com
     <script type="text/javascript" src="<?php echo INCLUDE_PATH; ?>/js/leaflet.js"></script>
 
     <!-- Modern Responsive Adapter -->
-    <link rel="stylesheet" type="text/css" href="styles/modern-responsive.css?v=1.3" />
+    <link rel="stylesheet" type="text/css" href="styles/modern-responsive.css?v=1.4" />
+
+    <!-- GLightbox: Load local files using system path -->
+    <link rel="stylesheet" type="text/css" href="css/glightbox.min.css" />
+    <script type="text/javascript" src="<?php echo INCLUDE_PATH; ?>/js/glightbox.min.js"></script>
+    <script type="text/javascript">
+        window.addEventListener('DOMContentLoaded', () => {
+            const lightbox = GLightbox({
+                selector: '.glightbox',
+                keyboardNavigation: true,
+                closeButton: true,
+                closeOnOutsideClick: true,
+                touchNavigation: true,
+                zoomable: true,
+                draggable: true,
+                loop: true
+            });
+            window.addEventListener('keydown', function(e) {
+                if (e.key === "Escape") {
+                    lightbox.close();
+                }
+            }, true);
+        });
+    </script>
     <!-- U R A SMACKHEAD -->
 <?php
     if ($mode == 'players')
