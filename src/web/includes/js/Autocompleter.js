@@ -265,7 +265,6 @@ var Autocompleter = new Class({
     },
 
     fetchCached: function() {
-	return false;
 	if (!this.options.cache
 	    || !this.cached
 	    || !this.cached.length
