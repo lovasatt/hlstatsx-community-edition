@@ -73,7 +73,6 @@ img {
 .fSmall {
 	font-family: Verdana, Arial, Helvetica, sans-serif;
 	font-size: 7pt;
-	color: #FFF;
 }
 
 .fTitle {
@@ -153,7 +152,7 @@ img {
 	text-decoration:none;
 }
 
-.dgmapstab a:visited {
+.gmapstab a:visited {
 	color:#000;
 	text-decoration:none;
 }

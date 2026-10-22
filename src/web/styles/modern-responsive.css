@@ -251,7 +251,7 @@
     }
 
     /* --- TABLES: SCROLL INDICATORS --- */
-    div[align="center"], .block, .content .fNormal {
+    div[align="center"], .block, .block, .subblock {
         width: 100% !important; /* <--- ADD THIS (or increase to 100% for fewer margins) */
         margin-left: auto !important;
         margin-right: auto !important;
