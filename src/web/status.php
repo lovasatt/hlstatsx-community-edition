@@ -39,9 +39,10 @@ For support and installation notes visit http://www.hlxcommunity.com
 define('IN_HLSTATS', true);
 
 foreach ($_SERVER as $key => $entry) {
-    // PHP 8 Fix: Ensure entry is string
+    // Process strings and preserve URL encoding
     if ($key !== 'HTTP_COOKIE' && is_string($entry)) {
-        $search_pattern  = array('/<script>/i', '/<\/script>/i', '/[^A-Za-z0-9.\-\/=:;_?#&~]/');
+        // Allow percent sign (%) to preserve valid URL-encoded query parameters
+        $search_pattern  = array('/<script>/i', '/<\/script>/i', '/[^A-Za-z0-9.\-\/=:;_?#&~%]/');
         $replace_pattern = array('', '', '');
         $entry = preg_replace($search_pattern, $replace_pattern, $entry);
 
@@ -50,18 +51,30 @@ foreach ($_SERVER as $key => $entry) {
             if ($last_segment !== false) {
                 if (($last_segment !== '/hlstats.php') &&
                     ($last_segment !== '/show_graph.php') &&
+                    ($last_segment !== '/card.php') &&
+                    (!preg_match('/^\/card-[0-9]+\.png$/i', $last_segment)) &&
                     ($last_segment !== '/sig.php') &&
                     ($last_segment !== '/sig2.php') &&
+                    (!preg_match('/^\/sig-[0-9]+(-[a-z0-9]+)?\.png$/i', $last_segment)) &&
                     ($last_segment !== '/index.php') &&
                     ($last_segment !== '/status.php') &&
                     ($last_segment !== '/top10.php') &&
                     ($last_segment !== '/config.php') &&
                     ($last_segment !== '/') &&
                     ($entry !== '')) {
-                    $raw_host = $_SERVER['HTTP_HOST'] ?? 'localhost';
-                    $host = preg_replace('/[^a-zA-Z0-9.:-]/', '', (string)$raw_host);
-                    $proto = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-                    header('Location: ' . $proto . '://' . $host . '/hlstats.php');
+                    // Resolve client host and protocol across reverse proxies, Cloudflare and Docker
+                    $raw_host = $_SERVER['HTTP_X_FORWARDED_HOST'] ?? $_SERVER['HTTP_HOST'] ?? 'localhost';
+                    $host = preg_replace('/[^a-zA-Z0-9.:-]/', '', trim(explode(',', (string)$raw_host)[0]));
+                    if ($host === '') {
+                        $host = 'localhost';
+                    }
+                    $f_proto = isset($_SERVER['HTTP_X_FORWARDED_PROTO']) ? strtolower(trim(explode(',', (string)$_SERVER['HTTP_X_FORWARDED_PROTO'])[0])) : '';
+                    $is_ssl = (!empty($_SERVER['HTTPS']) && strtolower((string)$_SERVER['HTTPS']) !== 'off')
+                        || ($f_proto === 'https')
+                        || (!empty($_SERVER['HTTP_CF_VISITOR']) && strpos((string)$_SERVER['HTTP_CF_VISITOR'], '"scheme":"https"') !== false);
+                    $proto = $is_ssl ? 'https' : 'http';
+                    $base_dir = rtrim(str_replace('\\', '/', dirname($_SERVER['PHP_SELF'] ?? '')), '/');
+                    header('Location: ' . $proto . '://' . $host . $base_dir . '/hlstats.php');
                     exit;
                 }
             }
@@ -126,7 +139,7 @@ if (!isset($g_options['scripturl'])) {
     $g_options['scripturl'] = $php_self ?: getenv('PHP_SELF');
 }
 
-$g_options['scriptbase'] = rtrim(str_replace('/status.php', '', (string)$g_options['scripturl']), '/');
+$g_options['scriptbase'] = rtrim(preg_replace('/\/[a-zA-Z0-9_\-]+\.php.*$/i', '', (string)$g_options['scripturl']), '/');
 
 ////
 //// Main Config

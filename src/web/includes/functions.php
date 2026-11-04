@@ -361,7 +361,7 @@ function getSelect($name, $values, $currentvalue = '')
     {
 	$select .= "\t<option value=\"" . hlx_h($k) . "\"";
 
-	if ($k == $currentvalue)
+	if ((string)$k === (string)$currentvalue)
 	{
 	    $select .= ' selected="selected"';
 	    $gotcval = true;

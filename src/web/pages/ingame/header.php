@@ -53,13 +53,17 @@ For support and installation notes visit http://www.hlxcommunity.com
         header('Cache-Control: no-cache');
     }
 
-    // Security Fix: Prevent Open Redirect / external spoofed referrers in "Go Back" link
+    // Security Fix: Prevent Open Redirect while supporting reverse proxy host headers
     $lastpage = (string)($_SERVER['HTTP_REFERER'] ?? '');
     if ($lastpage !== '') {
-        $host = (string)($_SERVER['HTTP_HOST'] ?? '');
+        $raw_host = $_SERVER['HTTP_X_FORWARDED_HOST'] ?? $_SERVER['HTTP_HOST'] ?? '';
+        $host = preg_replace('/[^a-zA-Z0-9.:-]/', '', trim(explode(',', (string)$raw_host)[0]));
+        $host_name = explode(':', $host)[0];
+
         $parsed = parse_url($lastpage);
-        $ref_host = $parsed['host'] ?? '';
-        if ($ref_host !== '' && strtolower($ref_host) !== strtolower($host)) {
+        $ref_host = explode(':', (string)($parsed['host'] ?? ''))[0];
+
+        if ($ref_host !== '' && strtolower($ref_host) !== strtolower($host_name)) {
             $lastpage = '';
         } elseif (!preg_match('~^https?://~i', $lastpage) && !str_starts_with($lastpage, '/')) {
             $lastpage = '';

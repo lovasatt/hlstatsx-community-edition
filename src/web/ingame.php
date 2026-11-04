@@ -37,33 +37,44 @@ For support and installation notes visit http://www.hlxcommunity.com
 */
 
 foreach ($_SERVER as $key => $entry) {
-    // PHP 8 Fix: Ensure we only process strings
     if ($key !== "HTTP_COOKIE" && is_string($entry)) {
-	$search_pattern  = array("/<script>/", "/<\/script>/", "/[^A-Za-z0-9.\-\/=:;_?#&~]/");
-	$replace_pattern = array("", "", "");
-	$entry = preg_replace($search_pattern, $replace_pattern, $entry);
-  
-	if ($key == "PHP_SELF") {
+        $search_pattern  = array("/<script>/i", "/<\/script>/i", "/[^A-Za-z0-9.\-\/=:;_?#&~%]/");
+        $replace_pattern = array("", "", "");
+        $entry = preg_replace($search_pattern, $replace_pattern, $entry);
+
+        if ($key == "PHP_SELF") {
             $last_segment = strrchr($entry, "/");
-            // Check logical validity
-	    if (($last_segment !== "/hlstats.php") &&
-		($last_segment !== "/ingame.php") &&
-		($last_segment !== "/show_graph.php") &&
-		($last_segment !== "/sig.php") &&
-		($last_segment !== "/sig2.php") &&
-		($last_segment !== "/index.php") &&
-		($last_segment !== "/status.php") &&
-		($last_segment !== "/top10.php") &&
-		($last_segment !== "/config.php") &&
-		($last_segment !== "/") &&
-		($entry !== "")) {
-		$host = preg_replace('/[^a-zA-Z0-9.:\[\]-]/', '', (string)($_SERVER['HTTP_HOST'] ?? 'localhost'));
-                $proto = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-                header("Location: " . $proto . "://" . $host . "/hlstats.php");
+            if (($last_segment !== "/hlstats.php") &&
+                ($last_segment !== "/ingame.php") &&
+                ($last_segment !== "/show_graph.php") &&
+                ($last_segment !== "/sig.php") &&
+                ($last_segment !== "/sig2.php") &&
+                ($last_segment !== "/index.php") &&
+                ($last_segment !== "/status.php") &&
+                ($last_segment !== "/top10.php") &&
+                ($last_segment !== "/config.php") &&
+                ($last_segment !== "/") &&
+                ($entry !== "")) {
+                $raw_client_host = $_SERVER['HTTP_X_FORWARDED_HOST'] ?? $_SERVER['HTTP_HOST'] ?? 'localhost';
+                $host = preg_replace('/[^a-zA-Z0-9.:-]/', '', trim(explode(',', (string)$raw_client_host)[0]));
+                if ($host === '') {
+                    $host = 'localhost';
+                }
+
+                $f_proto = isset($_SERVER['HTTP_X_FORWARDED_PROTO'])
+                    ? strtolower(trim(explode(',', (string)$_SERVER['HTTP_X_FORWARDED_PROTO'])[0]))
+                    : '';
+                $is_ssl = (!empty($_SERVER['HTTPS']) && strtolower((string)$_SERVER['HTTPS']) !== 'off')
+                    || ($f_proto === 'https')
+                    || (!empty($_SERVER['HTTP_CF_VISITOR']) && strpos((string)$_SERVER['HTTP_CF_VISITOR'], '"scheme":"https"') !== false);
+                $proto = $is_ssl ? 'https' : 'http';
+
+                $base_dir = rtrim(str_replace('\\', '/', dirname($_SERVER['PHP_SELF'] ?? '')), '/');
+                header("Location: " . $proto . "://" . $host . $base_dir . "/hlstats.php");
                 exit;
-	    }
-	}
-	$_SERVER[$key] = $entry;
+            }
+        }
+        $_SERVER[$key] = $entry;
     }
 }
 

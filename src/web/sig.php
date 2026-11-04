@@ -49,7 +49,7 @@ if (ob_get_level() == 0) {
 
 foreach ($_SERVER as $key => $entry) {
     // PHP 8 Fix: Ensure entry is string
-    if ($key !== 'HTTP_COOKIE' && is_string($entry)) {
+    if ($key !== 'HTTP_COOKIE' && $key !== 'HTTP_IF_MODIFIED_SINCE' && is_string($entry)) {
         $search_pattern  = array('/<script>/i', '/<\/script>/i', '/[^A-Za-z0-9.\-\/=:;_?#&~%]/');
         $replace_pattern = array('', '', '');
         $entry = preg_replace($search_pattern, $replace_pattern, $entry);
@@ -68,10 +68,18 @@ foreach ($_SERVER as $key => $entry) {
                     ($last_segment !== '/config.php') &&
                     ($last_segment !== '/') &&
                     ($entry !== '')) {
-                    $raw_host = $_SERVER['HTTP_HOST'] ?? 'localhost';
-                    $host = preg_replace('/[^a-zA-Z0-9.:-]/', '', (string)$raw_host);
-                    $proto = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-                    header('Location: ' . $proto . '://' . $host . '/hlstats.php');
+                    $raw_host = $_SERVER['HTTP_X_FORWARDED_HOST'] ?? $_SERVER['HTTP_HOST'] ?? 'localhost';
+                    $host = preg_replace('/[^a-zA-Z0-9.:-]/', '', trim(explode(',', (string)$raw_host)[0]));
+                    if ($host === '') {
+                        $host = 'localhost';
+                    }
+                    $f_proto = isset($_SERVER['HTTP_X_FORWARDED_PROTO']) ? strtolower(trim(explode(',', (string)$_SERVER['HTTP_X_FORWARDED_PROTO'])[0])) : '';
+                    $is_ssl = (!empty($_SERVER['HTTPS']) && strtolower((string)$_SERVER['HTTPS']) !== 'off')
+                        || ($f_proto === 'https')
+                        || (!empty($_SERVER['HTTP_CF_VISITOR']) && strpos((string)$_SERVER['HTTP_CF_VISITOR'], '"scheme":"https"') !== false);
+                    $proto = $is_ssl ? 'https' : 'http';
+                    $base_dir = rtrim(str_replace('\\', '/', dirname($_SERVER['PHP_SELF'] ?? '')), '/');
+                    header('Location: ' . $proto . '://' . $host . $base_dir . '/hlstats.php');
                     exit;
                 }
             }
@@ -233,24 +241,25 @@ if (!function_exists('f_num')) {
         $file_timestamp = @filemtime($cache_file);
         if ($file_timestamp && ($file_timestamp + $update_interval > time())) {
             if (isset($_SERVER['HTTP_IF_MODIFIED_SINCE'])) {
-                $browser_timestamp = strtotime($_SERVER['HTTP_IF_MODIFIED_SINCE']);
-                if ($browser_timestamp + $update_interval > time()) {
-                    header('HTTP/1.0 304 Not Modified');
-                    exit;
-                }
-            }
+              $browser_timestamp = strtotime((string)$_SERVER['HTTP_IF_MODIFIED_SINCE']);
+              if ($browser_timestamp && ($browser_timestamp + $update_interval > time())) {
+                  http_response_code(304);
+                  exit;
+              }
+          }
 
-            if (ob_get_length()) {
-                ob_clean();
-            }
-            $mod_date = date('D, d M Y H:i:s \G\M\T', $file_timestamp);
-            header('Content-Type: image/png');
-            header('X-Content-Type-Options: nosniff');
-            header('Last-Modified: ' . $mod_date);
-            header('Cache-Control: public, max-age=' . $update_interval);
+          if (ob_get_length()) {
+              ob_clean();
+          }
+          $mod_date = date('D, d M Y H:i:s \G\M\T', $file_timestamp);
+          header('Content-Type: image/png');
+          header('X-Content-Type-Options: nosniff');
+          header('Access-Control-Allow-Origin: *');
+          header('Last-Modified: ' . $mod_date);
+          header('Cache-Control: public, max-age=' . $update_interval);
 
-            readfile($cache_file);
-            exit();
+          readfile($cache_file);
+          exit();
         }
     }
 
@@ -555,6 +564,7 @@ if ($player_id > 0) {
     }
 
     header('Content-Type: image/png');
+    header('Access-Control-Allow-Origin: *');
     header('Last-Modified: ' . $mod_date);
     header('Cache-Control: public, max-age=' . $update_interval);
 

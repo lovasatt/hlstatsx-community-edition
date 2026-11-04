@@ -132,7 +132,8 @@ class Table
     function start($numitems, $width=100, $align='center')
     {
 	global $g_options, $game, $realgame, $db;
-	$numpages = ceil($numitems / $this->numperpage);
+        $perpage  = max(1, (int)$this->numperpage);
+        $numpages = ceil($numitems / $perpage);
 ?>
 
 <div class="subblock">
@@ -180,7 +181,8 @@ class Table
     function draw ($result, $numitems, $width=100, $align='center')
     {
 	global $g_options, $game, $realgame, $db;
-	$numpages = ceil($numitems / $this->numperpage);
+        $perpage  = max(1, (int)$this->numperpage);
+        $numpages = ceil($numitems / $perpage);
 ?>
 
 <div class="subblock" style="text-align:<?php echo $align; ?>;">

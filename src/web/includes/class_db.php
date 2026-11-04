@@ -72,6 +72,7 @@ class DB_mysql
     public $profile = 0;
     public $querycount = 0;
     public $last_calc_rows = 0;
+    public $last_error_msg = '';
 
     function __construct($db_addr, $db_user, $db_pass, $db_name, $use_pconnect = false)
     {
@@ -279,7 +280,9 @@ class DB_mysql
 
         $endtime = microtime(true);
 
-        $this->last_insert_id = mysqli_insert_id($this->link);
+        if ($this->last_result) {
+            $this->last_insert_id = mysqli_insert_id($this->link);
+        }
 
         if($calcrows == true)
         {

@@ -91,6 +91,13 @@ function hlstats_csrf_token(): string
 
 function hlstats_get_client_ip(): string
 {
+    if (!empty($_SERVER['HTTP_CF_CONNECTING_IP']) && !empty($_SERVER['HTTP_CF_RAY'])) {
+        $cf_ip = trim((string)$_SERVER['HTTP_CF_CONNECTING_IP']);
+        if (filter_var($cf_ip, FILTER_VALIDATE_IP)) {
+            return $cf_ip;
+        }
+    }
+
     $remote_ip = (string)($_SERVER['REMOTE_ADDR'] ?? '0.0.0.0');
 
     if (!filter_var($remote_ip, FILTER_VALIDATE_IP)) {
@@ -222,9 +229,10 @@ class Auth
 
         if (session_status() === PHP_SESSION_NONE) {
             $trusted_proxies = defined('HLX_TRUSTED_PROXIES') && is_array(HLX_TRUSTED_PROXIES) ? HLX_TRUSTED_PROXIES : ['127.0.0.1', '::1'];
-            $is_https = (!empty($_SERVER['HTTPS']) && strtolower($_SERVER['HTTPS']) !== 'off') ||
+            $is_https = (!empty($_SERVER['HTTPS']) && strtolower((string)$_SERVER['HTTPS']) !== 'off') ||
             ((int)($_SERVER['SERVER_PORT'] ?? 0) === 443) ||
-            (!empty($_SERVER['HTTP_X_FORWARDED_PROTO']) && strtolower($_SERVER['HTTP_X_FORWARDED_PROTO']) === 'https' && in_array($_SERVER['REMOTE_ADDR'] ?? '', $trusted_proxies, true));
+            (!empty($_SERVER['HTTP_X_FORWARDED_PROTO']) && strtolower($_SERVER['HTTP_X_FORWARDED_PROTO']) === 'https') ||
+            (!empty($_SERVER['HTTP_CF_VISITOR']) && strpos((string)$_SERVER['HTTP_CF_VISITOR'], '"scheme":"https"') !== false);
 
             session_set_cookie_params([
                 'lifetime' => 0,
@@ -419,10 +427,13 @@ class Auth
 
     function doCookies()
     {
-        $trusted_proxies = defined('HLX_TRUSTED_PROXIES') && is_array(HLX_TRUSTED_PROXIES) ? HLX_TRUSTED_PROXIES : ['127.0.0.1', '::1'];
-        $is_https = (!empty($_SERVER['HTTPS']) && strtolower($_SERVER['HTTPS']) !== 'off') ||
-        ((int)($_SERVER['SERVER_PORT'] ?? 0) === 443) ||
-        (!empty($_SERVER['HTTP_X_FORWARDED_PROTO']) && strtolower($_SERVER['HTTP_X_FORWARDED_PROTO']) === 'https' && in_array($_SERVER['REMOTE_ADDR'] ?? '', $trusted_proxies, true));
+        $f_proto = isset($_SERVER['HTTP_X_FORWARDED_PROTO'])
+            ? strtolower(trim(explode(',', (string)$_SERVER['HTTP_X_FORWARDED_PROTO'])[0]))
+            : '';
+        $is_https = (!empty($_SERVER['HTTPS']) && strtolower((string)$_SERVER['HTTPS']) !== 'off')
+            || ((int)($_SERVER['SERVER_PORT'] ?? 0) === 443)
+            || ($f_proto === 'https')
+            || (!empty($_SERVER['HTTP_CF_VISITOR']) && strpos((string)$_SERVER['HTTP_CF_VISITOR'], '"scheme":"https"') !== false);
 
         $cookie_options = array(
             'expires'  => time() + 31536000,

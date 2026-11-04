@@ -308,6 +308,9 @@ if ($in_game_pct >= 8.0) {
                 <td>
                     <img src="<?php echo $group_avatar; ?>" onerror="this.src='<?php echo $default_avatar; ?>';" alt="" width="28" height="28" style="width:28px; height:28px; border-radius:4px; vertical-align:middle; margin-right:8px; border:1px solid rgba(0,0,0,0.15); box-shadow:0 1px 3px rgba(0,0,0,0.25); object-fit:cover; background:rgba(0,0,0,0.05);" />
                     <strong style="font-size:13px; vertical-align:middle;"><?php echo $safe_name; ?></strong>
+                    <?php if ($raw_db_name !== '' && !empty($sg->m_name) && strcasecmp($raw_db_name, $sg->m_name) !== 0): ?>
+                        &mdash; <em style="vertical-align:middle;"><?php echo htmlspecialchars($sg->m_name, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?></em>
+                    <?php endif; ?>
                     <?php echo $activity_badge; ?>
                 </td>
             </tr>
@@ -353,13 +356,13 @@ if ($in_game_pct >= 8.0) {
             <tr class="<?php echo ($info_idx++ % 2 == 0) ? 'bg1' : 'bg2'; ?>">
                 <td style="font-weight:bold;">Join Community:</td>
                 <td>
-                    <a href="<?php echo $client_join_url; ?>" style="font-weight:bold; color:#2575fc; text-decoration:none; margin-right:15px;" title="Open Profile in Steam Client">
+                    <a href="<?php echo htmlspecialchars($client_join_url, ENT_QUOTES, 'UTF-8'); ?>" style="font-weight:bold; color:#2575fc; text-decoration:none; margin-right:15px;" title="Open Profile in Steam Client">
                         🚀 Launch Steam Client
                     </a>
-                    <a href="<?php echo $client_chat_url; ?>" style="font-weight:bold; color:#f39c12; text-decoration:none; margin-right:15px;" title="Open Steam Group Chat Room directly">
+                    <a href="<?php echo htmlspecialchars($client_chat_url, ENT_QUOTES, 'UTF-8'); ?>" style="font-weight:bold; color:#f39c12; text-decoration:none; margin-right:15px;" title="Open Steam Group Chat Room directly">
                         💬 Open Group Chat
                     </a>
-                    <a href="<?php echo $web_join_url; ?>" style="font-weight:bold; color:#f39c12; text-decoration:none; margin-right:15px;" title="Open Web Profile directly">
+                    <a href="<?php echo htmlspecialchars($web_join_url, ENT_QUOTES, 'UTF-8'); ?>" style="font-weight:bold; color:#f39c12; text-decoration:none; margin-right:15px;" title="Open Web Profile directly">
                         🌐 Web Profile &raquo;
                     </a>
                 </td>

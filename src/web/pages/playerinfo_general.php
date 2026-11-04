@@ -873,22 +873,35 @@ For support and installation notes visit http://www.hlxcommunity.com
                         <br /><br />
                         <?php
                             // Universal Protocol & Proxy Resolver (Direct SSL, Cloudflare, Traefik, Nginx, AWS ALB)
+                            $forwarded_proto = isset($_SERVER['HTTP_X_FORWARDED_PROTO']) 
+                                ? strtolower(trim(explode(',', (string)$_SERVER['HTTP_X_FORWARDED_PROTO'])[0])) 
+                                : '';
+                            $cf_visitor = $_SERVER['HTTP_CF_VISITOR'] ?? '';
+                            $is_cf_ssl = (is_string($cf_visitor) && strpos($cf_visitor, '"scheme":"https"') !== false);
+
                             $is_https = (
-                                (!empty($_SERVER['HTTPS']) && strtolower($_SERVER['HTTPS']) !== 'off')
+                                (!empty($_SERVER['HTTPS']) && strtolower((string)$_SERVER['HTTPS']) !== 'off')
                                 || (isset($_SERVER['SERVER_PORT']) && (int)$_SERVER['SERVER_PORT'] === 443)
-                                || (!empty($_SERVER['HTTP_X_FORWARDED_PROTO']) && strtolower($_SERVER['HTTP_X_FORWARDED_PROTO']) === 'https')
-                                || (!empty($_SERVER['HTTP_X_FORWARDED_SSL']) && strtolower($_SERVER['HTTP_X_FORWARDED_SSL']) === 'on')
-                                || (!empty($_SERVER['HTTP_CF_VISITOR']) && strpos($_SERVER['HTTP_CF_VISITOR'], '"scheme":"https"') !== false)
+                                || ($forwarded_proto === 'https')
+                                || (!empty($_SERVER['HTTP_X_FORWARDED_SSL']) && strtolower((string)$_SERVER['HTTP_X_FORWARDED_SSL']) === 'on')
+                                || (!empty($_SERVER['HTTP_X_FORWARDED_PORT']) && (int)$_SERVER['HTTP_X_FORWARDED_PORT'] === 443)
+                                || $is_cf_ssl
                             );
 
-                            // Priority: Use configured siteurl if available, otherwise compute dynamically across any proxy setup
+                            // Normalize script base URL across reverse proxies, rewrites, and custom installation paths
                             if (!empty($g_options['scripturl']) && preg_match('~^https?://~i', (string)$g_options['scripturl'])) {
-                                $script_path = rtrim((string)$g_options['scripturl'], '/');
+                                // Strip script filename if present in configured scripturl to avoid double-extension paths
+                                $script_path = rtrim(preg_replace('/\/[a-zA-Z0-9_\-]+\.php.*$/i', '', (string)$g_options['scripturl']), '/');
                             } else {
                                 $protocol = $is_https ? 'https://' : 'http://';
                                 $raw_host = $_SERVER['HTTP_X_FORWARDED_HOST'] ?? $_SERVER['HTTP_HOST'] ?? 'localhost';
-                                $host = trim(explode(',', $raw_host)[0]);
-                                $script_path = $protocol . $host . rtrim(str_replace('\\', '/', dirname($_SERVER['PHP_SELF'] ?? '')), '/');
+                                // Sanitize host against header injection and XSS
+                                $host = preg_replace('/[^a-zA-Z0-9.:-]/', '', trim(explode(',', (string)$raw_host)[0]));
+                                if ($host === '') {
+                                    $host = 'localhost';
+                                }
+                                $script_dir = rtrim(str_replace('\\', '/', dirname($_SERVER['PHP_SELF'] ?? '')), '/');
+                                $script_path = $protocol . $host . $script_dir;
                             }
 
                             $bg_choice = htmlspecialchars((string)($g_options['sigbackground'] ?? 'random'), ENT_QUOTES, 'UTF-8');
@@ -924,16 +937,22 @@ For support and installation notes visit http://www.hlxcommunity.com
                                         <?php echo "txtArea.value = '[url=" . addcslashes($script_path, "'\\\"\r\n") . "/hlstats.php?mode=playerinfo&game=" . addcslashes($game, "'\\\"\r\n") . "&player=$player][img]" . addcslashes($jimglink, "'\\\"\r\n") . "[/img][/url]';\n"; ?>
                                         break;
                                     case 2:
-                                        <?php echo "txtArea.value = '[url=\"" . addcslashes($script_path, "'\\\"\r\n") . "/hlstats.php?mode=playerinfo&game=" . addcslashes($game, "'\\\"\r\n") . "&player=$player\"][img]" . addcslashes($jimglink, "'\\\"\r\n") . "[/img][/url]';\n"; ?>
+                                        <?php echo "txtArea.value = '[![HLstatsX Signature](" . addcslashes($jimglink, "'\\\"\r\n") . ")](" . addcslashes($script_path, "'\\\"\r\n") . "/hlstats.php?mode=playerinfo&game=" . addcslashes($game, "'\\\"\r\n") . "&player=$player)';\n"; ?>
+                                        break;
+                                    case 3:
+                                        <?php 
+                                            $discord_card_url = (($g_options['modrewrite'] ?? 0) == 0)
+                                                ? $script_path . "/card.php?player_id=$player"
+                                                : $script_path . "/card-$player.png";
+                                            echo "txtArea.value = '" . addcslashes($discord_card_url, "'\\\"\r\n") . "';\n"; 
+                                        ?>
                                         break;
                                 }
                             }
                             /* ]]> */
                         </script>
-                        <a href="" onclick="setForumText(1);return false">
-                            bbCode 1 (phpBB, SMF)</a>&nbsp;|&nbsp;<a href="" onclick="setForumText(2);return false">bbCode 2 (IPB)</a>&nbsp;|&nbsp;<a href="" onclick="setForumText(0);return false">Direct Image
-                        </a>
-                        <?php echo '<textarea style="width: 95%; height: 50px;" rows="2" cols="70" id="siglink" readonly="readonly" onclick="document.getElementById(\'siglink\').select();">[url='."$script_path/hlstats.php?mode=playerinfo&amp;player=$player"."][img]$forum_imglink".'[/img][/url]</textarea>'; ?>
+                        <a href="" onclick="setForumText(1);return false">BBCode (Forums)</a>&nbsp;|&nbsp;<a href="" onclick="setForumText(2);return false">Markdown</a>&nbsp;|&nbsp;<a href="" onclick="setForumText(0);return false">Direct Image</a>&nbsp;|&nbsp;<a href="" onclick="setForumText(3);return false">Discord Card</a>
+                        <?php echo '<textarea style="width: 95%; height: 50px;" rows="2" cols="70" id="siglink" readonly="readonly" onclick="document.getElementById(\'siglink\').select();">[url='."$script_path/hlstats.php?mode=playerinfo&game=" . rawurlencode($game) . "&player=$player"."][img]$forum_imglink".'[/img][/url]</textarea>'; ?>
                     </td>
                 </tr>
             </table>

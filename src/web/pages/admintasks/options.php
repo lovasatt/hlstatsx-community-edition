@@ -174,7 +174,8 @@ For support and installation notes visit http://www.hlxcommunity.com
 ?>
                     <tr class="bg1" style="vertical-align:middle;">
                         <td class="fNormal" style="width:45%;"><?php
-            echo $this->title . ":";
+                            $trimmed_title = rtrim($this->title);
+                            echo $this->title . (str_ends_with($trimmed_title, '>') || str_ends_with($trimmed_title, ':') ? '' : ':');
                         ?></td>
                         <td style="width:55%;"><?php
             switch ($this->type)
@@ -243,9 +244,10 @@ For support and installation notes visit http://www.hlxcommunity.com
     $optiongroups[0]->options[] = new Option('show_server_load_image', 'Show load summaries from all monitored servers', 'select');
     $optiongroups[0]->options[] = new Option('showqueries', 'Show "Executed X queries, generated this page in Y Seconds." message in footer?', 'select');
     $optiongroups[0]->options[] = new Option('sigbackground', 'Default background for forum signature(Numbers 1-11 or random)<br />Look in sig folder to see background choices', 'text');
-    $optiongroups[0]->options[] = new Option('modrewrite', 'Use modrewrite to make forum signature image compatible with more forum types. (To utilize this, you <strong>must</strong> have modrewrite enabled on your webserver and add the following text to a .htaccess file in the directory of hlstats.php)<br /><br /><textarea rows="3" cols="72" style="overflow:hidden;">
+    $optiongroups[0]->options[] = new Option('modrewrite', 'Use modrewrite to make forum signatures and Discord cards compatible with more platforms. (To utilize this, you <strong>must</strong> have modrewrite enabled on your webserver and add the following text to a .htaccess file in the directory of hlstats.php):<br /><br /><textarea rows="4" cols="72" style="width:98%; font-family:monospace; font-size:11px;" readonly="readonly" onclick="this.select();">
 RewriteEngine On
-RewriteRule sig-(.*)-(.*).png$ sig.php?player_id=$1&background=$2 [L]</textarea>', 'select');
+RewriteRule ^sig-([0-9]+)(?:-([a-z0-9]+))?\.png$ sig.php?player_id=$1&background=$2 [L,QSA]
+RewriteRule ^card-([0-9]+)\.png$ card.php?player_id=$1 [L,QSA]</textarea>', 'select');
 
     $optiongroups[1] = new OptionGroup('GeoIP data & Google Map settings');
     $optiongroups[1]->options[] = new Option('countrydata', 'Show features requiring GeoIP data', 'select');

@@ -199,7 +199,7 @@ if (!function_exists('getGameBadgeHtml')) {
                       <img src="<?php echo IMAGE_PATH; ?>/discord/discord.png" alt="" width="28" height="28" style="width:28px; height:28px; border-radius:4px; vertical-align:middle; margin-right:8px; border:1px solid rgba(0,0,0,0.15); box-shadow:0 1px 3px rgba(0,0,0,0.25); object-fit:cover; background:rgba(0,0,0,0.05);" />
                   <?php endif; ?>
                   <span style="vertical-align:middle; font-weight:bold; font-size:13px;"><?php echo $safe_name; ?></span>
-                  <?php if (!empty($dc->m_name) && strcasecmp($safe_name, $dc->m_name) !== 0): ?>
+                  <?php if ($raw_server_name !== '' && !empty($dc->m_name) && strcasecmp($raw_server_name, $dc->m_name) !== 0): ?>
                       &mdash; <em style="vertical-align:middle;"><?php echo htmlspecialchars($dc->m_name, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?></em>
                   <?php endif; ?>
               </td>

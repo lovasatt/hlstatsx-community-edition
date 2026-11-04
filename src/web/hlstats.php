@@ -18,7 +18,7 @@ HLstatsX is an enhanced version of HLstats made by Simon Garner
 HLstats - Real-time player and clan rankings and statistics for Half-Life
 http://sourceforge.net/projects/hlstats/
 Copyright (C) 2001  Simon Garner
-            
+
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
 as published by the Free Software Foundation; either version 2
@@ -69,9 +69,20 @@ if ($historical_cache == 1 && ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET'
     }
 }
 
-$is_https = (!empty($_SERVER['HTTPS']) && strtolower($_SERVER['HTTPS']) !== 'off') ||
-            (!empty($_SERVER['HTTP_X_FORWARDED_PROTO']) && strtolower($_SERVER['HTTP_X_FORWARDED_PROTO']) === 'https') ||
-            ((int)($_SERVER['SERVER_PORT'] ?? 0) === 443);
+$forwarded_proto = isset($_SERVER['HTTP_X_FORWARDED_PROTO'])
+    ? strtolower(trim(explode(',', (string)$_SERVER['HTTP_X_FORWARDED_PROTO'])[0]))
+    : '';
+$cf_visitor = $_SERVER['HTTP_CF_VISITOR'] ?? '';
+$is_cf_ssl = (is_string($cf_visitor) && strpos($cf_visitor, '"scheme":"https"') !== false);
+
+$is_https = (
+    (!empty($_SERVER['HTTPS']) && strtolower((string)$_SERVER['HTTPS']) !== 'off')
+    || (isset($_SERVER['SERVER_PORT']) && (int)$_SERVER['SERVER_PORT'] === 443)
+    || ($forwarded_proto === 'https')
+    || (!empty($_SERVER['HTTP_X_FORWARDED_SSL']) && strtolower((string)$_SERVER['HTTP_X_FORWARDED_SSL']) === 'on')
+    || (!empty($_SERVER['HTTP_X_FORWARDED_PORT']) && (int)$_SERVER['HTTP_X_FORWARDED_PORT'] === 443)
+    || $is_cf_ssl
+);
 
 $protocol = $is_https ? 'https://' : 'http://';
 
@@ -88,9 +99,15 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
+// Resolve client host across reverse proxies and Cloudflare
+$raw_client_host = $_SERVER['HTTP_X_FORWARDED_HOST'] ?? $_SERVER['HTTP_HOST'] ?? 'localhost';
+$safe_host = preg_replace('/[^a-zA-Z0-9.:-]/', '', trim(explode(',', (string)$raw_client_host)[0]));
+if ($safe_host === '') {
+    $safe_host = 'localhost';
+}
+
 if (!empty($_GET['logout']) && $_GET['logout'] == '1') {
     unset($_SESSION['loggedin'], $_SESSION['username'], $_SESSION['authsessionStart']);
-    $safe_host = preg_replace('/[^a-zA-Z0-9.:-]/', '', (string)($_SERVER['HTTP_HOST'] ?? 'localhost'));
     header("Location: " . $protocol . $safe_host . ($_SERVER['SCRIPT_NAME'] ?? '/hlstats.php'));
     die;
 }
@@ -99,7 +116,7 @@ if (!empty($_GET['logout']) && $_GET['logout'] == '1') {
 global $scripttime, $siteurlneo;
 $scripttime = microtime(true);
 
-// PHP 8 Fix: Safer URL construction
+// Safer base URL construction honoring reverse proxy environment
 $script_name = preg_replace('/[^A-Za-z0-9.\-\/_~]/', '', (string)($_SERVER['PHP_SELF'] ?? ''));
 $last_slash_pos = strrpos($script_name, '/');
 if ($last_slash_pos !== false) {
@@ -107,17 +124,11 @@ if ($last_slash_pos !== false) {
 } else {
     $path_part = '/';
 }
-$safe_http_host = preg_replace('/[^a-zA-Z0-9.:\[\]-]/', '', (string)($_SERVER['HTTP_HOST'] ?? 'localhost'));
-if ($safe_http_host === '') {
-    $safe_http_host = 'localhost';
-}
-$siteurlneo = $protocol . $safe_http_host . $path_part;
-
-// Several Stuff end
+$siteurlneo = $protocol . $safe_host . $path_part;
 
 foreach ($_SERVER as $key => $entry) {
     if ($key !== 'HTTP_COOKIE' && is_string($entry)) {
-        $search_pattern  = array('/<script>/i', '/<\/script>/i', '/[^A-Za-z0-9.\-\/=:;_?#&~]/');
+        $search_pattern  = array('/<script>/i', '/<\/script>/i', '/[^A-Za-z0-9.\-\/=:;_?#&~%]/');
         $replace_pattern = array('', '', '');
         $entry = preg_replace($search_pattern, $replace_pattern, $entry);
 

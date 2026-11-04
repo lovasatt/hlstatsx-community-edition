@@ -136,17 +136,28 @@
     {
         $file_timestamp = @filemtime($cache_image);
         if ($file_timestamp && ($file_timestamp + $update_interval > time())) {
+            // RFC 304 Not Modified response for edge caches
+            if (isset($_SERVER['HTTP_IF_MODIFIED_SINCE'])) {
+                $browser_timestamp = strtotime((string)$_SERVER['HTTP_IF_MODIFIED_SINCE']);
+                if ($browser_timestamp && ($browser_timestamp + $update_interval > time())) {
+                    http_response_code(304);
+                    exit();
+                }
+            }
             if (ob_get_length()) {
                 ob_clean();
             }
-            header('Content-type: image/png');
+            $mod_date = date('D, d M Y H:i:s \G\M\T', $file_timestamp);
+            header('Content-Type: image/png');
             header('X-Content-Type-Options: nosniff');
+            header('Access-Control-Allow-Origin: *');
+            header('Last-Modified: ' . $mod_date);
             header('Cache-Control: public, max-age=' . $update_interval);
             readfile($cache_image);
             exit();
         }
     }
-    
+
     // Ensure pChart works
     if (!class_exists('pChart')) {
         // Fallback or error handling if pChart is missing
@@ -249,8 +260,11 @@
         ob_clean();
     }
 
-    header('Content-type: image/png');
+    $mod_date = date('D, d M Y H:i:s \G\M\T', time());
+    header('Content-Type: image/png');
     header('X-Content-Type-Options: nosniff');
+    header('Access-Control-Allow-Origin: *');
+    header('Last-Modified: ' . $mod_date);
     header('Cache-Control: public, max-age=' . $update_interval);
     readfile($cache_image);
     exit();
