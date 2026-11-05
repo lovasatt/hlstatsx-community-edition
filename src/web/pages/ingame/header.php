@@ -46,7 +46,7 @@ For support and installation notes visit http://www.hlxcommunity.com
      * This file can contain PHP code.
      */
 
-    global $g_options;
+    global $g_options, $siteurlneo;
 
     // Prevent PHP warning if output buffering was already flushed
     if (!headers_sent()) {
@@ -82,6 +82,8 @@ For support and installation notes visit http://www.hlxcommunity.com
 
 <html>
 <head>
+    <!-- Dynamic base URL anchor for root and subdirectory installations -->
+    <base href="<?php echo htmlspecialchars((string)$siteurlneo, ENT_QUOTES, 'UTF-8'); ?>">
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     <!-- Viewport for In-game Browser scaling -->
     <meta name="viewport" content="width=device-width, initial-scale=1" />
