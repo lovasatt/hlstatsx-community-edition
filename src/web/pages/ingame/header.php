@@ -77,30 +77,33 @@ For support and installation notes visit http://www.hlxcommunity.com
     if ($style === '' || !preg_match('/\.css$/i', $style)) {
         $style = 'default.css';
     }
+
+    $raw_dir = str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? ''));
+    if (basename($raw_dir) === 'ingame') {
+        $webroot = rtrim(dirname($raw_dir), '/');
+    } else {
+        $webroot = rtrim($raw_dir, '/');
+    }
+
+    $inc_web = $webroot . '/' . ltrim(INCLUDE_PATH, './');
+    $img_web = $webroot . '/' . ltrim(IMAGE_PATH, './');
 ?>
 <!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
 
 <html>
 <head>
-    <!-- Dynamic base URL anchor for root and subdirectory installations -->
-    <base href="<?php echo htmlspecialchars((string)$siteurlneo, ENT_QUOTES, 'UTF-8'); ?>">
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
-    <!-- Viewport for In-game Browser scaling -->
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <!-- App Integration for In-game Browser -->
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="theme-color" content="#1a1a1a" />
 
-    <link rel="stylesheet" type="text/css" href="hlstats.css" />
-    <link rel="stylesheet" type="text/css" href="styles/<?php echo htmlspecialchars((string)$style, ENT_QUOTES, 'UTF-8'); ?>" />
+    <link rel="stylesheet" type="text/css" href="<?php echo $webroot; ?>/hlstats.css" />
+    <link rel="stylesheet" type="text/css" href="<?php echo $webroot; ?>/styles/<?php echo htmlspecialchars((string)$style, ENT_QUOTES, 'UTF-8'); ?>" />
+    <link rel="stylesheet" type="text/css" href="<?php echo $webroot; ?>/styles/modern-responsive.css?v=1.4" />
 
-    <!-- Modern Responsive Adapter for In-game scaling -->
-    <link rel="stylesheet" type="text/css" href="styles/modern-responsive.css?v=1.4" />
-
-    <!-- GLightbox: Load local files using system path -->
-    <link rel="stylesheet" type="text/css" href="css/glightbox.min.css" />
-    <script type="text/javascript" src="<?php echo INCLUDE_PATH; ?>/js/glightbox.min.js"></script>
+    <link rel="stylesheet" type="text/css" href="<?php echo $webroot; ?>/css/glightbox.min.css" />
+    <script type="text/javascript" src="<?php echo $inc_web; ?>/js/glightbox.min.js"></script>
     <script type="text/javascript">
         window.addEventListener('DOMContentLoaded', () => {
             const lightbox = GLightbox({
@@ -123,9 +126,8 @@ For support and installation notes visit http://www.hlxcommunity.com
     <title>HLstatsX</title>
 </head>
 <body style="margin:0px;padding:0px;" id="ingame">
-
 <div style="width:100%;height:50px;" class="headerblock">
-    <img src="<?php echo htmlspecialchars((string)IMAGE_PATH, ENT_QUOTES, 'UTF-8'); ?>/icons/title.png" alt="HLstats" />
+    <img src="<?php echo $img_web; ?>/icons/title.png" alt="HLstats" />
     <?php
     if ($lastpage) {
         ?>

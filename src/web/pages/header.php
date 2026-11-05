@@ -110,35 +110,37 @@ For support and installation notes visit http://www.hlxcommunity.com
             $iconpath = $iconpath . "/" . $style;
     }
 
+    $webroot = rtrim(str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? '')), '/');
+    $inc_web = $webroot . '/' . ltrim(INCLUDE_PATH, './');
+    $img_web = $webroot . '/' . ltrim(IMAGE_PATH, './');
+    $iconpath_web = $webroot . '/' . ltrim($iconpath, './');
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <!-- Dynamic base URL anchor for root and subdirectory installations -->
-    <base href="<?php echo htmlspecialchars((string)$siteurlneo, ENT_QUOTES, 'UTF-8'); ?>">
     <!-- Mobile Optimization Layer  -->
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: *.discordapp.com *.discord.com media.discordapp.net *.akamaihd.net *.steamstatic.com *.steamcommunity.com *.steamcontent.com *.tile.openstreetmap.org *.openstreetmap.org server.arcgisonline.com *.arcgisonline.com *.opentopomap.org; script-src 'self' 'unsafe-inline' 'unsafe-eval';" />
-    <!-- PWA and App Integration -->
-    <link rel="manifest" href="manifest.json" />
+
+    <link rel="manifest" href="<?php echo $webroot; ?>/manifest.json" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="theme-color" content="#1a1a1a" />
 
-    <link rel="stylesheet" type="text/css" href="hlstats.css" />
-    <link rel="stylesheet" type="text/css" href="styles/<?php echo htmlspecialchars((string)$selectedStyle, ENT_QUOTES, 'UTF-8'); ?>" />
-    <link rel="stylesheet" type="text/css" href="css/SqueezeBox.css" />
+    <link rel="stylesheet" type="text/css" href="<?php echo $webroot; ?>/hlstats.css" />
+    <link rel="stylesheet" type="text/css" href="<?php echo $webroot; ?>/styles/<?php echo htmlspecialchars((string)$selectedStyle, ENT_QUOTES, 'UTF-8'); ?>" />
+    <link rel="stylesheet" type="text/css" href="<?php echo $webroot; ?>/css/SqueezeBox.css" />
 
-    <link rel="stylesheet" type="text/css" href="css/leaflet.css" />
-    <script type="text/javascript" src="<?php echo INCLUDE_PATH; ?>/js/leaflet.js"></script>
+    <link rel="stylesheet" type="text/css" href="<?php echo $webroot; ?>/css/leaflet.css" />
+    <script type="text/javascript" src="<?php echo $inc_web; ?>/js/leaflet.js"></script>
 
     <!-- Modern Responsive Adapter -->
-    <link rel="stylesheet" type="text/css" href="styles/modern-responsive.css?v=1.4" />
+    <link rel="stylesheet" type="text/css" href="<?php echo $webroot; ?>/styles/modern-responsive.css?v=1.4" />
 
-    <!-- GLightbox: Load local files using system path -->
-    <link rel="stylesheet" type="text/css" href="css/glightbox.min.css" />
-    <script type="text/javascript" src="<?php echo INCLUDE_PATH; ?>/js/glightbox.min.js"></script>
+    <!-- GLightbox -->
+    <link rel="stylesheet" type="text/css" href="<?php echo $webroot; ?>/css/glightbox.min.css" />
+    <script type="text/javascript" src="<?php echo $inc_web; ?>/js/glightbox.min.js"></script>
     <script type="text/javascript">
         window.addEventListener('DOMContentLoaded', () => {
             const lightbox = GLightbox({
@@ -162,12 +164,12 @@ For support and installation notes visit http://www.hlxcommunity.com
 <?php
     if ($mode == 'players')
     {
-        echo "\t<link rel=\"stylesheet\" type=\"text/css\" href=\"css/Autocompleter.css\" />\n";
+        echo "\t<link rel=\"stylesheet\" type=\"text/css\" href=\"{$webroot}/css/Autocompleter.css\" />\n";
     }
 ?>
-    <link rel="SHORTCUT ICON" href="favicon.ico" />
-        <script type="text/javascript">window.JSONBrowser = window.JSON;</script>
-    <script type="text/javascript" src="<?php echo INCLUDE_PATH; ?>/js/mootools.js"></script>
+    <link rel="SHORTCUT ICON" href="<?php echo $webroot; ?>/favicon.ico" />
+    <script type="text/javascript">window.JSONBrowser = window.JSON;</script>
+    <script type="text/javascript" src="<?php echo $inc_web; ?>/js/mootools.js"></script>
     <script type="text/javascript">
         if (typeof Object.append === 'undefined') {
             Object.append = Object.assign || function(target, source) {
@@ -177,15 +179,17 @@ For support and installation notes visit http://www.hlxcommunity.com
         }
     </script>
     <script type="text/javascript"> window.JSON.parse = window.JSONBrowser.parse; window.JSON.stringify = window.JSONBrowser.stringify; </script>
-    <script type="text/javascript" src="<?php echo INCLUDE_PATH; ?>/js/SqueezeBox.js"></script>
-    <script type="text/javascript" src="<?php echo INCLUDE_PATH; ?>/js/heatmap.js"></script>
+    <script type="text/javascript" src="<?php echo $inc_web; ?>/js/SqueezeBox.js"></script>
+    <script type="text/javascript" src="<?php echo $inc_web; ?>/js/heatmap.js"></script>
+
 <?php
     if (isset($g_options['playerinfo_tabs']) && $g_options['playerinfo_tabs'] == '1') {
 ?>
-    <script type="text/javascript" src="<?php echo INCLUDE_PATH; ?>/js/tabs.js"></script>
+    <script type="text/javascript" src="<?php echo $inc_web; ?>/js/tabs.js"></script>
 <?php
     }
 ?>
+
     <title>
 <?php
     echo htmlspecialchars((string)($g_options['sitename'] ?? 'HLstatsX'), ENT_QUOTES, 'UTF-8');
@@ -227,17 +231,17 @@ For support and installation notes visit http://www.hlxcommunity.com
 
     // Determine if we should show SourceBans links/Forum links
     if (isset($g_options['sourcebans_address']) && !empty($g_options['sourcebans_address']) && file_exists($iconpath . "/title-sourcebans.png")) {
-        $extratabs .= "<li><a href=\"". htmlspecialchars((string)$g_options['sourcebans_address'], ENT_QUOTES, 'UTF-8') . "\" target=\"_blank\"><img src=\"" . $iconpath . "/title-sourcebans.png\" alt=\"SourceBans\" /></a></li>\n";
+        $extratabs .= "<li><a href=\"". htmlspecialchars((string)$g_options['sourcebans_address'], ENT_QUOTES, 'UTF-8') . "\" target=\"_blank\"><img src=\"" . $iconpath_web . "/title-sourcebans.png\" alt=\"SourceBans\" /></a></li>\n";
     }
     if (isset($g_options['forum_address']) && !empty($g_options['forum_address']) && file_exists($iconpath . "/title-forum.png")) {
-        $extratabs .= "<li><a href=\"" . htmlspecialchars((string)$g_options['forum_address'], ENT_QUOTES, 'UTF-8') . "\" target=\"_blank\"><img src=\"" . $iconpath . "/title-forum.png\" alt=\"Forum\" /></a></li>\n";
+        $extratabs .= "<li><a href=\"" . htmlspecialchars((string)$g_options['forum_address'], ENT_QUOTES, 'UTF-8') . "\" target=\"_blank\"><img src=\"" . $iconpath_web . "/title-forum.png\" alt=\"Forum\" /></a></li>\n";
     }
 ?>
 <div class="block">
 
     <div class="headerblock">
         <div class="title">
-            <a href="<?php echo $scripturl; ?>"><img src="<?php echo $iconpath; ?>/title.png" alt="HLstatsX Community Edition" title="HLstatsX Community Edition" /></a>
+            <a href="<?php echo $scripturl; ?>"><img src="<?php echo $iconpath_web; ?>/title.png" alt="HLstatsX Community Edition" title="HLstatsX Community Edition" /></a>
         </div>
 
 <?php
@@ -267,10 +271,10 @@ For support and installation notes visit http://www.hlxcommunity.com
 ?>
         <div class="headertabs">
             <ul>
-                <li><a href="<?php echo $scripturl; ?>"><img src="<?php echo $iconpath; ?>/title-contents.png" alt="Contents" /></a></li>
-                <li><a href="<?php echo $scripturl; ?>?mode=search"><img src="<?php echo $iconpath; ?>/title-search.png" alt="Search" /></a></li>
+                <li><a href="<?php echo $scripturl; ?>"><img src="<?php echo $iconpath_web; ?>/title-contents.png" alt="Contents" /></a></li>
+                <li><a href="<?php echo $scripturl; ?>?mode=search"><img src="<?php echo $iconpath_web; ?>/title-search.png" alt="Search" /></a></li>
                 <?php if ($extratabs) { print $extratabs; } ?>
-                <li><a href="<?php echo $scripturl; ?>?mode=help"><img src="<?php echo $iconpath; ?>/title-help.png" alt="Help" /></a></li>
+                <li><a href="<?php echo $scripturl; ?>?mode=help"><img src="<?php echo $iconpath_web; ?>/title-help.png" alt="Help" /></a></li>
             </ul>
 
         </div>
@@ -353,7 +357,7 @@ For support and installation notes visit http://www.hlxcommunity.com
             $banner_file = (string)$g_options['bannerfile'];
             $banner_src = (strncmp($banner_file, 'http://', 7) === 0 || strncmp($banner_file, 'https://', 8) === 0)
                 ? $banner_file
-                : IMAGE_PATH . '/' . $banner_file;
+                : $img_web . '/' . $banner_file;
 ?>
     <div class="block" style="text-align:center;">
         <img src="<?php echo htmlspecialchars($banner_src, ENT_QUOTES, 'UTF-8'); ?>" alt="Banner" />
