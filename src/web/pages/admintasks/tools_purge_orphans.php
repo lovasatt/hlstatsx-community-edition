@@ -172,27 +172,31 @@ if (isset($_POST['confirm']))
         echo "<span style='color:orange;'>ERROR (Directory not found: " . htmlspecialchars((string)$progress_dir, ENT_QUOTES, 'UTF-8') . ")</span></li>";
     }
 
-    // 4. VOICECOMM & STEAM GROUP CACHE PURGE
-    echo "<li>Cleaning Voice and Steam Group cache files ... ";
-    $base_temp = defined('TEMP_PATH') ? TEMP_PATH : sys_get_temp_dir();
+    // 4. VOICECOMM, STREAM & COMMUNITY CACHE PURGE
+    echo "<li>Cleaning Voice, Stream and Community cache files ... ";
+    $base_temp = (defined('TEMP_PATH') && is_dir(TEMP_PATH) && is_writable(TEMP_PATH)) ? TEMP_PATH : sys_get_temp_dir();
     $clean_base = rtrim(str_replace('\\', '/', $base_temp), '/');
     $del_count_cache = 0;
     $now = time();
 
-    // Clean expired voice and community group cache files (Discord, TS, Ventrilo, Steam Group)
-    $voice_patterns = [
-        $clean_base . '/discord_widget_*.json',
-        $clean_base . '/ts_query_*.json',
-        $clean_base . '/ve_query_*.json',
-        $clean_base . '/steam_group_*.json'
-    ];
+    $cache_prefixes = ['discord_widget_', 'ts_query_', 've_query_', 'steam_group_', 'mist_stream_'];
+    $voice_patterns = [];
+    foreach ($cache_prefixes as $pfx) {
+        $voice_patterns[$clean_base . '/' . $pfx . '*.json']       = 3600;
+        $voice_patterns[$clean_base . '/' . $pfx . '*.json.lock']  = 3600;
+        $voice_patterns[$clean_base . '/' . $pfx . '*.json.*.tmp'] = 600;
+    }
 
-    foreach ($voice_patterns as $pattern) {
+    foreach ($voice_patterns as $pattern => $min_age) {
         $v_files = @glob($pattern);
         if (!empty($v_files) && is_array($v_files)) {
             foreach ($v_files as $v_file) {
-                if (is_file($v_file)) {
-                    if (@unlink($v_file)) $del_count_cache++;
+                if (!is_file($v_file)) {
+                    continue;
+                }
+                $mt = @filemtime($v_file);
+                if ($mt !== false && $mt < ($now - $min_age) && @unlink($v_file)) {
+                    $del_count_cache++;
                 }
             }
         }
@@ -359,7 +363,7 @@ else
                     <li>Remove images for servers no longer in the active database.</li>
                     <li>Clean up player signatures and expired cache files.</li>
                     <li>Purge stale player Steam profile caches older than 30 days from MySQL.</li>
-                    <li>Clean up expired Voice Server and Steam Group viewer cache files.</li>
+                    <li>Clean up expired Voice Server, Stream (MistServer) and Steam Group viewer cache files.</li>
                     <li>Purge generated heatmap images for games set to <strong>Hidden</strong> and orphaned maps.</li>
                 </ul>
                 <br /><br />

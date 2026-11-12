@@ -18,7 +18,7 @@ HLstatsX is an enhanced version of HLstats made by Simon Garner
 HLstats - Real-time player and clan rankings and statistics for Half-Life
 http://sourceforge.net/projects/hlstats/
 Copyright (C) 2001  Simon Garner
-            
+
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
 as published by the Free Software Foundation; either version 2
@@ -264,7 +264,7 @@ if (isset($_GET['show_map_wins'])) {
 
 $top_players = 10;
 if (isset($_GET['top_players'])) {
-    $top_players = valid_request((int)$_GET['top_players'], true);
+    $top_players = max(0, min(100, (int)valid_request((int)$_GET['top_players'], true)));
 }
 
 $players_images = 1;

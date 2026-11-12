@@ -107,6 +107,9 @@ defineVar("IMAGE_UPDATE_INTERVAL", 300);
 
 defineVar('GOOGLE_MAPS_API_KEY', "");
 
+// HLX_TRUSTED_PROXIES - Comma-separated list of localhost, trusted reverse proxy, Cloudflare, or Docker gateway IPs.
+defineVar("HLX_TRUSTED_PROXIES", '127.0.0.1,::1');
+
 defineVar("DB_DEBUG", false);
 
 ?>

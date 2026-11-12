@@ -1,6 +1,6 @@
 /*
    HLstatsX Modernized Edition - Responsive Adapter Layer
-   Version: 1.4
+   Version: 1.5
    Project: https://github.com/lovasatt/hlstatsx-community-edition
    Author:  lovasatt (2026)
 */
@@ -172,6 +172,32 @@
     }
     a[href*="steam://"]:hover, a[href*="steamcommunity.com"]:hover {
         color: #5295ff !important;
+    }
+
+    /* --- MISTSERVER LIVE PLAYER  --- */
+    /* Keeps the player box black, flush and centered in light, dark and mobile layouts. */
+    .subblock.mist-player {
+        background: #000 !important;
+        padding: 0 !important;
+        overflow: hidden !important;
+    }
+
+    .subblock.mist-player > div.mist-ratio {
+        background-color: #000 !important;
+        width: 100% !important;
+        float: none !important;
+        margin: 0 auto !important;
+    }
+
+    /* Popout button: compact inline size instead of the 50% wide touch-target style */
+    .subblock table.data-table button.mist-popout-btn {
+        width: auto !important;
+        min-width: unset !important;
+        height: auto !important;
+        font-size: 11px !important;
+        border: none !important;
+        margin-bottom: 0 !important;
+        padding: 4px 10px !important;
     }
 
     /* --- GLIGHTBOX ADAPTIVE STYLING --- */

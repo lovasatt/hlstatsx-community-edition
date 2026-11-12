@@ -69,8 +69,11 @@ For support and installation notes visit http://www.hlxcommunity.com
     }
 
     require_once(PAGE_PATH . '/steamstatus.php');
+    require_once(PAGE_PATH . '/miststatus.php');
 
     if (!defined('STEAMGROUP')) define('STEAMGROUP', 3);
+
+    if (!defined('MISTSERVER')) define('MISTSERVER', 4);
 
     if (!function_exists('hlx_fetch_steam_name')) {
         function hlx_fetch_steam_name($group_ident) {
@@ -90,10 +93,10 @@ For support and installation notes visit http://www.hlxcommunity.com
     $edlist->columns[] = new EditListColumn('name', 'Server Name', 25, false, 'text', '', 128);
     $edlist->columns[] = new EditListColumn('addr', 'IP / Hostname (or Discord Guild ID)', 22, true, 'text', '', 128);
     $edlist->columns[] = new EditListColumn('password', 'Password (Discord Invite URL / API Key)', 20, false, 'text', '', 128);
-    $edlist->columns[] = new EditListColumn('UDPPort', 'UDP Port (TS)', 6, false, 'text', '', 5);
-    $edlist->columns[] = new EditListColumn('queryPort', 'Query Port (TS/Vent)', 6, false, 'text', '', 5);
+    $edlist->columns[] = new EditListColumn('UDPPort', 'UDP / Stream ID (TS or Stream #ID)', 6, false, 'text', '', 5);
+    $edlist->columns[] = new EditListColumn('queryPort', 'Query / HTTP Port (TS/Vent/MistServer)', 6, false, 'text', '', 5);
     $edlist->columns[] = new EditListColumn('descr', 'Notes', 20, false, 'text', '', 255);
-    $edlist->columns[] = new EditListColumn('serverType', 'Server Type', 18, true, 'select', '' . '/-- select --;0/TeamSpeak;1/Ventrilo;2/Discord;3/Steam Group');
+    $edlist->columns[] = new EditListColumn('serverType', 'Server Type', 18, true, 'select', '' . '/-- select --;0/TeamSpeak;1/Ventrilo;2/Discord;3/Steam Group;4/MistServer');
 
 if (!empty($_POST)) {
     $custom_error = false;
@@ -122,8 +125,10 @@ if (!empty($_POST)) {
     // Check directly in database if any server already exists
     $has_existing_servers = false;
     $chk = $db->query("SELECT serverId FROM hlstats_Servers_VoiceComm LIMIT 1");
-    if ($chk && $db->num_rows($chk) > 0) {
-        $has_existing_servers = true;
+    if ($chk) {
+        if ($db->num_rows($chk) > 0) {
+            $has_existing_servers = true;
+        }
         $db->free_result($chk);
     }
 
@@ -202,6 +207,55 @@ if (!empty($_POST)) {
                         $custom_error = true;
                     }
                 }
+            } elseif ($stype_int === 4) {
+                // MistServer Live Stream Validation
+                $clean_key = trim((string)($_POST['new_password'] ?? ''));
+                if ($clean_key === '') {
+                    message('warning', 'Error: Stream Name is required in the Password field for MistServer.');
+                    $custom_error = true;
+                }
+
+                $new_addr = preg_replace('~^https?://~i', '', $new_addr);
+                $new_addr = explode('/', $new_addr)[0];
+                if (preg_match('/^\[([0-9a-f:.]+)\](?::(\d+))?$/i', $new_addr, $bm)) {
+                    $new_addr = $bm[1];
+                    if (!empty($bm[2]) && empty($_POST['new_queryPort'])) {
+                        $_POST['new_queryPort'] = $bm[2];
+                    }
+                }
+                if (strpos($new_addr, ':') !== false && !filter_var($new_addr, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6)) {
+                    $parts = explode(':', $new_addr, 2);
+                    $new_addr = $parts[0];
+                    if (empty($_POST['new_queryPort']) && is_numeric($parts[1])) {
+                        $_POST['new_queryPort'] = (string)(int)$parts[1];
+                    }
+                }
+                $_POST['new_addr'] = $new_addr;
+
+                if (CMistStatus::sanitizeHost($new_addr) === '') {
+                    message('warning', 'Error: IP / Hostname is not a valid host name or IP address.');
+                    $custom_error = true;
+                }
+
+                $raw_http = trim((string)($_POST['new_queryPort'] ?? ''));
+                if ($raw_http === '') {
+                    $raw_http = '8080'; // Default MistServer HTTP port
+                }
+                $new_query = ((int)$raw_http > 0 && (int)$raw_http <= 65535) ? (int)$raw_http : 8080;
+                $_POST['new_queryPort'] = (string)$new_query;
+
+                // Use UDPPort as unique stream channel index to avoid MariaDB UNIQUE KEY collisions
+                $raw_stream_idx = trim((string)($_POST['new_UDPPort'] ?? ''));
+                if ($raw_stream_idx !== '' && is_numeric($raw_stream_idx)) {
+                    $new_udp = (int)$raw_stream_idx;
+                } else {
+                    $new_udp = 0;
+                    while ($check_duplicate($stype_int, $new_addr, $new_udp, $new_query)) {
+                        $new_udp++;
+                    }
+                }
+                $_POST['new_UDPPort'] = (string)$new_udp;
+
             } else {
                 // Clean TeamSpeak / Ventrilo address: strip protocol prefixes (ts3server://, http://, ://)
                 $new_addr = preg_replace('~^([a-z0-9_]+://|://)~i', '', $new_addr);
@@ -241,8 +295,8 @@ if (!empty($_POST)) {
 
             // Duplicate check with final ports and cleaned address
             if (!$custom_error && $check_duplicate($stype_int, $new_addr, $new_udp, $new_query)) {
-                $type_name = ($stype_int === 3) ? 'Steam Group' : (($stype_int === 2) ? 'Discord' : (($stype_int === 1) ? 'Ventrilo' : 'Teamspeak'));
-                message('warning', "Error: Duplicate server! A {$type_name} server with address/ID '{$new_addr}' and ports ({$new_udp}/{$new_query}) already exists in the database.");
+                $type_name = ($stype_int === 4) ? 'MistServer' : (($stype_int === 3) ? 'Steam Group' : (($stype_int === 2) ? 'Discord' : (($stype_int === 1) ? 'Ventrilo' : 'Teamspeak')));
+                message('warning', "Error: Duplicate server! A {$type_name} server with address/ID '" . htmlspecialchars($new_addr, ENT_QUOTES, 'UTF-8') . "' and ports ({$new_udp}/{$new_query}) already exists in the database.");
                 $custom_error = true;
             }
 
@@ -252,6 +306,9 @@ if (!empty($_POST)) {
                     $_POST['new_name'] = hlx_fetch_discord_name($new_addr, $_POST['new_password'] ?? '');
                 } elseif ($stype_int === 3) {
                     $_POST['new_name'] = hlx_fetch_steam_name($new_addr);
+                } elseif ($stype_int === 4) {
+                    $clean_stream = trim((string)($_POST['new_password'] ?? ''));
+                    $_POST['new_name'] = ($clean_stream !== '') ? "Live: {$clean_stream}" : "Live Stream";
                 } else {
                     $_POST['new_name'] = $new_addr;
                 }
@@ -299,6 +356,46 @@ if (!empty($_POST)) {
                         break;
                     }
                 }
+            } elseif ($stype_int === 4) {
+                $clean_key = trim((string)($_POST[$id . '_password'] ?? ''));
+                if ($clean_key === '') {
+                    message('warning', "Error on row #{$id}: Stream Name is required for MistServer in the Password field.");
+                    $custom_error = true;
+                    break;
+                }
+                $addr_val = preg_replace('~^https?://~i', '', $addr_val);
+                $addr_val = explode('/', $addr_val)[0];
+                if (preg_match('/^\[([0-9a-f:.]+)\](?::(\d+))?$/i', $addr_val, $bm)) {
+                    $addr_val = $bm[1];
+                    if (!empty($bm[2]) && empty($_POST[$id . '_queryPort'])) {
+                        $_POST[$id . '_queryPort'] = $bm[2];
+                    }
+                }
+                if (strpos($addr_val, ':') !== false && !filter_var($addr_val, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6)) {
+                    $parts = explode(':', $addr_val, 2);
+                    $addr_val = $parts[0];
+                    if (empty($_POST[$id . '_queryPort']) && is_numeric($parts[1])) {
+                        $_POST[$id . '_queryPort'] = (string)(int)$parts[1];
+                    }
+                }
+                $_POST[$id . '_addr'] = $addr_val;
+
+                if (CMistStatus::sanitizeHost($addr_val) === '') {
+                    message('warning', "Error on row #{$id}: IP / Hostname is not a valid host name or IP address.");
+                    $custom_error = true;
+                    break;
+                }
+
+                $raw_http = trim((string)($_POST[$id . '_queryPort'] ?? '8080'));
+                $query = ((int)$raw_http > 0 && (int)$raw_http <= 65535) ? (int)$raw_http : 8080;
+                $_POST[$id . '_queryPort'] = (string)$query;
+
+                $raw_udp_val = trim((string)($_POST[$id . '_UDPPort'] ?? ''));
+                $udp = ($raw_udp_val !== '' && is_numeric($raw_udp_val)) ? (int)$raw_udp_val : 0;
+                while ($check_duplicate($stype_int, $addr_val, $udp, $query, $id)) {
+                    $udp++;
+                }
+                $_POST[$id . '_UDPPort'] = (string)$udp;
             } else {
                 $raw_udp   = trim((string)($_POST[$id . '_UDPPort'] ?? ''));
                 $raw_query = trim((string)($_POST[$id . '_queryPort'] ?? ''));
@@ -313,7 +410,7 @@ if (!empty($_POST)) {
                 $_POST[$id . '_queryPort'] = (string)$query;
             }
 
-            if ($check_duplicate($stype_int, $addr_val, $udp, $query, $id)) {
+            if ($stype_int !== 4 && $check_duplicate($stype_int, $addr_val, $udp, $query, $id)) {
                 $type_name = ($stype_int === 3) ? 'Steam Group' : (($stype_int === 2) ? 'Discord' : (($stype_int === 1) ? 'Ventrilo' : 'Teamspeak'));
                 message('warning', "Error on row #{$id}: Duplicate server! A {$type_name} server with address / ID '" . htmlspecialchars($addr_val, ENT_QUOTES, 'UTF-8') . "' already exists.");
                 $custom_error = true;
@@ -327,6 +424,9 @@ if (!empty($_POST)) {
                     $_POST[$id . '_name'] = hlx_fetch_discord_name($addr_val, $inv);
                 } elseif ($stype_int === 3) {
                     $_POST[$id . '_name'] = hlx_fetch_steam_name($addr_val);
+                } elseif ($stype_int === 4) {
+                    $clean_stream = trim((string)($_POST[$id . '_password'] ?? ''));
+                    $_POST[$id . '_name'] = ($clean_stream !== '') ? "Live: {$clean_stream}" : "Live Stream";
                 } else {
                     $_POST[$id . '_name'] = $addr_val;
                 }
@@ -418,7 +518,7 @@ echo '
         </div>
     </details>
 
-    <details style="margin-bottom: 12px; cursor: pointer;">
+    <details style="margin-bottom: 8px; cursor: pointer;">
         <summary style="font-weight: bold; color: inherit;">Steam Community Group</summary>
         <div style="padding: 8px 0 4px 15px; font-size: 11px; line-height: 1.6; cursor: default;">
             &bull; <strong>HLX Fields:</strong> Enter your Steam Group custom URL name (e.g. <code>clan-rmg</code>) or 64-bit Group ID into <em>IP / Hostname</em>.<br />
@@ -429,7 +529,18 @@ echo '
         </div>
     </details>
 
-    <details style="margin-bottom: 12px; cursor: pointer;">
+    <details style="margin-bottom: 8px; cursor: pointer;">
+        <summary style="font-weight: bold; color: inherit;">MistServer (Live Match Stream)</summary>
+        <div style="padding: 8px 0 4px 15px; font-size: 11px; line-height: 1.6; cursor: default;">
+            &bull; <strong>IP / Hostname:</strong> Enter the IP or HOST of your MistServer (e.g. <code>192.168.1.100</code>).<br />
+            &bull; <strong>HTTP Port (Query Port):</strong> The HTTP delivery port of MistServer (default is <code>8080</code>).<br />
+            &bull; <strong>Stream Name (Password field):</strong> Enter the configured stream name (e.g. <code>live</code>).<br />
+            &bull; <strong>Stream #ID (UDP Port):</strong> Leave empty (defaults to 0, just like Discord). If multiple streams run on the exact same IP and port, it automatically assigns 1, 2... to prevent database collisions.<br />
+            &bull; <strong>Playback:</strong> Streams are embedded in a sandboxed, responsive player whose size follows the stream&apos;s aspect ratio (16:9, 4:3, 21:9, vertical...). The stream name is publicly visible, so never use your ingest key as the stream name.
+        </div>
+    </details>
+
+    <details style="margin-bottom: 8px; cursor: pointer;">
         <summary style="font-weight: bold; color: inherit;">Ventrilo 3.x</summary>
         <div style="padding: 8px 0 4px 15px; font-size: 11px; line-height: 1.6; cursor: default;">
             &bull; <strong>HLX Fields:</strong> Enter the server IP/hostname. Default UDP Port and Query Port are both <code>3784</code>.<br />

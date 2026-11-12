@@ -91,22 +91,16 @@ function hlstats_csrf_token(): string
 
 function hlstats_get_client_ip(): string
 {
-    if (!empty($_SERVER['HTTP_CF_CONNECTING_IP']) && !empty($_SERVER['HTTP_CF_RAY'])) {
-        $cf_ip = trim((string)$_SERVER['HTTP_CF_CONNECTING_IP']);
-        if (filter_var($cf_ip, FILTER_VALIDATE_IP)) {
-            return $cf_ip;
-        }
-    }
-
     $remote_ip = (string)($_SERVER['REMOTE_ADDR'] ?? '0.0.0.0');
 
     if (!filter_var($remote_ip, FILTER_VALIDATE_IP)) {
         return '0.0.0.0';
     }
 
-    $trusted_proxies = defined('HLX_TRUSTED_PROXIES') && is_array(HLX_TRUSTED_PROXIES)
-        ? HLX_TRUSTED_PROXIES
-        : ['127.0.0.1', '::1'];
+    $raw_proxies = defined('HLX_TRUSTED_PROXIES') ? HLX_TRUSTED_PROXIES : '127.0.0.1,::1';
+    $trusted_proxies = is_array($raw_proxies)
+        ? $raw_proxies
+        : array_filter(array_map('trim', explode(',', (string)$raw_proxies)));
 
     if (!in_array($remote_ip, $trusted_proxies, true)) {
         return $remote_ip;
@@ -228,7 +222,6 @@ class Auth
         global $db;
 
         if (session_status() === PHP_SESSION_NONE) {
-            $trusted_proxies = defined('HLX_TRUSTED_PROXIES') && is_array(HLX_TRUSTED_PROXIES) ? HLX_TRUSTED_PROXIES : ['127.0.0.1', '::1'];
             $is_https = (!empty($_SERVER['HTTPS']) && strtolower((string)$_SERVER['HTTPS']) !== 'off') ||
             ((int)($_SERVER['SERVER_PORT'] ?? 0) === 443) ||
             (!empty($_SERVER['HTTP_X_FORWARDED_PROTO']) && strtolower($_SERVER['HTTP_X_FORWARDED_PROTO']) === 'https') ||
@@ -1399,7 +1392,8 @@ $admintasks['tools_settings_copy'] = new AdminTask('Duplicate Game settings', 80
 $user_acclevel = (int)($auth->userdata['acclevel'] ?? $_SESSION['acclevel'] ?? 0);
 
 // Global CSRF verification for all incoming POST requests (except login)
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['authusername']) && !hlstats_verify_csrf()) {
+$login_just_done = isset($_POST['authusername']) && empty($auth->session);
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$login_just_done && !hlstats_verify_csrf()) {
     http_response_code(403);
     message('warning', 'Security token expired or invalid (CSRF detected). Please refresh the page and try again.');
     return;

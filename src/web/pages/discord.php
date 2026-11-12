@@ -23,7 +23,7 @@ if ($dcId <= 0) {
     die();
 }
 
-$result = $db->query("SELECT name, addr, password, descr FROM hlstats_Servers_VoiceComm WHERE serverId=$dcId LIMIT 1");
+$result = $db->query("SELECT name, addr, password, descr FROM hlstats_Servers_VoiceComm WHERE serverId=$dcId AND serverType=2 LIMIT 1");
 $s = false;
 if ($result) {
     $s = $db->fetch_array($result);
@@ -145,21 +145,32 @@ if (!function_exists('getGameBadgeHtml')) {
         $act_lower = strtolower($act);
         $matched_code = null;
 
-        foreach ($hlx_games as $g_name => $g_code) {
-            if ($g_name !== '' && (strpos($act_lower, $g_name) !== false || strpos($g_name, $act_lower) !== false || $act_lower === $g_code)) {
-                $matched_code = $g_code;
-                break;
+        if (strpos($act_lower, 'counter-strike 2') !== false || $act_lower === 'cs2') {
+            $matched_code = 'cs2';
+        } elseif (strpos($act_lower, 'team fortress 2') !== false || $act_lower === 'tf2') {
+            $matched_code = 'tf';
+        } elseif (strpos($act_lower, 'counter-strike: source') !== false || $act_lower === 'css') {
+            $matched_code = 'css';
+        }
+
+        if (!$matched_code) {
+            foreach ($hlx_games as $g_name => $g_code) {
+                if ($g_name !== '' && ($act_lower === $g_name || $act_lower === $g_code)) {
+                    $matched_code = $g_code;
+                    break;
+                }
             }
         }
 
-        // Common fallback aliases
-        if (!$matched_code) {
-            if (strpos($act_lower, 'counter-strike 2') !== false || $act_lower === 'cs2') {
-                $matched_code = 'cs2';
-            } elseif (strpos($act_lower, 'team fortress 2') !== false || $act_lower === 'tf2') {
-                $matched_code = 'tf';
-            } elseif (strpos($act_lower, 'counter-strike: source') !== false || $act_lower === 'css') {
-                $matched_code = 'css';
+        if (!$matched_code && strlen($act_lower) >= 4) {
+            uksort($hlx_games, function($a, $b) {
+                return strlen($b) <=> strlen($a);
+            });
+            foreach ($hlx_games as $g_name => $g_code) {
+                if ($g_name !== '' && strpos($act_lower, $g_name) !== false) {
+                    $matched_code = $g_code;
+                    break;
+                }
             }
         }
 

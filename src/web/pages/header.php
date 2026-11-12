@@ -98,7 +98,7 @@ For support and installation notes visit http://www.hlxcommunity.com
         setcookie('style', $selectedStyle, time()+60*60*24*30, '/');
     }
 
-// this code here assumes that styles end with .css (the selector box for users and for admin does NOT check), someone may want to change this -octo
+    // this code here assumes that styles end with .css (the selector box for users and for admin does NOT check), someone may want to change this -octo
     // Determine if we have custom nav images available
     if ($selectedStyle) {
         $style = preg_replace('/\.css$/','',$selectedStyle);
@@ -114,13 +114,54 @@ For support and installation notes visit http://www.hlxcommunity.com
     $inc_web = $webroot . '/' . ltrim(INCLUDE_PATH, './');
     $img_web = $webroot . '/' . ltrim(IMAGE_PATH, './');
     $iconpath_web = $webroot . '/' . ltrim($iconpath, './');
+
+    // Retrieve dynamic stream endpoints (with domain and IP handling)
+    $csp_mist_hosts = '';
+    $csp_mist_ws    = '';
+    $res_mists = $db->query("SELECT DISTINCT addr, queryPort FROM hlstats_Servers_VoiceComm WHERE serverType = 4");
+    if ($res_mists) {
+        while ($st_row = $db->fetch_array($res_mists)) {
+            $s_host = trim((string)$st_row['addr']);
+            $s_port = ((int)$st_row['queryPort'] > 0) ? (int)$st_row['queryPort'] : 8080;
+            if ($s_host !== '') {
+                $s_host = preg_replace('~^https?://~i', '', $s_host);
+                $s_host = explode('/', $s_host)[0];
+                if ($s_host !== '' && $s_host[0] === '[') {
+                    $s_host = trim(explode(']', $s_host)[0], '[]');
+                }
+                if (strpos($s_host, ':') !== false && !filter_var($s_host, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6)) {
+                    $parts = explode(':', $s_host, 2);
+                    $s_host = $parts[0];
+                    if (empty($st_row['queryPort']) && is_numeric($parts[1])) {
+                        $s_port = (int)$parts[1];
+                    }
+                }
+                if (filter_var($s_host, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6)) {
+                    $clean_host = '[' . trim($s_host, '[]') . ']';
+                } else {
+                    $clean_host = preg_replace('/[^a-zA-Z0-9.-]/', '', $s_host);
+                }
+
+                if ($clean_host !== '') {
+                    $port_str = ($s_port === 80 || $s_port === 443) ? '' : ":{$s_port}";
+                    $csp_mist_hosts .= " http://{$clean_host}{$port_str} https://{$clean_host}{$port_str}";
+                    $csp_mist_ws    .= " ws://{$clean_host}{$port_str} wss://{$clean_host}{$port_str}";
+                    if ($s_port === 80 || $s_port === 443) {
+                        $csp_mist_hosts .= " http://{$clean_host}:{$s_port} https://{$clean_host}:{$s_port}";
+                        $csp_mist_ws    .= " ws://{$clean_host}:{$s_port} wss://{$clean_host}:{$s_port}";
+                    }
+                }
+            }
+        }
+        $db->free_result($res_mists);
+    }
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <!-- Mobile Optimization Layer  -->
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: *.discordapp.com *.discord.com media.discordapp.net *.akamaihd.net *.steamstatic.com *.steamcommunity.com *.steamcontent.com *.tile.openstreetmap.org *.openstreetmap.org server.arcgisonline.com *.arcgisonline.com *.opentopomap.org; script-src 'self' 'unsafe-inline' 'unsafe-eval';" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; frame-src 'self'<?php echo $csp_mist_hosts; ?>; media-src 'self' blob: data:<?php echo $csp_mist_hosts; ?>; connect-src 'self'<?php echo $csp_mist_ws; ?>; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: *.discordapp.com *.discord.com media.discordapp.net *.akamaihd.net *.steamstatic.com *.steamcommunity.com *.steamcontent.com *.tile.openstreetmap.org *.openstreetmap.org server.arcgisonline.com *.arcgisonline.com *.opentopomap.org; script-src 'self' 'unsafe-inline' 'unsafe-eval';" />
 
     <link rel="manifest" href="<?php echo $webroot; ?>/manifest.json" />
     <meta name="mobile-web-app-capable" content="yes" />
@@ -136,7 +177,7 @@ For support and installation notes visit http://www.hlxcommunity.com
     <script type="text/javascript" src="<?php echo $inc_web; ?>/js/leaflet.js"></script>
 
     <!-- Modern Responsive Adapter -->
-    <link rel="stylesheet" type="text/css" href="<?php echo $webroot; ?>/styles/modern-responsive.css?v=1.4" />
+    <link rel="stylesheet" type="text/css" href="<?php echo $webroot; ?>/styles/modern-responsive.css?v=1.5" />
 
     <!-- GLightbox -->
     <link rel="stylesheet" type="text/css" href="<?php echo $webroot; ?>/css/glightbox.min.css" />
@@ -296,6 +337,7 @@ For support and installation notes visit http://www.hlxcommunity.com
             foreach ($location as $l=>$url)
             {
                 $url = str_replace('%s', (string)($g_options['scripturl'] ?? ''), (string)$url);
+                $url = str_replace('&amp;', '&', $url);
                 $url = str_replace('&', '&amp;', $url);
                 echo ' <span class="arrow">&raquo;</span></li><li>';
                 if ($url) {

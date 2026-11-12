@@ -27,6 +27,18 @@ class teamspeakDisplayClass
     public $is_ts6 = false;
     public $error = '';
 
+    private function writeCache($file, $content, $flags = 0)
+    {
+        if (!is_string($content) || $content === '') {
+            return false;
+        }
+        $tmp = $file . '.' . getmypid() . '.tmp';
+        if (@file_put_contents($tmp, $content, LOCK_EX) === false) {
+            return false;
+        }
+        return @rename($tmp, $file);
+    }
+
     function _stripEOL($evalString) {
         if ($evalString === false || $evalString === null) {
             return '';
@@ -63,6 +75,10 @@ class teamspeakDisplayClass
                     return true;
                 }
             }
+        }
+        if ($socket) {
+            @fclose($socket);
+            $socket = null;
         }
         $this->error = "Connection timed out or host unreachable ($host:$port).";
         return false;
@@ -241,7 +257,8 @@ class teamspeakDisplayClass
         $data = '';
         $max_lines = 2000;
         $count = 0;
-        while (!feof($socket) && $count++ < $max_lines) {
+        $deadline = microtime(true) + 3.0;
+        while (!feof($socket) && $count++ < $max_lines && microtime(true) < $deadline) {
             $line = fgets($socket, 8192);
             if ($line === false) break;
             $trimmed = trim($line);
@@ -451,6 +468,9 @@ class teamspeakDisplayClass
     // --- MAIN DISPATCHER: TS6 -> TS3 -> TS2 ---
     // ==========================================
     function queryTeamspeakServerEx($settings) {
+        $this->is_ts3 = false;
+        $this->is_ts6 = false;
+        $this->error  = '';
         $raw_host = trim((string)($settings["serveraddress"] ?? '127.0.0.1'));
         // Sanitize hostname: strip protocol prefixes (ts3server://, http://, ://) and trailing slashes
         $host = preg_replace('~^([a-z0-9_]+://|://)~i', '', $raw_host);
@@ -466,6 +486,7 @@ class teamspeakDisplayClass
 
         $qport = (int)($settings["serverqueryport"] ?? 10011);
         $uport = (int)($settings["serverudpport"] ?? 9987);
+        $conn_host = filter_var($host, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) ? '[' . $host . ']' : $host;
 
         // Smart API key detection from password settings
         $raw_pass = trim((string)($settings["apikey"] ?? $settings["password"] ?? $settings["serverpassword"] ?? ''));
@@ -480,9 +501,10 @@ class teamspeakDisplayClass
         $api_key = trim($api_key);
 
         // Cache: 90s for success, only 10s for errors (faster recovery while testing)
-        $cache_dir = defined('TEMP_PATH') ? TEMP_PATH : sys_get_temp_dir();
+        $cache_dir = (defined('TEMP_PATH') && is_dir(TEMP_PATH) && is_writable(TEMP_PATH)) ? TEMP_PATH : sys_get_temp_dir();
         $cache_file = rtrim($cache_dir, '/\\') . '/ts_query_' . md5($host . '_' . $qport . '_' . $uport) . '.json';
 
+        $stale = null;
         if (file_exists($cache_file)) {
             $age = time() - filemtime($cache_file);
             $cached_content = @file_get_contents($cache_file);
@@ -493,15 +515,27 @@ class teamspeakDisplayClass
                     if (($is_cached_err && $age < 10) || (!$is_cached_err && $age < 90)) {
                         return $decoded;
                     }
+                    $stale = $decoded;
                 }
+            }
+        }
+
+        // Stampede guard: only one request refreshes the cache, the others serve stale data.
+        // The lock is released automatically when $lock goes out of scope at function exit.
+        $lock = @fopen($cache_file . '.lock', 'c');
+        if ($lock && !@flock($lock, LOCK_EX | LOCK_NB)) {
+            fclose($lock);
+            $lock = null;
+            if ($stale !== null) {
+                return $stale;
             }
         }
 
         // 1. TRY TS6 HTTP REST WEBQUERY (if port 10080 or API key provided)
         if ($qport === 10080 || !empty($api_key)) {
-            $ts6_data = $this->_queryTS6Http($host, $qport, $uport, $api_key);
+            $ts6_data = $this->_queryTS6Http($conn_host, $qport, $uport, $api_key);
             if ($ts6_data !== false) {
-                @file_put_contents($cache_file, json_encode($ts6_data), LOCK_EX);
+                $this->writeCache($cache_file, json_encode($ts6_data, JSON_INVALID_UTF8_SUBSTITUTE), LOCK_EX);
                 return $ts6_data;
             }
         }
@@ -509,10 +543,9 @@ class teamspeakDisplayClass
         $result = array();
         $socket = null;
 
-        // Fast 1.5-second socket timeout
-        if (! $this->_openConnection($socket, $host, $qport, 1.5)) {
+        if (! $this->_openConnection($socket, $conn_host, $qport, 1.5)) {
             $result = ["queryerror" => 1, "error_msg" => $this->error];
-            @file_put_contents($cache_file, json_encode($result), LOCK_EX);
+            $this->writeCache($cache_file, json_encode($result, JSON_INVALID_UTF8_SUBSTITUTE), LOCK_EX);
             return $result;
         }
 
@@ -522,10 +555,10 @@ class teamspeakDisplayClass
             $this->_closeConnection($socket);
             if ($ts3_result === false) {
                 $result = ["queryerror" => 2, "error_msg" => $this->error];
-                @file_put_contents($cache_file, json_encode($result), LOCK_EX);
+                $this->writeCache($cache_file, json_encode($result, JSON_INVALID_UTF8_SUBSTITUTE), LOCK_EX);
                 return $result;
             }
-            @file_put_contents($cache_file, json_encode($ts3_result), LOCK_EX);
+            $this->writeCache($cache_file, json_encode($ts3_result, JSON_INVALID_UTF8_SUBSTITUTE), LOCK_EX);
             return $ts3_result;
         } else {
             // Legacy TS2
@@ -539,7 +572,7 @@ class teamspeakDisplayClass
                 $result["playerlist"] = $this->_getPlayerListTS2($socket);
                 $this->_closeConnection($socket);
             }
-            @file_put_contents($cache_file, json_encode($result), LOCK_EX);
+            $this->writeCache($cache_file, json_encode($result, JSON_INVALID_UTF8_SUBSTITUTE), LOCK_EX);
             return $result;
         }
     }

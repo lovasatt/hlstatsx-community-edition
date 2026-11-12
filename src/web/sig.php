@@ -18,7 +18,7 @@ HLstatsX is an enhanced version of HLstats made by Simon Garner
 HLstats - Real-time player and clan rankings and statistics for Half-Life
 http://sourceforge.net/projects/hlstats/
 Copyright (C) 2001  Simon Garner
-            
+
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
 as published by the Free Software Foundation; either version 2
@@ -209,6 +209,9 @@ if (!function_exists('f_num')) {
         $show_flags = valid_request((int)$_GET['show_flags'], true);
     }
 
+    $show_flags = ((int)$show_flags > 0) ? 1 : 0;
+    $use_cache = !isset($_GET['color']) && !isset($_GET['caption_color']) && !isset($_GET['link_color']);
+
     $background = 'random';
     if (isset($_GET['background']) && ((($_GET['background'] > 0) && ($_GET['background'] < 12)) || ($_GET['background'] == 'random'))) {
         $background = valid_request($_GET['background'], false);
@@ -237,7 +240,7 @@ if (!function_exists('f_num')) {
 
 //    $cache_file = $cache_dir . '/sig_' . $player_id . '_' . $background . '.png';
 
-    if (file_exists($cache_file)) {
+    if ($use_cache && file_exists($cache_file)) {
         $file_timestamp = @filemtime($cache_file);
         if ($file_timestamp && ($file_timestamp + $update_interval > time())) {
             if (isset($_SERVER['HTTP_IF_MODIFIED_SINCE'])) {
@@ -557,7 +560,9 @@ if ($player_id > 0) {
 
     $mod_date = date('D, d M Y H:i:s \G\M\T', time());
 
-    @imagepng($image, $cache_file);
+    if ($use_cache) {
+        @imagepng($image, $cache_file);
+    }
 
     if (ob_get_length()) {
         ob_clean();

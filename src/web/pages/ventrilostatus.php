@@ -218,6 +218,18 @@ class CVentriloStatus
     public      $m_clientfields;        // Client field names.
     public      $m_clientlist = [];     // Array of CVentriloClient's.
 
+    private function writeCache($file, $content, $flags = 0)
+    {
+        if (!is_string($content) || $content === '') {
+            return false;
+        }
+        $tmp = $file . '.' . getmypid() . '.tmp';
+        if (@file_put_contents($tmp, $content, LOCK_EX) === false) {
+            return false;
+        }
+        return @rename($tmp, $file);
+    }
+
     function Parse( $str )
     {
         $str = (string)$str;
@@ -477,9 +489,10 @@ class CVentriloStatus
 
     function RequestCached(int $cache_time = 90): int
     {
-        $cache_dir = defined('TEMP_PATH') ? TEMP_PATH : sys_get_temp_dir();
+        $cache_dir = (defined('TEMP_PATH') && is_dir(TEMP_PATH) && is_writable(TEMP_PATH)) ? TEMP_PATH : sys_get_temp_dir();
         $cache_file = rtrim($cache_dir, '/\\') . '/ve_query_' . md5($this->m_cmdhost . '_' . $this->m_cmdport . '_' . $this->m_cmdcode) . '.json';
 
+        $stale = null;
         if (file_exists($cache_file)) {
             $age = time() - filemtime($cache_file);
             $content = @file_get_contents($cache_file);
@@ -491,14 +504,28 @@ class CVentriloStatus
                         $this->FromCacheArray($decoded);
                         return 0;
                     }
+                    $stale = $decoded;
                 }
+            }
+        }
+
+        // Stampede guard: only one request refreshes the cache, the others serve stale data.
+        // The lock is released automatically when $lock goes out of scope at function exit.
+        $lock = @fopen($cache_file . '.lock', 'c');
+        if ($lock && !@flock($lock, LOCK_EX | LOCK_NB)) {
+            fclose($lock);
+            $lock = null;
+            if ($stale !== null) {
+                $this->FromCacheArray($stale);
+                return 0;
             }
         }
 
         $this->Request();
 
+        // Ventrilo names are not guaranteed to be UTF-8: substitute invalid bytes so json_encode() never fails
         $cache_data = $this->ToCacheArray();
-        @file_put_contents($cache_file, json_encode($cache_data), LOCK_EX);
+        $this->writeCache($cache_file, json_encode($cache_data, JSON_INVALID_UTF8_SUBSTITUTE), LOCK_EX);
         return 0;
     }
 };
@@ -756,7 +783,7 @@ class Vent
         }
 
         // check if we've got the right number of packets
-        if ( $this->packets[0]->totpck != count( $this->packets )) {
+        if ( !isset( $this->packets[0] ) || $this->packets[0]->totpck != count( $this->packets )) {
             $this->error = "Received fewer packets than expected in response.";
             return false;
         }

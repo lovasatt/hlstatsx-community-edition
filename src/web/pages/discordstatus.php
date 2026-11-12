@@ -22,6 +22,18 @@ class CDiscordStatus
     public $m_voice_tree = [];
     public $m_directory = [];
 
+    private function writeCache($file, $content, $flags = 0)
+    {
+        if (!is_string($content) || $content === '') {
+            return false;
+        }
+        $tmp = $file . '.' . getmypid() . '.tmp';
+        if (@file_put_contents($tmp, $content, LOCK_EX) === false) {
+            return false;
+        }
+        return @rename($tmp, $file);
+    }
+
     private function sanitizeInviteUrl($url)
     {
         $url = trim((string)$url);
@@ -96,9 +108,11 @@ class CDiscordStatus
         }
 
         // Cache engine: 90s for success, 15s for error responses to prevent API rate limits (HTTP 429)
-        $cache_dir = defined('TEMP_PATH') ? TEMP_PATH : sys_get_temp_dir();
+        $cache_dir = (defined('TEMP_PATH') && is_dir(TEMP_PATH) && is_writable(TEMP_PATH)) ? TEMP_PATH : sys_get_temp_dir();
         $cache_file = rtrim($cache_dir, '/\\') . '/discord_widget_' . $guild_id . '.json';
         $json = null;
+
+        $stale_raw = null;
 
         if (file_exists($cache_file)) {
             $age = time() - filemtime($cache_file);
@@ -113,7 +127,22 @@ class CDiscordStatus
                             return false;
                         }
                         $json = $cached_raw;
+                    } elseif (!$is_cached_err) {
+                        $stale_raw = $cached_raw;
                     }
+                }
+            }
+        }
+
+        // Stampede guard: only one request refreshes the cache, the others serve stale data.
+        // The lock is released automatically when $lock goes out of scope at function exit.
+        if (!$json) {
+            $lock = @fopen($cache_file . '.lock', 'c');
+            if ($lock && !@flock($lock, LOCK_EX | LOCK_NB)) {
+                fclose($lock);
+                $lock = null;
+                if ($stale_raw !== null) {
+                    $json = $stale_raw;
                 }
             }
         }
@@ -129,7 +158,7 @@ class CDiscordStatus
                 CURLOPT_FOLLOWLOCATION => true,
                 CURLOPT_MAXREDIRS      => 3,
                 CURLOPT_ENCODING       => "",
-                CURLOPT_USERAGENT      => 'Mozilla/5.0 (compatible; HLstatsX-SteamEngine/2.0)',
+                CURLOPT_USERAGENT      => 'Mozilla/5.0 (compatible; HLstatsX-DiscordEngine/2.0)',
                 CURLOPT_SSL_VERIFYPEER => true,
                 CURLOPT_SSL_VERIFYHOST => 2
             ]);
@@ -142,17 +171,21 @@ class CDiscordStatus
 
             if ($curl_errno !== 0) {
                 $this->m_error = 'cURL Connection Error (' . $curl_errno . '): ' . $curl_err;
-                @file_put_contents($cache_file, json_encode(['__hlx_error' => $this->m_error]), LOCK_EX);
+                $this->writeCache($cache_file, json_encode(['__hlx_error' => $this->m_error]), LOCK_EX);
                 return false;
             }
 
             if ($code === 200 && !empty($json)) {
                 $test_decode = json_decode($json, true);
                 if (is_array($test_decode) && json_last_error() === JSON_ERROR_NONE) {
-                    @file_put_contents($cache_file, $json, LOCK_EX);
+                    if (isset($test) && is_array($test) && !empty($test['__hlx_server_icon']) && $test['__hlx_server_icon'] !== 'none') {
+                        $test_decode['__hlx_server_icon'] = $test['__hlx_server_icon'];
+                        $json = json_encode($test_decode);
+                    }
+                    $this->writeCache($cache_file, $json, LOCK_EX);
                 } else {
                     $this->m_error = 'Invalid data format received from Discord API.';
-                    @file_put_contents($cache_file, json_encode(['__hlx_error' => $this->m_error]), LOCK_EX);
+                    $this->writeCache($cache_file, json_encode(['__hlx_error' => $this->m_error]), LOCK_EX);
                     return false;
                 }
             } else {
@@ -163,7 +196,7 @@ class CDiscordStatus
                 } else {
                     $this->m_error = 'Discord API returned unexpected HTTP status code: ' . $code;
                 }
-                @file_put_contents($cache_file, json_encode(['__hlx_error' => $this->m_error]), LOCK_EX);
+                $this->writeCache($cache_file, json_encode(['__hlx_error' => $this->m_error]), LOCK_EX);
                 return false;
             }
         }
@@ -205,7 +238,7 @@ class CDiscordStatus
             $resolved_icon = $this->fetchGuildIcon($this->m_invite, $guild_id);
             $data['__hlx_server_icon'] = !empty($resolved_icon) ? $resolved_icon : 'none';
             $this->m_icon = $resolved_icon;
-            @file_put_contents($cache_file, json_encode($data), LOCK_EX);
+            $this->writeCache($cache_file, json_encode($data), LOCK_EX);
         }
 
         // Build channel index sorted by position

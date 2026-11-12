@@ -27,6 +27,18 @@ class CSteamGroupStatus
     public $m_announcements = [];
     public $m_error = '';
 
+    private function writeCache($file, $content, $flags = 0)
+    {
+        if (!is_string($content) || $content === '') {
+            return false;
+        }
+        $tmp = $file . '.' . getmypid() . '.tmp';
+        if (@file_put_contents($tmp, $content, LOCK_EX) === false) {
+            return false;
+        }
+        return @rename($tmp, $file);
+    }
+
     private function fetchUrl($url)
     {
         $ch = curl_init($url);
@@ -94,7 +106,7 @@ class CSteamGroupStatus
             : "https://steamcommunity.com/groups/" . urlencode($ident);
 
         // Cache engine: 15 mins (900s) for success, 120s for network errors
-        $cache_dir = defined('TEMP_PATH') ? TEMP_PATH : sys_get_temp_dir();
+        $cache_dir = (defined('TEMP_PATH') && is_dir(TEMP_PATH) && is_writable(TEMP_PATH)) ? TEMP_PATH : sys_get_temp_dir();
         $cache_file = rtrim($cache_dir, '/\\') . '/steam_group_' . md5($ident) . '.json';
         $cached_data = null;
 
@@ -115,22 +127,32 @@ class CSteamGroupStatus
             }
         }
 
+        // Stampede guard: only one request refreshes the cache, the others serve stale data.
+        // The lock is released automatically when $lock goes out of scope at function exit.
+        $lock = @fopen($cache_file . '.lock', 'c');
+        if ($lock && !@flock($lock, LOCK_EX | LOCK_NB)) {
+            fclose($lock);
+            $lock = null;
+            if ($cached_data && empty($cached_data['__error'])) {
+                $this->applyData($cached_data);
+                return true;
+            }
+        }
+
         // Live queries: XML Details and RSS Announcements (p=1 limits member IDs to page 1, preventing multi-MB downloads on huge groups)
         $xml_url = $base_url . "/memberslistxml/?xml=1&p=1";
         $xml_raw = $this->fetchUrl($xml_url);
 
-        $rss_url = $base_url . "/rss/";
-        $rss_raw = $this->fetchUrl($rss_url);
-
         // Stale-While-Revalidate: If Steam is down, serve stale cache
         if (!$xml_raw && $cached_data && empty($cached_data['__error'])) {
+            @touch($cache_file);
             $this->applyData($cached_data);
             return true;
         }
 
         if (!$xml_raw) {
             $this->m_error = 'Steam Community is currently unreachable or group is private.';
-            @file_put_contents($cache_file, json_encode(['__error' => $this->m_error]), LOCK_EX);
+            $this->writeCache($cache_file, json_encode(['__error' => $this->m_error]), LOCK_EX);
             return false;
         }
 
@@ -141,7 +163,7 @@ class CSteamGroupStatus
 
         if (!$xml || !isset($xml->groupDetails)) {
             $this->m_error = 'Failed to parse Steam Group data.';
-            @file_put_contents($cache_file, json_encode(['__error' => $this->m_error]), LOCK_EX);
+            $this->writeCache($cache_file, json_encode(['__error' => $this->m_error]), LOCK_EX);
             return false;
         }
 
@@ -160,6 +182,10 @@ class CSteamGroupStatus
         $this->m_members_chatting  = (int)($gd->membersInChat ?? $gd->membersChatting ?? 0);
 
         // Parse RSS Announcements safely (fetch up to 30 items for pagination)
+
+        // Fetch the RSS feed only after the group XML succeeded (saves a second timeout when Steam is down)
+        $rss_raw = $this->fetchUrl($base_url . "/rss/");
+
         $announcements = [];
         if ($rss_raw) {
             libxml_use_internal_errors(true);
@@ -198,7 +224,7 @@ class CSteamGroupStatus
             'announcements'    => $this->m_announcements,
             '__error'          => ''
         ];
-        @file_put_contents($cache_file, json_encode($to_cache), LOCK_EX);
+        $this->writeCache($cache_file, json_encode($to_cache), LOCK_EX);
 
         return true;
     }

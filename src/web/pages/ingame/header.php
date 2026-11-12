@@ -54,19 +54,22 @@ For support and installation notes visit http://www.hlxcommunity.com
     }
 
     // Security Fix: Prevent Open Redirect while supporting reverse proxy host headers
-    $lastpage = (string)($_SERVER['HTTP_REFERER'] ?? '');
+    $lastpage = trim((string)($_SERVER['HTTP_REFERER'] ?? ''));
     if ($lastpage !== '') {
         $raw_host = $_SERVER['HTTP_X_FORWARDED_HOST'] ?? $_SERVER['HTTP_HOST'] ?? '';
         $host = preg_replace('/[^a-zA-Z0-9.:-]/', '', trim(explode(',', (string)$raw_host)[0]));
         $host_name = explode(':', $host)[0];
 
         $parsed = parse_url($lastpage);
-        $ref_host = explode(':', (string)($parsed['host'] ?? ''))[0];
-
-        if ($ref_host !== '' && strtolower($ref_host) !== strtolower($host_name)) {
+        if ($parsed === false || !is_array($parsed)) {
             $lastpage = '';
-        } elseif (!preg_match('~^https?://~i', $lastpage) && !str_starts_with($lastpage, '/')) {
-            $lastpage = '';
+        } else {
+            $ref_host = explode(':', (string)($parsed['host'] ?? ''))[0];
+            if ($ref_host !== '' && strtolower($ref_host) !== strtolower($host_name)) {
+                $lastpage = '';
+            } elseif (!preg_match('~^https?://~i', $lastpage) && (strncmp($lastpage, '/', 1) !== 0)) {
+                $lastpage = '';
+            }
         }
     }
 
@@ -76,6 +79,9 @@ For support and installation notes visit http://www.hlxcommunity.com
     $style = basename($raw_style);
     if ($style === '' || !preg_match('/\.css$/i', $style)) {
         $style = 'default.css';
+    }
+    if (defined('PAGE_PATH') && !is_file(PAGE_PATH . '/../styles/' . $style)) {
+        $style = basename((string)($g_options['style'] ?? 'default.css'));
     }
 
     $raw_dir = str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? ''));

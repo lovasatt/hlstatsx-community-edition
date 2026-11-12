@@ -374,7 +374,7 @@ For support and installation notes visit http://www.hlxcommunity.com
     ";
 
     $result = $db->query($query);
-    if ($db->num_rows($result) != 0)
+    if ($result && $db->num_rows($result) != 0)
     {
         printSectionTitle('Weapon Targets *');
 

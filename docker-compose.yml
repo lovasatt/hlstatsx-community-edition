@@ -41,6 +41,7 @@ services:
       DB_HOST: "hlx-db"
       DAEMON_HOST: "${DAEMON_HOST:-hlx-daemon}"
       HUD_URL: "${HUD_URL:-http://localhost}"
+      HLX_TRUSTED_PROXIES: "${HLX_TRUSTED_PROXIES:-127.0.0.1,::1,172.17.0.1,172.18.0.1,172.19.0.1,172.20.0.1,172.21.0.1}"
       TZ: "${TZ:-Europe/Budapest}"
 
   daemon:

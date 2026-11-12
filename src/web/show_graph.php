@@ -18,7 +18,7 @@ HLstatsX is an enhanced version of HLstats made by Simon Garner
 HLstats - Real-time player and clan rankings and statistics for Half-Life
 http://sourceforge.net/projects/hlstats/
 Copyright (C) 2001  Simon Garner
-            
+
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
 as published by the Free Software Foundation; either version 2
@@ -138,8 +138,17 @@ For support and installation notes visit http://www.hlxcommunity.com
     if (isset($_GET['type']) && is_numeric($_GET['type'])) {
 	$bar_type = valid_request((int)$_GET['type'], true);
     }
-	
+
+    if (!in_array((int)$bar_type, array(0, 1, 2), true)) {
+        $bar_type = 0;
+    }
+
     $clean_game_file = preg_replace('/[^a-zA-Z0-9_\-]/', '', $game);
+
+    // Game is only used by the type 1 query; a constant keeps type 0 cache file names bounded
+    if ($bar_type != 1) {
+        $clean_game_file = 'x';
+    }
 
     $selectedStyle = (isset($_COOKIE['style']) && $_COOKIE['style']) ? $_COOKIE['style'] : $g_options['style'];
 
@@ -171,6 +180,10 @@ For support and installation notes visit http://www.hlxcommunity.com
     $server_load_type = 1;
     if (isset($_GET['range']) && is_numeric($_GET['range'])) {
 	$server_load_type = valid_request((int)$_GET['range'], true);
+    }
+
+    if ($server_load_type < 1 || $server_load_type > 4) {
+        $server_load_type = 1;
     }
 
     switch ($server_load_type) {
@@ -228,9 +241,28 @@ For support and installation notes visit http://www.hlxcommunity.com
         }
     }
 
+    // Unknown servers / games must never be rendered or create cache files
+    $exists_ok = true;
+    if ($bar_type == 0) {
+        $chk = $db->query("SELECT 1 FROM hlstats_Servers WHERE serverId=" . (int)$server_id . " LIMIT 1");
+        $exists_ok = ($chk && $db->num_rows($chk) > 0);
+        if ($chk) { $db->free_result($chk); }
+    } elseif ($bar_type == 1) {
+        $chk = $db->query("SELECT 1 FROM hlstats_Games WHERE code='{$game_escaped}' LIMIT 1");
+        $exists_ok = ($chk && $db->num_rows($chk) > 0);
+        if ($chk) { $db->free_result($chk); }
+    }
+    if (!$exists_ok) {
+        if (ob_get_length()) {
+            ob_clean();
+        }
+        http_response_code(404);
+        exit;
+    }
+
     $legend_x = 0;
     $max_pos_y = array();
-    
+
     $image = imagecreatetruecolor($width, $height);
     imagealphablending($image, false);
 

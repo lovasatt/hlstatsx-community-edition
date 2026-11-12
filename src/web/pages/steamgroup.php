@@ -306,7 +306,7 @@ if ($in_game_pct >= 8.0) {
             <tr class="<?php echo ($info_idx++ % 2 == 0) ? 'bg1' : 'bg2'; ?>">
                 <td style="width:22%; font-weight:bold;">Community:</td>
                 <td>
-                    <img src="<?php echo $group_avatar; ?>" onerror="this.src='<?php echo $default_avatar; ?>';" alt="" width="28" height="28" style="width:28px; height:28px; border-radius:4px; vertical-align:middle; margin-right:8px; border:1px solid rgba(0,0,0,0.15); box-shadow:0 1px 3px rgba(0,0,0,0.25); object-fit:cover; background:rgba(0,0,0,0.05);" />
+                    <img src="<?php echo $group_avatar; ?>" onerror="this.onerror=null;this.src='<?php echo $default_avatar; ?>';" alt="" width="28" height="28" style="width:28px; height:28px; border-radius:4px; vertical-align:middle; margin-right:8px; border:1px solid rgba(0,0,0,0.15); box-shadow:0 1px 3px rgba(0,0,0,0.25); object-fit:cover; background:rgba(0,0,0,0.05);" />
                     <strong style="font-size:13px; vertical-align:middle;"><?php echo $safe_name; ?></strong>
                     <?php if ($raw_db_name !== '' && !empty($sg->m_name) && strcasecmp($raw_db_name, $sg->m_name) !== 0): ?>
                         &mdash; <em style="vertical-align:middle;"><?php echo htmlspecialchars($sg->m_name, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); ?></em>
@@ -443,9 +443,13 @@ if ($in_game_pct >= 8.0) {
                 foreach ($paged_news as $news) {
                     $row_class  = ($n_idx++ % 2 == 0) ? 'bg1' : 'bg2';
                     $safe_title = htmlspecialchars($news['title'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+                    if (!preg_match('~^https?://~i', (string)$news['link'])) {
+                        $news['link'] = '#';
+                    }
                     $safe_link  = htmlspecialchars($news['link'], ENT_QUOTES, 'UTF-8');
                     $raw_date   = $news['pubDate'] ?: 'now';
-                    $safe_date  = htmlspecialchars(date('M d, Y @ H:i', strtotime($raw_date)), ENT_QUOTES, 'UTF-8');
+                    $news_ts    = strtotime($raw_date);
+                    $safe_date  = htmlspecialchars(($news_ts > 0) ? date('M d, Y @ H:i', $news_ts) : 'Unknown date', ENT_QUOTES, 'UTF-8');
                     $time_ago   = format_steam_time_ago($raw_date);
                     $safe_ex    = htmlspecialchars($news['excerpt'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
                     $game_badge = getSteamNewsBadgeHtml($news['title'], $hlx_games);

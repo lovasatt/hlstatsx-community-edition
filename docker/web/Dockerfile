@@ -68,6 +68,7 @@ CMD sed -i "s|defineVar(\"DB_ADDR\", '[^']*');|defineVar(\"DB_ADDR\", 'hlx-db');
     sed -i "s|defineVar(\"DB_USER\", '[^']*');|defineVar(\"DB_USER\", '$DB_USER');|g" /var/www/config.php && \
     sed -i "s|defineVar(\"DB_PASS\", '[^']*');|defineVar(\"DB_PASS\", '$DB_PASS');|g" /var/www/config.php && \
     sed -i "s|defineVar(\"DB_NAME\", '[^']*');|defineVar(\"DB_NAME\", '$DB_NAME');|g" /var/www/config.php && \
+    sed -i "s|defineVar(\"HLX_TRUSTED_PROXIES\", '[^']*');|defineVar(\"HLX_TRUSTED_PROXIES\", '$HLX_TRUSTED_PROXIES');|g" /var/www/config.php && \
     sed -i "s|name=\"masterserver\" value=\"[^\"]*\"|name=\"masterserver\" value=\"$DAEMON_HOST\"|g" /var/www/pages/admintasks/tools_perlcontrol.php && \
     sed -i "s|defineVar('DB_HOST',\s*'[^']*');|defineVar('DB_HOST', 'hlx-db');|g" /opt/heatmaps/config.inc.php && \
     sed -i "s|defineVar('DB_USER',\s*'[^']*');|defineVar('DB_USER', '$DB_USER');|g" /opt/heatmaps/config.inc.php && \

@@ -603,6 +603,14 @@ if ($cache_ok && mt_rand(1, 100) === 1) {
 }
 
 hlxav_serve_cached($cache_file, $update_interval, $hlxav_raw_ims, false);
+$resExists = $db->query("SELECT 1 FROM hlstats_Players WHERE playerId = " . (int)$player_id . " LIMIT 1");
+$player_exists = ($resExists && $db->num_rows($resExists) === 1);
+if ($resExists) {
+    $db->free_result($resExists);
+}
+if (!$player_exists) {
+    hlxav_fail(404);
+}
 
 $lock = null;
 $have_lock = false;

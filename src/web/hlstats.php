@@ -253,6 +253,7 @@ $valid_modes = array(
     'ventrilo',
     'discord',
     'steamgroup',
+    'mist',
     'updater',
     'profile'
 );
@@ -279,6 +280,9 @@ if ( !in_array($mode, $valid_modes) )
 
 if ($mode !== 'admin')
 {
+    if (!empty($_POST['js'])) {
+        $_SESSION['nojs'] = 0;
+    }
     session_write_close();
 }
 

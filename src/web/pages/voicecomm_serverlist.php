@@ -10,6 +10,7 @@
     if (!defined('VENT')) define('VENT', 1);
     if (!defined('DISCORD')) define('DISCORD', 2);
     if (!defined('STEAMGROUP')) define('STEAMGROUP', 3);
+    if (!defined('MISTSERVER')) define('MISTSERVER', 4);
 
     $game = isset($game) ? (string)$game : '';
     $url_game = urlencode($game);
@@ -47,6 +48,7 @@
         $vent_servers = array();
         $discord_servers = array();
         $steam_servers = array();
+        $mist_servers = array();
 
         while ($row = $db->fetch_array($result)) {
             $row_type = (int)($row['serverType'] ?? 0);
@@ -58,6 +60,8 @@
                 $discord_servers[] = $row;
             } else if ($row_type == STEAMGROUP) {
                 $steam_servers[] = $row;
+            } else if ($row_type == MISTSERVER) {
+                $mist_servers[] = $row;
             }
         }
         $db->free_result($result);
@@ -123,9 +127,9 @@
                 <img src="<?php echo IMAGE_PATH; ?>/teamspeak/teamspeak.png" alt="tsicon" width="16" height="16" style="vertical-align:middle;" />
                 &nbsp;<a href="<?php echo $scripturl; ?>?mode=teamspeak&amp;game=<?php echo $url_game; ?>&amp;tsId=<?php echo $ts_server_id; ?>"><?php echo $safe_name; ?></a>
             </td>
-            <td>
-                <a href="ts3server://<?php echo $safe_addr; ?>?port=<?php echo $ts_udp_port; ?>">
-                    <?php echo $safe_addr . ':' . $ts_udp_port; ?>
+            <td style="vertical-align:middle;">
+                <a href="ts3server://<?php echo $safe_addr; ?>?port=<?php echo $ts_udp_port; ?>" style="color:#2575fc; font-weight:bold; text-decoration:none;" title="<?php echo $safe_addr . ':' . $ts_udp_port; ?>">
+                  🔗 Connect Server
                 </a>
             </td>
             <td>
@@ -190,9 +194,9 @@
                     <img src="<?php echo IMAGE_PATH; ?>/ventrilo/ventrilo.png" alt="venticon" width="16" height="16" style="vertical-align:middle;" />
                     &nbsp;<a href="<?php echo $scripturl; ?>?mode=ventrilo&amp;game=<?php echo $url_game; ?>&amp;veId=<?php echo $ve_server_id; ?>"><?php echo $safe_name; ?></a>
                 </td>
-                <td>
-                    <a href="ventrilo://<?php echo $safe_addr . ':' . $ve_port; ?>/servername=<?php echo rawurlencode($display_name); ?>">
-                    <?php echo $safe_addr . ':' . $ve_port; ?>
+                <td style="vertical-align:middle;">
+                    <a href="ventrilo://<?php echo $safe_addr . ':' . $ve_port; ?>/servername=<?php echo rawurlencode($display_name); ?>" style="color:#FE7200; font-weight:bold; text-decoration:none;" title="<?php echo $safe_addr . ':' . $ve_port; ?>">
+                      🔗 Connect Server
                     </a>
                 </td>
                 <td>
@@ -253,13 +257,15 @@
                     <?php endif; ?>
                     &nbsp;<a href="<?php echo $scripturl; ?>?mode=discord&amp;game=<?php echo $url_game; ?>&amp;dcId=<?php echo $dc_server_id; ?>"><?php echo $safe_name; ?></a>
                 </td>
-                <td>
+                <td style="vertical-align:middle;">
                     <?php if (!empty($safe_invite)): ?>
                         <a href="<?php echo $safe_invite; ?>" target="_blank" rel="noopener noreferrer" style="color:#5865F2; font-weight:bold; text-decoration:none;">
                           🔗 Join Server
                         </a>
                     <?php else: ?>
-                        <span style="color:#888;">ID: <?php echo htmlspecialchars($dc_guild_id, ENT_QUOTES, 'UTF-8'); ?></span>
+                        <span style="color:#888; font-weight:bold; cursor:help;" title="Server ID: <?php echo htmlspecialchars($dc_guild_id, ENT_QUOTES, 'UTF-8'); ?>">
+                          🔒 Private Server
+                        </span>
                     <?php endif; ?>
                 </td>
                 <td><span style="color:#888;">None</span></td>
@@ -315,7 +321,7 @@
                     <?php endif; ?>
                     &nbsp;<a href="<?php echo $scripturl; ?>?mode=steamgroup&amp;game=<?php echo $url_game; ?>&amp;stId=<?php echo $sg_server_id; ?>"><?php echo $safe_name; ?></a>
                 </td>
-                <td>
+                <td style="vertical-align:middle;">
                     <a href="<?php echo $join_url; ?>" target="_blank" rel="noopener noreferrer" style="color:#2575fc; font-weight:bold; text-decoration:none;">
                       🔗 View Group
                     </a>
@@ -335,6 +341,59 @@
             }
         }
 
+        if (!empty($mist_servers))
+        {
+            require_once(PAGE_PATH . '/miststatus.php');
+            foreach($mist_servers as $ms_server)
+            {
+                $ms_info = new CMistStatus;
+                $ms_host = (string)$ms_server['addr'];
+                $ms_port = ((int)$ms_server['queryPort'] > 0) ? (int)$ms_server['queryPort'] : 8080;
+                $ms_key  = trim((string)$ms_server['password']);
+                $ms_info->Request($ms_host, $ms_port, $ms_key);
+
+                $raw_db_name  = trim((string)$ms_server['name']);
+                $display_name = ($raw_db_name !== '') ? $raw_db_name : (!empty($ms_key) ? "Live: {$ms_key}" : 'Live Stream');
+                $safe_name    = htmlspecialchars($display_name, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+                $safe_descr   = htmlspecialchars((string)($ms_server['descr'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+                $ms_server_id = (int)$ms_server['serverId'];
+                $watch_url    = "{$scripturl}?mode=mist&amp;game={$url_game}&amp;stId={$ms_server_id}";
+
+                if ($ms_info->m_is_online) {
+                    $quality_label = ($ms_info->m_height > 0) ? "{$ms_info->m_height}p" : "Live";
+                    $status_badge  = '<span style="color:#2ecc71; font-weight:bold;">🟢 Online (' . $quality_label . ')</span>';
+                } else {
+                    $status_badge  = '<span style="color:#e74c3c; font-weight:bold;">🔴 Offline</span>';
+                }
+
+                $row_class = ($row_idx++ % 2 === 0) ? 'bg1' : 'bg2';
+?>
+            <tr class="<?php echo $row_class; ?>">
+                <td class="fHeading">
+                    <img src="<?php echo htmlspecialchars(IMAGE_PATH . '/mist/mist.png', ENT_QUOTES, 'UTF-8'); ?>" alt="mist" width="16" height="16" style="vertical-align:middle;" />
+                    &nbsp;<a href="<?php echo $watch_url; ?>"><?php echo $safe_name; ?></a>
+                </td>
+                <td style="vertical-align:middle;">
+                    <a href="<?php echo $watch_url; ?>" style="color:#5865F2; font-weight:bold; text-decoration:none;">
+                      🔗 Watch Stream
+                    </a>
+                </td>
+                <td style="vertical-align:middle;">
+                    <span style="color:#888;">Stream: <code><?php echo htmlspecialchars($ms_key, ENT_QUOTES, 'UTF-8'); ?></code></span>
+                </td>
+                <td style="text-align:right; vertical-align:middle;">
+                    <span style="color:#888;"><?php echo ($ms_info->m_fps > 0) ? "{$ms_info->m_fps} FPS" : "&mdash;"; ?></span>
+                </td>
+                <td style="text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums; vertical-align:middle;">
+                    <?php echo $status_badge; ?>
+                </td>
+                <td style="vertical-align:middle;">
+                    <?php echo !empty($safe_descr) ? $safe_descr : '<span style="color:#888;">&mdash;</span>'; ?>
+                </td>
+            </tr>
+<?php
+            }
+        }
 ?>
         </table>
     </div>
