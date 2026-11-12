@@ -19,7 +19,8 @@ Counter-Strike 2 is natively supported: the updated hlstats.pl daemon handles bo
 
 | Date | Description / Feature | Support Status / Additional Information |
 | :--- | :--- | :--- |
-| 2026-10-20 | **Modernized Heatmap Engine & Multi-Level CS2 Radars** | **feat(heatmaps)!: ground-up rewrite, multi-level Z radar, GLightbox carousel, reverse-proxy hardening (v1.12.7 / DB 99)** |
+| 2026-11-12 | **MistServer Live Streams, Cache Hardening & Proxy Security** | **feat(voice): MistServer HLS/WebRTC player, stampede-proof atomic cache & proxy fix** |
+| 2026-10-20 | Modernized Heatmap Engine & Multi-Level CS2 Radars | feat(heatmaps)!: ground-up rewrite, multi-level Z radar, GLightbox carousel, reverse-proxy hardening (v1.12.7 / DB 99) |
 | 2026-09-22 | Steam Cache, Optimize Profile tabs | perf(core): modernize steam cache, optimize profile tabs, and harden database schema (v1.12.6 / DB 98) |
 | 2026-09-08 | Native Discord Integration & Voice Server Modernization | feat(discord): Widget API, live rooms & game badges; feat(ts3): ServerQuery & ts3server://; fix(admin): Strict validation, ports 0 & deletion |
 | 2026-09-04 | Database Overhaul, Web Security & CS2 Meta Completion (v1.12.5) | feat(db): Full InnoDB/UTF8MB4, Y2038 & Update 97; feat(sec): Argon2id, CSRF & Leaflet; feat(cs2): Neck hitgroups & daemon hardening |
