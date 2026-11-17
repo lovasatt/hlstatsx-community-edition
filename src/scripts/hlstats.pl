@@ -1206,36 +1206,44 @@ sub getPlayerInfo
 		# }
 
 		if ($ipAddr eq "none") {
-			$ipAddr = "";
+		    $ipAddr = "";
 		}
-		
+	
 		$bot = botidcheck($uniqueid);
-		
-        if ($bot) {
-            if ($g_servers{$s_addr}->{play_game} == CSGO() || $g_servers{$s_addr}->{play_game} == CS2()) {
-                # leo - Give CSGO's GOTV BOT a team called 'TV', on doEvent_Connect and doEvent_EnterGame:
-                # 		e.g. L 05/14/2017 - 09:09:24: "GOTV<2><BOT><>" connected, address ""
-                #		e.g. L 06/09/2017 - 03:36:49: "GOTV<2><BOT><>" entered the game
-                #		Note that GOTV's $player->{userid} > 0 by default.  This means in the HLStats_Player constructor's it will call $self->insertPlayerLivestats() and GOTV will be added to the LiveStats table.
-                # For cs2 - Give the bot userid < 0, so it registers as a HLstats_Player
-                #       E.g. L 11/15/2023 - 03:22:54.003 - "SourceTV<0><BOT><>" connected, address "none"
-				# 		E.g. L 12/06/2023 - 07:34:16.564 - "Romanov<0><BOT><>" entered the game
-				# 		E.g. L 12/06/2023 - 11:03:48.261 - "DemoRecorder<0><BOT><>" connected, address "none"
-				# 		E.g. L 12/06/2023 - 11:03:48.261 - "DemoRecorder<0><UNKNOWN><>" entered the game
-                if ($uniqueid eq "BOT" && index($name, "GOTV") != -1) {
-                    $team = 'TV';
-                }elsif ($uniqueid eq "BOT" && index($name, "SourceTV") != -1) {
-                    $userid = -1;
-                    $team = 'TV';
-                }elsif ($uniqueid eq "BOT" && $userid == 0) {
-                    $userid = -2;
-                }elsif ($uniqueid eq "UNKNOWN" && $userid == 0) {
-                    $uniqueid = 'BOT';
-                    $userid = -3;
-                }
-            }
-        }
-		
+	        if ($bot) {
+	            if ($g_servers{$s_addr}->{play_game} == CSGO() || $g_servers{$s_addr}->{play_game} == CS2()) {
+	                if ($uniqueid eq "BOT" && index($name, "GOTV") != -1) {
+	                    $team = 'TV';
+	                }elsif ($uniqueid eq "BOT" && index($name, "SourceTV") != -1) {
+	                    $userid = -1;
+	                    $team = 'TV';
+	                }elsif ($uniqueid eq "BOT" && is_source2($g_servers{$s_addr}) && ($team eq "" || $team eq "Unassigned")) {
+	                    my $human_uid = "";
+	                    if ($g_servers{$s_addr}->{"srv_players"}) {
+	                        foreach my $pl (values %{$g_servers{$s_addr}->{"srv_players"}}) {
+	                            if ($pl && $pl->{is_bot} == 0 && $pl->{name} eq $name) {
+	                                $human_uid = $pl->{uniqueid};
+	                                last;
+	                            }
+	                        }
+	                    }
+	                    if ($human_uid ne "") {
+	                        $uniqueid = $human_uid;
+	                        $bot = 0;
+	                        } elsif ($g_servers{$s_addr}->{ignore_bots} == 1 && $create_player > 0) {
+	                        $uniqueid = "UNKNOWN";
+	                        $bot = 0;
+	                    } elsif ($userid == 0) {
+	                        $userid = -2;
+	                    }
+	                }elsif ($uniqueid eq "BOT" && $userid == 0) {
+	                    $userid = -2;
+	                }elsif ($uniqueid eq "UNKNOWN" && $userid == 0 && !is_source2($g_servers{$s_addr})) {
+	                    $uniqueid = 'BOT';
+	                    $userid = -3;
+	                }
+	            }
+	        }
 		if ($g_mode eq "NameTrack") {
 			$uniqueid = $name;
 		} else {
@@ -1291,7 +1299,7 @@ sub getPlayerInfo
 				) {
 				    # Fallback lookup: If player is already active on server, preserve their real SteamID
 				    if ($haveplayer == 0 && ($userid > 0 || is_source2($g_servers{$s_addr}))) {
-					while ( my ($index, $pl) = each(%g_players) ) {
+					foreach my $pl (values %g_players) {
 					    if ($pl && (($pl->{userid} == $userid && $userid != 0) || ($pl->{name} eq $name && is_source2($g_servers{$s_addr})))) {
 						return {
 						    name     => $pl->{name},
@@ -1343,6 +1351,17 @@ sub getPlayerInfo
 		if ($haveplayer) {
 		    my $player = lookupPlayer($s_addr, $userid, $uniqueid);
 		    if ($player) {
+		        # Missing team: fill in from the log line (existing players only, never overrides)
+		        if ($create_player > 0
+		            && is_source2($g_servers{$s_addr})
+		            && ($player->{team} eq "" || $player->{team} =~ /^unassigned$/i)
+		            && $team ne "" && $team !~ /^unassigned$/i) {
+		            &doEvent_TeamSelection(
+		                $player->{"userid"},
+		                $player->{"uniqueid"},
+		                $team
+		            );
+		        }
 		        if ($role ne "" && $role ne $player->{role}) {
 		            &doEvent_RoleSelection(
 		                $player->{"userid"},
@@ -3059,13 +3078,13 @@ while ($loop = &getLine()) {
 
 			    if (like($ev_verb, "weaponstats") || like($ev_verb, "weapon_stats")) {
 				$ev_type = 501;
-				my $playerinfo = &getPlayerInfo($ev_player, 1);
+				my $playerinfo = &getPlayerInfo($ev_player, is_source2($g_servers{$s_addr}) ? 0 : 1);
 
 				if ($playerinfo) {
 				    my $playerId = $playerinfo->{"userid"};
 				    my $playerUniqueId = $playerinfo->{"uniqueid"};
 
-				    # Case-insensitive kulcsok kezelése
+				    # Handling case-sensitive keys
 				    foreach my $k (keys %ev_properties) { $ev_properties{lc($k)} = $ev_properties{$k}; }
 
 				    $ev_status = &doEvent_Statsme(
@@ -3202,20 +3221,29 @@ while ($loop = &getLine()) {
 			$ev_verb   = $5;
 			$ev_obj_a  = $6;
 			
-			if ($ev_verb eq "committed suicide with") {
-				my $playerinfo = &getPlayerInfo($ev_player, 1);
-				
-				$ev_type = 4;
-				
-				if ($playerinfo) {
-					$ev_status = &doEvent_Suicide(
-						$playerinfo->{"userid"},
-						$playerinfo->{"uniqueid"},
-						$ev_obj_a,
-						$ev_Xcoord,
-						$ev_Ycoord,
-						$ev_Zcoord,
-						%ev_properties
+		    if ($ev_verb eq "committed suicide with") {
+			# Source 2 quit: engine logs a "world" suicide with <Unassigned>/empty team AFTER "disconnected".
+			# Do not recreate the player for it; if it still exists, treat it as a quit.
+			my $quit_suicide = (is_source2($g_servers{$s_addr}) && $ev_obj_a eq "world" && $ev_player =~ /<(?:Unassigned)?>\s*$/i) ? 1 : 0;
+			my $playerinfo = &getPlayerInfo($ev_player, $quit_suicide ? 0 : 1);
+			
+			$ev_type = 4;
+			
+			if ($playerinfo && $quit_suicide) {
+			    $ev_status = &doEvent_Disconnect(
+				$playerinfo->{"userid"},
+				$playerinfo->{"uniqueid"},
+				"(reason \"Client Quit\")"
+			    );
+			} elsif ($playerinfo) {
+				$ev_status = &doEvent_Suicide(
+					$playerinfo->{"userid"},
+					$playerinfo->{"uniqueid"},
+					$ev_obj_a,
+					$ev_Xcoord,
+					$ev_Ycoord,
+					$ev_Zcoord,
+					%ev_properties
 					);
 				}
 			}

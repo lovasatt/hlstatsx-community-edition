@@ -40,7 +40,7 @@ public class HLStatsXConfig : BasePluginConfig
 public class HLStatsX_SuperLogs : BasePlugin, IPluginConfig<HLStatsXConfig>
 {
     public override string ModuleName => "HLStatsX:CE SuperLogs CS2";
-    public override string ModuleVersion => "2.5";
+    public override string ModuleVersion => "2.6";
     public override string ModuleAuthor => "lovasatt";
 
     public HLStatsXConfig Config { get; set; } = new HLStatsXConfig();
@@ -94,6 +94,7 @@ public class HLStatsX_SuperLogs : BasePlugin, IPluginConfig<HLStatsXConfig>
         { 
             _isWarmup = IsWarmup(); 
             LogToUDP($"Started map \"{Server.MapName}\"", true); 
+            AddTimer(10f, SyncTeams);
         });
         RegisterEventHandler<EventPlayerHurt>(OnPlayerHurt);
         RegisterEventHandler<EventPlayerDeath>(OnPlayerDeath);
@@ -106,8 +107,11 @@ public class HLStatsX_SuperLogs : BasePlugin, IPluginConfig<HLStatsXConfig>
         RegisterEventHandler<EventWarmupEnd>((@e, @i) => 
         { 
             _isWarmup = false; 
+            SyncTeams();
             return HookResult.Continue; 
         });
+
+        AddTimer(30f, SyncTeams, CounterStrikeSharp.API.Modules.Timers.TimerFlags.REPEAT);
 
         if (hotReload)
         {
@@ -116,6 +120,7 @@ public class HLStatsX_SuperLogs : BasePlugin, IPluginConfig<HLStatsXConfig>
             {
                 if (player.IsValid && !player.IsBot) InitPlayerStats(player.Slot);
             }
+            SyncTeams();
         }
     }
 
@@ -290,6 +295,7 @@ public class HLStatsX_SuperLogs : BasePlugin, IPluginConfig<HLStatsXConfig>
         if (@event.Userid != null && @event.Userid.IsValid)
         {
             InitPlayerStats(@event.Userid.Slot);
+            AddTimer(3f, SyncTeams);
         }
         return HookResult.Continue;
     }
@@ -298,8 +304,8 @@ public class HLStatsX_SuperLogs : BasePlugin, IPluginConfig<HLStatsXConfig>
     {
         var gr = Utilities.FindAllEntitiesByDesignerName<CCSGameRulesProxy>("cs_gamerules").FirstOrDefault()?.GameRules;
         if (gr != null) return gr.WarmupPeriod;
-        var wt = ConVar.Find("mp_warmuptime")?.GetPrimitiveValue<float>() ?? 0f;
-        var dw = ConVar.Find("mp_do_warmup_period")?.GetPrimitiveValue<bool>() ?? false;
+        var wt = ConVar<float>.Find("mp_warmuptime")?.Value ?? 0f;
+        var dw = ConVar<bool>.Find("mp_do_warmup_period")?.Value ?? false;
         return dw && wt > 0;
     }
 
@@ -320,10 +326,10 @@ public class HLStatsX_SuperLogs : BasePlugin, IPluginConfig<HLStatsXConfig>
 
         if (!string.IsNullOrEmpty(teamName))
         {
-            string? playerLog = GetPlayerLogString(@event.Userid);
+            string? playerLog = GetPlayerLogString(@event.Userid, teamName);
             if (playerLog != null)
             {
-                LogToUDP($"\"{playerLog}\" joined team \"{teamName}\"");
+                LogToUDP($"\"{playerLog}\" joined team \"{teamName}\"", true);
             }
         }
 
@@ -333,6 +339,7 @@ public class HLStatsX_SuperLogs : BasePlugin, IPluginConfig<HLStatsXConfig>
     private HookResult OnRoundStart(EventRoundStart @event, GameEventInfo info)
     {
         CheckWarmupStatus();
+        SyncTeams();
         return HookResult.Continue;
     }
 
@@ -392,6 +399,31 @@ public class HLStatsX_SuperLogs : BasePlugin, IPluginConfig<HLStatsXConfig>
         }
     }
 
+    private void SyncTeams()
+    {
+        if (!Config.Enable) return;
+
+        foreach (var p in Utilities.GetPlayers())
+        {
+            if (!p.IsValid || p.IsBot || p.IsHLTV) continue;
+
+            string team = p.TeamNum switch
+            {
+                2 => "TERRORIST",
+                3 => "CT",
+                1 => "Spectator",
+                _ => ""
+            };
+            if (team == "") continue;
+
+            string? log = GetPlayerLogString(p, team);
+            if (log != null)
+            {
+                LogToUDP($"\"{log}\" joined team \"{team}\"", true);
+            }
+        }
+    }
+
     private void CheckWarmupStatus()
     {
         _isWarmup = IsWarmup();
@@ -431,14 +463,20 @@ public class HLStatsX_SuperLogs : BasePlugin, IPluginConfig<HLStatsXConfig>
         return "unknown";
     }
 
-    private string? GetPlayerLogString(CCSPlayerController p)
+    private string? GetPlayerLogString(CCSPlayerController p, string? teamOverride = null)
     {
         if (p == null || !p.IsValid || string.IsNullOrEmpty(p.PlayerName))
         {
             return null;
         }
-        string steamId = (p.AuthorizedSteamID != null) ? p.AuthorizedSteamID.SteamId2 : "BOT";
-        string team = p.TeamNum switch { 2 => "TERRORIST", 3 => "CT", _ => "Unassigned" };
+
+        string? steamId = p.IsBot ? "BOT" : p.AuthorizedSteamID?.SteamId2;
+        if (steamId == null)
+        {
+            return null;
+        }
+
+        string team = teamOverride ?? (p.TeamNum switch { 1 => "Spectator", 2 => "TERRORIST", 3 => "CT", _ => "Unassigned" });
         string name = p.PlayerName
             .Replace("\\", "")
             .Replace("\"", "");

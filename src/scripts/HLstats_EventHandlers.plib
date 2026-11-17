@@ -2995,15 +2995,15 @@ sub doEvent_ChangeMap
 	$g_servers{$s_addr}->set("map_ts_hits", 0);
 	$g_servers{$s_addr}->updateDB();
 	while (my($pl, $player) = each(%g_players) )
-	{
-	    $player->set("team", "");
-	    $player->set("map_kills", "0");
-	    $player->set("map_deaths", "0");
-	    $player->set("map_headshots", "0");
-	    $player->set("map_shots", "0");
-	    $player->set("map_hits", "0");
-	    $player->{trackable} = 0;
-	}
+        {
+            $player->set("team", "") unless is_source2($g_servers{$s_addr});
+            $player->set("map_kills", "0");
+            $player->set("map_deaths", "0");
+            $player->set("map_headshots", "0");
+            $player->set("map_shots", "0");
+            $player->set("map_hits", "0");
+            $player->{trackable} = 0 unless is_source2($g_servers{$s_addr});
+        }
 	$g_servers{$s_addr}->updatePlayerCount();
 	
 	my $current_map = $g_servers{$s_addr}->get_map();
